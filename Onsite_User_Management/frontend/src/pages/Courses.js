@@ -30,6 +30,8 @@ import {
   Divider,
   FormControlLabel,
   Checkbox,
+  Tabs,
+  Tab,
 } from '@mui/material';
 import { Add, Delete, Search, Download, PersonAdd, CheckCircle, Edit, AccessTime, Visibility } from '@mui/icons-material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
@@ -58,6 +60,8 @@ function Courses({ courseType = 'onsite', status = 'all' }) {
   const [selectedDepartment, setSelectedDepartment] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [categories, setCategories] = useState([]); // List of unique categories for online courses
+  // Local status state for online courses (defaults to 'all')
+  const [localStatus, setLocalStatus] = useState(courseType === 'online' ? 'all' : status);
   const [formData, setFormData] = useState({
     name: '',
     batch_code: '',
@@ -77,9 +81,18 @@ function Courses({ courseType = 'onsite', status = 'all' }) {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingCourse, setEditingCourse] = useState(null);
 
+  // Update localStatus when courseType changes
+  useEffect(() => {
+    if (courseType === 'online') {
+      setLocalStatus('all');
+    } else {
+      setLocalStatus(status);
+    }
+  }, [courseType, status]);
+
   useEffect(() => {
     fetchCourses();
-  }, [status, courseType]);
+  }, [courseType === 'online' ? localStatus : status, courseType]);
 
   useEffect(() => {
     if (open || editDialogOpen) {
@@ -133,18 +146,31 @@ function Courses({ courseType = 'onsite', status = 'all' }) {
           today.setHours(0, 0, 0, 0);
           let filtered = filteredByType;
           
-          // Filter by status for online courses (only upcoming and ongoing)
-          if (courseType === 'online') {
+          // Filter by status for online courses (only upcoming and ongoing, unless status filter is 'all')
+          // Note: For online courses, we show all courses by default, but can filter by status
+          const currentStatus = courseType === 'online' ? localStatus : status;
+          if (courseType === 'online' && currentStatus !== 'all') {
             filtered = filtered.filter(course => {
               const startDate = course.startdate ? new Date(course.startdate * 1000) : null;
               const endDate = course.enddate ? new Date(course.enddate * 1000) : null;
               
               if (!startDate) return false;
               
-              const isUpcoming = startDate > today;
-              const isOngoing = startDate <= today && (!endDate || endDate >= today);
+              if (currentStatus === 'upcoming') {
+                return startDate > today;
+              } else if (currentStatus === 'ongoing') {
+                const isOngoing = startDate <= today && (!endDate || endDate >= today);
+                return isOngoing;
+              } else if (currentStatus === 'completed') {
+                return endDate && endDate < today;
+              }
               
-              return isUpcoming || isOngoing;
+              return true;
+            });
+          } else if (courseType === 'online' && currentStatus === 'all') {
+            // Show all courses, but still filter out courses without startdate
+            filtered = filtered.filter(course => {
+              return course.startdate !== null && course.startdate !== undefined;
             });
           }
           
@@ -558,7 +584,8 @@ function Courses({ courseType = 'onsite', status = 'all' }) {
   };
 
   const handleViewDetails = (courseId) => {
-    navigate(`/courses/${courseId}`);
+    // Pass course type in navigation state so CourseDetail knows which API to use
+    navigate(`/courses/${courseId}`, { state: { courseType } });
   };
 
   const handleApproveCourse = async (courseId) => {
@@ -657,18 +684,18 @@ function Courses({ courseType = 'onsite', status = 'all' }) {
                 letterSpacing: '-0.02em',
               }}
             >
-              {status === 'all' ? ` All ${courseType.charAt(0).toUpperCase() + courseType.slice(1)} Courses` :
-               status === 'upcoming' ? ` Upcoming ${courseType.charAt(0).toUpperCase() + courseType.slice(1)} Courses` :
-               status === 'ongoing' ? ` Ongoing ${courseType.charAt(0).toUpperCase() + courseType.slice(1)} Courses` :
-               status === 'planning' ? ` Planning ${courseType.charAt(0).toUpperCase() + courseType.slice(1)} Courses` :
+              {(courseType === 'online' ? localStatus : status) === 'all' ? ` All ${courseType.charAt(0).toUpperCase() + courseType.slice(1)} Courses` :
+               (courseType === 'online' ? localStatus : status) === 'upcoming' ? ` Upcoming ${courseType.charAt(0).toUpperCase() + courseType.slice(1)} Courses` :
+               (courseType === 'online' ? localStatus : status) === 'ongoing' ? ` Ongoing ${courseType.charAt(0).toUpperCase() + courseType.slice(1)} Courses` :
+               (courseType === 'online' ? localStatus : status) === 'planning' ? ` Planning ${courseType.charAt(0).toUpperCase() + courseType.slice(1)} Courses` :
                ` Completed ${courseType.charAt(0).toUpperCase() + courseType.slice(1)} Courses`}
             </Typography>
             <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
               <Typography variant="body2" sx={{ color: '#64748b', fontSize: '0.95rem' }}>
-                {status === 'all' ? `All ${courseType} courses` :
-                 status === 'upcoming' ? `${courseType.charAt(0).toUpperCase() + courseType.slice(1)} courses scheduled to start soon` :
-                 status === 'ongoing' ? `${courseType.charAt(0).toUpperCase() + courseType.slice(1)} courses currently in progress` :
-                 status === 'planning' ? `${courseType.charAt(0).toUpperCase() + courseType.slice(1)} courses scheduled for the future` :
+                {(courseType === 'online' ? localStatus : status) === 'all' ? `All ${courseType} courses` :
+                 (courseType === 'online' ? localStatus : status) === 'upcoming' ? `${courseType.charAt(0).toUpperCase() + courseType.slice(1)} courses scheduled to start soon` :
+                 (courseType === 'online' ? localStatus : status) === 'ongoing' ? `${courseType.charAt(0).toUpperCase() + courseType.slice(1)} courses currently in progress` :
+                 (courseType === 'online' ? localStatus : status) === 'planning' ? `${courseType.charAt(0).toUpperCase() + courseType.slice(1)} courses scheduled for the future` :
                  `${courseType.charAt(0).toUpperCase() + courseType.slice(1)} courses that have been completed`}
               </Typography>
               <Chip
@@ -706,6 +733,31 @@ function Courses({ courseType = 'onsite', status = 'all' }) {
           </Box>
         </Box>
       </Box>
+
+      {/* Status Filter Tabs for Online Courses */}
+      {courseType === 'online' && (
+        <Card sx={{ mb: 3, border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}` }}>
+          <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+            <Tabs
+              value={localStatus}
+              onChange={(e, newValue) => setLocalStatus(newValue)}
+              sx={{
+                '& .MuiTab-root': {
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  fontSize: '0.95rem',
+                  minHeight: 48,
+                },
+              }}
+            >
+              <Tab label="All" value="all" />
+              <Tab label="Upcoming" value="upcoming" />
+              <Tab label="Ongoing" value="ongoing" />
+              <Tab label="Completed" value="completed" />
+            </Tabs>
+          </Box>
+        </Card>
+      )}
 
       {message && (
         <Alert 
@@ -942,20 +994,29 @@ function Courses({ courseType = 'onsite', status = 'all' }) {
               <Table>
                 <TableHead>
                   <TableRow sx={{ background: 'linear-gradient(135deg, rgba(30, 64, 175, 0.05) 0%, rgba(5, 150, 105, 0.05) 100%)' }}>
-                    <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem', width: '30%' }}>Course Name</TableCell>
-                    <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem', width: '15%' }}>Batch Code</TableCell>
-                    <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem', width: '15%' }}>Start Date</TableCell>
-                    <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem', width: '15%' }}>End Date</TableCell>
+                    <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem', width: courseType === 'online' ? '25%' : '20%' }}>Course Name</TableCell>
+                    <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem', width: courseType === 'online' ? '15%' : '12%' }}>Batch Code</TableCell>
+                    <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem', width: courseType === 'online' ? '12%' : '12%' }}>Start Date</TableCell>
+                    <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem', width: courseType === 'online' ? '12%' : '12%' }}>End Date</TableCell>
                     {courseType === 'online' && (
                       <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem', width: '15%' }}>Category</TableCell>
                     )}
-                    <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem', width: '10%' }} align="right">Total Assigned</TableCell>
+                    {courseType === 'online' && (
+                      <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem', width: '10%' }} align="right">Total Assigned</TableCell>
+                    )}
+                    {courseType !== 'online' && (
+                      <>
+                        <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem', width: '10%' }}>Status</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem', width: '10%' }} align="right">Enrolled</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem', width: '12%' }} align="center">Actions</TableCell>
+                      </>
+                    )}
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {filteredCourses.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={courseType === 'online' ? 6 : 5} align="center" sx={{ py: 6 }}>
+                      <TableCell colSpan={courseType === 'online' ? 6 : 8} align="center" sx={{ py: 6 }}>
                         <Typography color="text.secondary" sx={{ fontSize: '0.95rem' }}>
                           No courses found
                         </Typography>
@@ -970,12 +1031,18 @@ function Courses({ courseType = 'onsite', status = 'all' }) {
                           '&:hover': {
                             background: 'linear-gradient(90deg, rgba(30, 64, 175, 0.03) 0%, rgba(5, 150, 105, 0.03) 100%)',
                           },
-                          cursor: 'pointer',
+                          cursor: courseType === 'online' ? 'pointer' : 'default',
                           transition: 'all 0.2s ease',
                         }}
-                        onClick={() => handleViewDetails(course.id)}
+                        onClick={courseType === 'online' ? () => handleViewDetails(course.id) : undefined}
                       >
-                        <TableCell sx={{ fontWeight: 500, color: '#1e3a8a' }}>{course.name || course.fullname}</TableCell>
+                        <TableCell 
+                          sx={{ fontWeight: 500, color: '#1e3a8a' }}
+                          onClick={courseType !== 'online' ? () => handleViewDetails(course.id) : undefined}
+                          style={{ cursor: courseType !== 'online' ? 'pointer' : 'default' }}
+                        >
+                          {course.name || course.fullname}
+                        </TableCell>
                         <TableCell sx={{ color: '#475569' }}>{course.batch_code || '-'}</TableCell>
                         <TableCell sx={{ color: '#64748b' }}>
                           {course.startdate 
@@ -1012,9 +1079,64 @@ function Courses({ courseType = 'onsite', status = 'all' }) {
                             />
                           </TableCell>
                         )}
-                        <TableCell align="right" sx={{ color: '#475569', fontWeight: 600 }}>
-                          {course.current_enrolled || '-'}
-                        </TableCell>
+                        {courseType === 'online' && (
+                          <TableCell align="right" sx={{ color: '#475569', fontWeight: 600 }}>
+                            {course.current_enrolled || '-'}
+                          </TableCell>
+                        )}
+                        {courseType !== 'online' && (
+                          <>
+                            <TableCell>
+                              <Chip
+                                label={course.status?.toUpperCase() || 'DRAFT'}
+                                size="small"
+                                color={
+                                  course.status === 'completed'
+                                    ? 'success'
+                                    : course.status === 'ongoing'
+                                    ? 'primary'
+                                    : 'warning'
+                                }
+                                sx={{ fontWeight: 600 }}
+                              />
+                            </TableCell>
+                            <TableCell align="right" sx={{ color: '#475569', fontWeight: 600 }}>
+                              {course.current_enrolled || 0}/{course.seat_limit || '∞'}
+                            </TableCell>
+                            <TableCell align="center" onClick={(e) => e.stopPropagation()}>
+                              <Box display="flex" gap={1} justifyContent="center">
+                                <IconButton
+                                  size="small"
+                                  color="primary"
+                                  onClick={() => handleEdit(course)}
+                                  sx={{
+                                    '&:hover': {
+                                      backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                                    },
+                                  }}
+                                >
+                                  <Edit fontSize="small" />
+                                </IconButton>
+                                <IconButton
+                                  size="small"
+                                  color="error"
+                                  onClick={() => {
+                                    if (window.confirm(`Are you sure you want to delete "${course.name}"?`)) {
+                                      handleDelete(course.id);
+                                    }
+                                  }}
+                                  sx={{
+                                    '&:hover': {
+                                      backgroundColor: alpha(theme.palette.error.main, 0.1),
+                                    },
+                                  }}
+                                >
+                                  <Delete fontSize="small" />
+                                </IconButton>
+                              </Box>
+                            </TableCell>
+                          </>
+                        )}
                       </TableRow>
                     ))
                   )}

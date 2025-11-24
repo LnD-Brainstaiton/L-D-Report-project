@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -84,7 +84,10 @@ import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 function CourseDetail() {
   const theme = useTheme();
   const navigate = useNavigate();
+  const location = useLocation();
   const { courseId } = useParams();
+  // Get course type from navigation state, default to 'onsite' if not provided
+  const courseType = location.state?.courseType || 'onsite';
   const [course, setCourse] = useState(null);
   const [loading, setLoading] = useState(true);
   const [enrollments, setEnrollments] = useState([]);
@@ -96,7 +99,8 @@ function CourseDetail() {
   const [draftMentorsWithDetails, setDraftMentorsWithDetails] = useState([]);
   
   // Enrollment sections - different for onsite vs online courses
-  const isOnlineCourse = course?.is_lms_course;
+  // Explicitly check: only true if is_lms_course is explicitly true
+  const isOnlineCourse = course?.is_lms_course === true;
   
   // For online courses: group by completion status
   const completedOnline = enrollments.filter(e => 
@@ -111,21 +115,68 @@ function CourseDetail() {
     !(e.progress > 0 && e.progress < 100 && e.completion_status === 'In Progress')
   );
   
+  // Helper function to normalize enum values (handle both string and enum object)
+  const normalizeStatus = (status) => {
+    if (!status) return null;
+    if (typeof status === 'string') return status;
+    if (status.value) return status.value; // Enum object with .value
+    return String(status);
+  };
+  
   // For onsite courses: group by approval status
-  const approvedEnrollments = enrollments.filter(e => !e.is_lms_enrollment && e.approval_status === 'Approved');
-  const eligiblePending = enrollments.filter(e => 
-    !e.is_lms_enrollment && e.approval_status === 'Pending' && e.eligibility_status === 'Eligible'
-  );
-  const notEligible = enrollments.filter(e => 
-    !e.is_lms_enrollment &&
-    e.approval_status !== 'Approved' && 
-    e.approval_status !== 'Rejected' &&
-    (e.eligibility_status === 'Ineligible (Missing Prerequisite)' ||
-     e.eligibility_status === 'Ineligible (Already Taken)' ||
-     e.eligibility_status === 'Ineligible (Annual Limit)')
-  );
-  const rejected = enrollments.filter(e => !e.is_lms_enrollment && e.approval_status === 'Rejected');
-  const withdrawn = enrollments.filter(e => !e.is_lms_enrollment && e.approval_status === 'Withdrawn');
+  const approvedEnrollments = enrollments.filter(e => {
+    if (e.is_lms_enrollment) return false;
+    const approvalStatus = normalizeStatus(e.approval_status);
+    return approvalStatus === 'Approved';
+  });
+  
+  const eligiblePending = enrollments.filter(e => {
+    if (e.is_lms_enrollment) return false;
+    const approvalStatus = normalizeStatus(e.approval_status);
+    const eligibilityStatus = normalizeStatus(e.eligibility_status);
+    return approvalStatus === 'Pending' && eligibilityStatus === 'Eligible';
+  });
+  
+  const notEligible = enrollments.filter(e => {
+    if (e.is_lms_enrollment) return false;
+    const approvalStatus = normalizeStatus(e.approval_status);
+    const eligibilityStatus = normalizeStatus(e.eligibility_status);
+    return approvalStatus !== 'Approved' && 
+           approvalStatus !== 'Rejected' &&
+           approvalStatus !== 'Withdrawn' &&
+           (eligibilityStatus === 'Ineligible (Missing Prerequisite)' ||
+            eligibilityStatus === 'Ineligible (Already Taken)' ||
+            eligibilityStatus === 'Ineligible (Annual Limit)');
+  });
+  
+  const rejected = enrollments.filter(e => {
+    if (e.is_lms_enrollment) return false;
+    const approvalStatus = normalizeStatus(e.approval_status);
+    return approvalStatus === 'Rejected';
+  });
+  
+  const withdrawn = enrollments.filter(e => {
+    if (e.is_lms_enrollment) return false;
+    const approvalStatus = normalizeStatus(e.approval_status);
+    return approvalStatus === 'Withdrawn';
+  });
+  
+  // Debug logging for onsite courses
+  if (!isOnlineCourse && enrollments.length > 0) {
+    console.log(`[CourseDetail] Onsite enrollment breakdown:`, {
+      total: enrollments.length,
+      approved: approvedEnrollments.length,
+      eligiblePending: eligiblePending.length,
+      notEligible: notEligible.length,
+      rejected: rejected.length,
+      withdrawn: withdrawn.length,
+      sampleEnrollment: enrollments[0] ? {
+        approval_status: enrollments[0].approval_status,
+        eligibility_status: enrollments[0].eligibility_status,
+        is_lms_enrollment: enrollments[0].is_lms_enrollment
+      } : null
+    });
+  }
   
   // Dialogs
   const [withdrawDialogOpen, setWithdrawDialogOpen] = useState(false);
@@ -207,52 +258,53 @@ function CourseDetail() {
     if (course && courseId) {
       fetchEnrollments();
     }
-  }, [course, courseId]);
+  }, [course, courseId, courseType]);
 
   const fetchCourse = async () => {
     setLoading(true);
     try {
-      // Check if this is an LMS course by trying to fetch from LMS first
       let courseData = null;
-      let isLmsCourse = false;
       
-      try {
+      // Use course type to determine which API to use - completely separate systems
+      if (courseType === 'online') {
+        // Online course - fetch from LMS API only
         const lmsResponse = await lmsAPI.getCourses();
         const lmsCourses = lmsResponse.data.courses || [];
         const lmsCourse = lmsCourses.find(c => c.id === parseInt(courseId));
         
-        if (lmsCourse) {
-          // This is an LMS course
-          isLmsCourse = true;
-          courseData = {
-            id: lmsCourse.id,
-            name: lmsCourse.fullname,
-            fullname: lmsCourse.fullname,
-            batch_code: lmsCourse.shortname || '',
-            description: lmsCourse.summary || '',
-            start_date: lmsCourse.startdate ? new Date(lmsCourse.startdate * 1000).toISOString().split('T')[0] : null,
-            end_date: lmsCourse.enddate ? new Date(lmsCourse.enddate * 1000).toISOString().split('T')[0] : null,
-            startdate: lmsCourse.startdate, // Unix timestamp
-            enddate: lmsCourse.enddate, // Unix timestamp
-            categoryname: lmsCourse.categoryname || 'Unknown',
-            categoryid: lmsCourse.categoryid,
-            course_type: 'online',
-            seat_limit: 0,
-            current_enrolled: 0,
-            status: 'ongoing',
-            visible: lmsCourse.visible === 1,
-            is_lms_course: true,
-          };
+        if (!lmsCourse) {
+          throw new Error('Online course not found in LMS');
         }
-      } catch (lmsError) {
-        // Not an LMS course or error fetching, try regular API
-        console.log('Not an LMS course or error fetching from LMS, trying regular API');
-      }
-      
-      // If not found in LMS, fetch from regular API
-      if (!courseData) {
+        
+        courseData = {
+          id: lmsCourse.id,
+          name: lmsCourse.fullname,
+          fullname: lmsCourse.fullname,
+          batch_code: lmsCourse.shortname || '',
+          description: lmsCourse.summary || '',
+          start_date: lmsCourse.startdate ? new Date(lmsCourse.startdate * 1000).toISOString().split('T')[0] : null,
+          end_date: lmsCourse.enddate ? new Date(lmsCourse.enddate * 1000).toISOString().split('T')[0] : null,
+          startdate: lmsCourse.startdate, // Unix timestamp
+          enddate: lmsCourse.enddate, // Unix timestamp
+          categoryname: lmsCourse.categoryname || 'Unknown',
+          categoryid: lmsCourse.categoryid,
+          course_type: 'online',
+          seat_limit: 0,
+          current_enrolled: 0,
+          status: 'ongoing',
+          visible: lmsCourse.visible === 1,
+          is_lms_course: true,
+        };
+      } else {
+        // Onsite course - fetch from regular API only (local database)
         const response = await coursesAPI.getById(courseId);
         courseData = response.data;
+        // Explicitly mark as NOT an LMS course (onsite course)
+        courseData.is_lms_course = false;
+        // Ensure course_type is set if not present
+        if (!courseData.course_type) {
+          courseData.course_type = 'onsite';
+        }
       }
       
       setCourse(courseData);
@@ -334,8 +386,8 @@ function CourseDetail() {
   const fetchEnrollments = async () => {
     setLoadingEnrollments(true);
     try {
-      // Check if this is an LMS course
-      if (course && course.is_lms_course) {
+      // Use courseType to determine which API to use - completely separate systems
+      if (courseType === 'online') {
         // Fetch enrollments from LMS API
         const lmsResponse = await lmsAPI.getCourseEnrollments(courseId);
         const lmsEnrollments = lmsResponse.data.enrollments || [];
@@ -390,9 +442,24 @@ function CourseDetail() {
           );
         }
       } else {
-        // Fetch enrollments from regular API for onsite courses
+        // Onsite course - fetch from regular API only (local database)
         const response = await enrollmentsAPI.getAll({ course_id: courseId });
-        setEnrollments(response.data);
+        // Explicitly mark all enrollments as NOT LMS enrollments
+        const onsiteEnrollments = (response.data || []).map(enrollment => ({
+          ...enrollment,
+          is_lms_enrollment: false,
+        }));
+        console.log(`[CourseDetail] Fetched ${onsiteEnrollments.length} onsite enrollments for course ${courseId}`);
+        if (onsiteEnrollments.length > 0) {
+          console.log('[CourseDetail] Sample enrollment:', {
+            id: onsiteEnrollments[0].id,
+            approval_status: onsiteEnrollments[0].approval_status,
+            eligibility_status: onsiteEnrollments[0].eligibility_status,
+            is_lms_enrollment: onsiteEnrollments[0].is_lms_enrollment,
+            student_name: onsiteEnrollments[0].student_name
+          });
+        }
+        setEnrollments(onsiteEnrollments);
       }
     } catch (error) {
       console.error('Error fetching enrollments:', error);
@@ -2018,6 +2085,43 @@ function CourseDetail() {
                   </CardContent>
                 </Card>
               )}
+              
+              {/* Debug: Show unclassified enrollments if there are any */}
+              {!isOnlineCourse && enrollments.length > 0 && (() => {
+                const totalClassified = approvedEnrollments.length + eligiblePending.length + notEligible.length + rejected.length + withdrawn.length;
+                const unclassified = enrollments.filter(e => !e.is_lms_enrollment && totalClassified < enrollments.length);
+                
+                if (unclassified.length > 0) {
+                  console.warn(`[CourseDetail] Found ${unclassified.length} unclassified enrollments:`, unclassified.map(e => ({
+                    id: e.id,
+                    approval_status: e.approval_status,
+                    eligibility_status: e.eligibility_status,
+                    is_lms_enrollment: e.is_lms_enrollment
+                  })));
+                  
+                  return (
+                    <Card sx={{ mb: 3, borderLeft: `4px solid ${theme.palette.error.main}`, backgroundColor: alpha(theme.palette.error.main, 0.02) }}>
+                      <CardContent>
+                        <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: theme.palette.error.main }}>
+                          Unclassified Enrollments ({unclassified.length})
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary" mb={2}>
+                          These enrollments don't match any category. Please check their approval_status and eligibility_status values.
+                        </Typography>
+                        <EnrollmentTable
+                          enrollments={unclassified}
+                          onViewDetails={(e) => {
+                            setSelectedUserEnrollment(e);
+                            setUserDetailsOpen(true);
+                          }}
+                          showActions={false}
+                        />
+                      </CardContent>
+                    </Card>
+                  );
+                }
+                return null;
+              })()}
                 </>
               )}
             </>
