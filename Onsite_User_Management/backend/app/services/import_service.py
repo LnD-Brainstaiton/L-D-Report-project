@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List, Dict, Optional
 from datetime import datetime, date
 from app.models.enrollment import IncomingEnrollment
-from app.models.student import Student, SBU
+from app.models.student import Student
 from app.models.course import Course
 from app.services.eligibility_service import EligibilityService
 from app.models.enrollment import Enrollment, EligibilityStatus, ApprovalStatus
@@ -26,7 +26,7 @@ class ImportService:
                     'employee_id': str(row.get('employee_id', '')).strip(),
                     'name': str(row.get('name', '')).strip(),
                     'email': str(row.get('email', '')).strip(),
-                    'sbu': str(row.get('sbu', '')).strip() if pd.notna(row.get('sbu')) else '',
+                    'department': str(row.get('department', row.get('sbu', ''))).strip() if pd.notna(row.get('department', row.get('sbu'))) else '',
                     'designation': str(row.get('designation', '')).strip() if pd.notna(row.get('designation')) else '',
                 }
                 # Handle career_start_date
@@ -55,7 +55,7 @@ class ImportService:
                     'employee_id': str(row.get('employee_id', '')).strip(),
                     'name': str(row.get('name', '')).strip(),
                     'email': str(row.get('email', '')).strip(),
-                    'sbu': str(row.get('sbu', '')).strip() if pd.notna(row.get('sbu')) else '',
+                    'department': str(row.get('department', row.get('sbu', ''))).strip() if pd.notna(row.get('department', row.get('sbu'))) else '',
                     'designation': str(row.get('designation', '')).strip() if pd.notna(row.get('designation')) else '',
                 }
                 # Handle career_start_date
@@ -73,22 +73,19 @@ class ImportService:
     
     @staticmethod
     def create_or_get_student(db: Session, employee_id: str, name: str, email: str, 
-                             sbu: str, designation: Optional[str] = None) -> Student:
+                             department: str, designation: Optional[str] = None) -> Student:
         """Create or get existing student record."""
         student = db.query(Student).filter(Student.employee_id == employee_id).first()
         
         if not student:
-            # Map SBU string to enum
-            try:
-                sbu_enum = SBU[sbu.upper()] if sbu.upper() in [e.name for e in SBU] else SBU.OTHER
-            except:
-                sbu_enum = SBU.OTHER
+            # Department is now a string field, use as-is or default to "Other"
+            department = department.strip() if department else "Other"
             
             student = Student(
                 employee_id=employee_id,
                 name=name,
                 email=email,
-                sbu=sbu_enum,
+                department=department,
                 designation=designation
             )
             db.add(student)
@@ -201,7 +198,7 @@ class ImportService:
                     employee_id=record['employee_id'],
                     name=record['name'],
                     email=record['email'],
-                    sbu=record.get('sbu'),
+                    department=record.get('department', record.get('sbu', 'Other')),
                     designation=record.get('designation'),
                     course_name=course.name,
                     batch_code=course.batch_code,
@@ -279,7 +276,7 @@ class ImportService:
                     'employee_id': str(row.get('employee_id', '')).strip(),
                     'name': str(row.get('name', '')).strip(),
                     'email': str(row.get('email', '')).strip(),
-                    'sbu': str(row.get('sbu', '')).strip() if pd.notna(row.get('sbu')) else '',
+                    'department': str(row.get('department', row.get('sbu', ''))).strip() if pd.notna(row.get('department', row.get('sbu'))) else '',
                     'designation': str(row.get('designation', '')).strip() if pd.notna(row.get('designation')) else '',
                     'experience_years': int(row.get('experience_years', 0)) if pd.notna(row.get('experience_years')) else 0,
                 }
@@ -309,7 +306,7 @@ class ImportService:
                     'employee_id': str(row.get('employee_id', '')).strip(),
                     'name': str(row.get('name', '')).strip(),
                     'email': str(row.get('email', '')).strip(),
-                    'sbu': str(row.get('sbu', '')).strip() if pd.notna(row.get('sbu')) else '',
+                    'department': str(row.get('department', row.get('sbu', ''))).strip() if pd.notna(row.get('department', row.get('sbu'))) else '',
                     'designation': str(row.get('designation', '')).strip() if pd.notna(row.get('designation')) else '',
                     'experience_years': int(row.get('experience_years', 0)) if pd.notna(row.get('experience_years')) else 0,
                 }
@@ -390,11 +387,10 @@ class ImportService:
                     existing_student.email = record['email']
                     
                     # Map SBU string to enum
-                    try:
-                        sbu_enum = SBU[record['sbu'].upper()] if record['sbu'].upper() in [e.name for e in SBU] else SBU.OTHER
-                    except:
-                        sbu_enum = SBU.OTHER
-                    existing_student.sbu = sbu_enum
+                    # Update department (now a string field)
+                    department = record.get('department', record.get('sbu', existing_student.department))
+                    if department:
+                        existing_student.department = department.strip() if department.strip() else "Other"
                     
                     if record.get('designation'):
                         existing_student.designation = record['designation']
@@ -431,11 +427,9 @@ class ImportService:
                     results['updated'] += 1
                 else:
                     # Create new employee
-                    # Map SBU string to enum
-                    try:
-                        sbu_enum = SBU[record['sbu'].upper()] if record['sbu'].upper() in [e.name for e in SBU] else SBU.OTHER
-                    except:
-                        sbu_enum = SBU.OTHER
+                    # Department is now a string field
+                    department = record.get('department', record.get('sbu', 'Other'))
+                    department = department.strip() if department and department.strip() else "Other"
                     
                     # Parse date fields
                     career_date = None
@@ -466,7 +460,7 @@ class ImportService:
                         employee_id=record['employee_id'],
                         name=record['name'],
                         email=record['email'],
-                        sbu=sbu_enum,
+                        department=department,
                         designation=record.get('designation'),
                         experience_years=record.get('experience_years', 0),
                         career_start_date=career_date,

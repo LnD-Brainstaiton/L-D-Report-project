@@ -182,7 +182,7 @@ def test_create_student_endpoint():
         "employee_id": f"TEST-API-{timestamp}",
         "name": "Test Student API",
         "email": f"testapi{timestamp}@example.com",
-        "sbu": "IT",
+        "department": "IT",
         "designation": "Developer"
     }
     

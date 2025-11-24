@@ -41,7 +41,7 @@ def test_attendance_calculation():
             employee_id=f"TEST-ATTEND-{timestamp}",
             name="Test Student Attendance",
             email=f"testattend{timestamp}@example.com",
-            sbu="IT",
+            department="IT",
             designation="Developer"
         )
         db.add(student)
@@ -195,7 +195,7 @@ def test_attendance_matching_logic():
             employee_id=f"TEST-MATCH-{timestamp}",
             name="Test Student Match",
             email=f"testmatch{timestamp}@example.com",
-            sbu="IT",
+            department="IT",
             designation="Developer"
         )
         db.add(student)

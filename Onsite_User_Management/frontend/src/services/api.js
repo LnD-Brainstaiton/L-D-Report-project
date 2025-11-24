@@ -87,6 +87,13 @@ export const coursesAPI = {
   approveCourse: (courseId, approvedBy) => api.post(`/courses/${courseId}/approve`, null, { params: { approved_by: approvedBy } }),
 };
 
+export const lmsAPI = {
+  getCourses: (includeEnrollmentCounts = false) => 
+    api.get('/lms/courses', { params: { include_enrollment_counts: includeEnrollmentCounts } }),
+  getCourseEnrollments: (courseId) => api.get(`/lms/courses/${courseId}/enrollments`),
+  getUserCourses: (userId) => api.get(`/lms/users/${userId}/courses`),
+};
+
 export const studentsAPI = {
   getAll: (params) => api.get('/students', { params }),
   getById: (id) => api.get(`/students/${id}`),
@@ -94,6 +101,7 @@ export const studentsAPI = {
   getEnrollments: (id) => api.get(`/students/${id}/enrollments`),
   getAllWithCourses: (params) => api.get('/students/all/with-courses', { params }),
   getCount: (params) => api.get('/students/count', { params }),
+  getDepartments: (params) => api.get('/students/departments', { params }),
   remove: (id) => api.post(`/students/${id}/remove`),
   restore: (id) => api.post(`/students/${id}/restore`),
   generateOverallReport: () => api.get('/students/report/overall', { responseType: 'blob' }),

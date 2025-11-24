@@ -15,18 +15,26 @@ import {
   CardContent,
   useTheme,
   alpha,
+  Tabs,
+  Tab,
 } from '@mui/material';
-import { studentsAPI } from '../services/api';
+import { studentsAPI, lmsAPI } from '../services/api';
 import { formatExperience } from '../utils/experienceUtils';
 import { formatDateForDisplay } from '../utils/dateUtils';
 
 function UserDetailsDialog({ open, onClose, enrollment, onViewCourseDetails, onApprove, onReject, onReapprove }) {
   const theme = useTheme();
+  const [courseType, setCourseType] = useState('onsite'); // 'onsite', 'online', 'external'
   const [studentEnrollments, setStudentEnrollments] = useState([]);
+  const [onlineCourses, setOnlineCourses] = useState([]);
   const [loadingEnrollments, setLoadingEnrollments] = useState(false);
-  const [overallCompletionRate, setOverallCompletionRate] = useState(0);
-  const [totalCoursesAssigned, setTotalCoursesAssigned] = useState(0);
-  const [completedCourses, setCompletedCourses] = useState(0);
+  
+  // Separate completion stats for each course type
+  const [completionStats, setCompletionStats] = useState({
+    onsite: { rate: 0, completed: 0, total: 0 },
+    online: { rate: 0, completed: 0, total: 0 },
+    external: { rate: 0, completed: 0, total: 0 },
+  });
 
   const fetchStudentEnrollments = async () => {
     if (!enrollment?.student_id) {
@@ -36,36 +44,125 @@ function UserDetailsDialog({ open, onClose, enrollment, onViewCourseDetails, onA
     
     setLoadingEnrollments(true);
     try {
+      // Fetch onsite enrollments
       console.log('UserDetailsDialog: Fetching enrollments for student_id:', enrollment.student_id);
       const response = await studentsAPI.getEnrollments(enrollment.student_id);
       console.log('UserDetailsDialog: Received enrollments:', response.data);
       
       // Handle both old format (array) and new format (object with enrollments and stats)
+      let onsiteEnrollments = [];
       if (Array.isArray(response.data)) {
-        setStudentEnrollments(response.data || []);
-        // Calculate from enrollments if not provided
-        const relevant = response.data.filter(e => 
+        onsiteEnrollments = response.data || [];
+      } else {
+        // New format with stats
+        onsiteEnrollments = response.data.enrollments || [];
+      }
+      
+      setStudentEnrollments(onsiteEnrollments);
+      
+      // Fetch online courses from LMS if employee_id is available
+      if (enrollment.student_employee_id) {
+        try {
+          // Try to find user by username (employee_id) in LMS
+          // First, we need to get the LMS user ID. For now, we'll try using the employee_id as username
+          // Note: This might need adjustment based on how LMS user lookup works
+          const lmsResponse = await lmsAPI.getUserCourses(enrollment.student_employee_id);
+          const lmsCourses = lmsResponse.data.courses || [];
+          
+          // Map LMS courses to enrollment format
+          const mappedOnlineCourses = lmsCourses.map(course => {
+            const progress = course.progress || 0;
+            // If progress is 100%, status is Completed; if less than 100% and > 0, In Progress; otherwise Not Started
+            const completionStatus = progress >= 100 ? 'Completed' : (progress > 0 ? 'In Progress' : 'Not Started');
+            
+            return {
+              id: `lms_${course.id}`,
+              course_id: course.id,
+              course_name: course.fullname,
+              batch_code: course.shortname || '',
+              course_type: 'online',
+              completion_status: completionStatus,
+              progress: progress,
+              course_end_date: course.enddate ? new Date(course.enddate * 1000).toISOString().split('T')[0] : null,
+              // Date assigned: use startdate (when course was assigned/started) or timemodified as fallback
+              date_assigned: course.startdate || course.timemodified || null,
+              lastaccess: course.lastaccess || null,
+              is_lms_course: true,
+            };
+          });
+          
+          setOnlineCourses(mappedOnlineCourses);
+          
+          // Calculate completion stats separately for each course type
+          // Online courses
+          const onlineCompleted = mappedOnlineCourses.filter(c => c.completion_status === 'Completed').length;
+          const onlineTotal = mappedOnlineCourses.length;
+          const onlineRate = onlineTotal > 0 ? (onlineCompleted / onlineTotal) * 100 : 0;
+          
+          // Onsite courses
+          const onsiteRelevant = onsiteEnrollments.filter(e => 
+            (e.approval_status === 'Withdrawn') ||
+            (e.approval_status === 'Approved' && ['Completed', 'Failed'].includes(e.completion_status))
+          ).filter(e => e.approval_status !== 'Rejected');
+          
+          const onsiteTotal = onsiteRelevant.length;
+          const onsiteCompleted = onsiteRelevant.filter(e => e.completion_status === 'Completed').length;
+          const onsiteRate = onsiteTotal > 0 ? (onsiteCompleted / onsiteTotal) * 100 : 0;
+          
+          // External courses (placeholder for now)
+          const externalRate = 0;
+          const externalCompleted = 0;
+          const externalTotal = 0;
+          
+          setCompletionStats({
+            onsite: { rate: onsiteRate, completed: onsiteCompleted, total: onsiteTotal },
+            online: { rate: onlineRate, completed: onlineCompleted, total: onlineTotal },
+            external: { rate: externalRate, completed: externalCompleted, total: externalTotal },
+          });
+        } catch (lmsError) {
+          console.error('UserDetailsDialog: Error fetching LMS courses:', lmsError);
+          setOnlineCourses([]);
+          
+          // Calculate completion stats with onsite courses only
+          const onsiteRelevant = onsiteEnrollments.filter(e => 
+            (e.approval_status === 'Withdrawn') ||
+            (e.approval_status === 'Approved' && ['Completed', 'Failed'].includes(e.completion_status))
+          ).filter(e => e.approval_status !== 'Rejected');
+          const onsiteTotal = onsiteRelevant.length;
+          const onsiteCompleted = onsiteRelevant.filter(e => e.completion_status === 'Completed').length;
+          const onsiteRate = onsiteTotal > 0 ? (onsiteCompleted / onsiteTotal) * 100 : 0;
+          
+          setCompletionStats({
+            onsite: { rate: onsiteRate, completed: onsiteCompleted, total: onsiteTotal },
+            online: { rate: 0, completed: 0, total: 0 },
+            external: { rate: 0, completed: 0, total: 0 },
+          });
+        }
+      } else {
+        // No employee_id, calculate completion rate with onsite courses only
+        const onsiteRelevant = onsiteEnrollments.filter(e => 
           (e.approval_status === 'Withdrawn') ||
           (e.approval_status === 'Approved' && ['Completed', 'Failed'].includes(e.completion_status))
         ).filter(e => e.approval_status !== 'Rejected');
-        const total = relevant.length;
-        const completed = relevant.filter(e => e.completion_status === 'Completed').length;
-        setTotalCoursesAssigned(total);
-        setCompletedCourses(completed);
-        setOverallCompletionRate(total > 0 ? (completed / total) * 100 : 0);
-      } else {
-        // New format with stats
-        setStudentEnrollments(response.data.enrollments || []);
-        setOverallCompletionRate(response.data.overall_completion_rate || 0);
-        setTotalCoursesAssigned(response.data.total_courses_assigned || 0);
-        setCompletedCourses(response.data.completed_courses || 0);
+        const onsiteTotal = onsiteRelevant.length;
+        const onsiteCompleted = onsiteRelevant.filter(e => e.completion_status === 'Completed').length;
+        const onsiteRate = onsiteTotal > 0 ? (onsiteCompleted / onsiteTotal) * 100 : 0;
+        
+        setCompletionStats({
+          onsite: { rate: onsiteRate, completed: onsiteCompleted, total: onsiteTotal },
+          online: { rate: 0, completed: 0, total: 0 },
+          external: { rate: 0, completed: 0, total: 0 },
+        });
       }
     } catch (error) {
       console.error('UserDetailsDialog: Error fetching student enrollments:', error);
       setStudentEnrollments([]);
-      setOverallCompletionRate(0);
-      setTotalCoursesAssigned(0);
-      setCompletedCourses(0);
+      setOnlineCourses([]);
+      setCompletionStats({
+        onsite: { rate: 0, completed: 0, total: 0 },
+        online: { rate: 0, completed: 0, total: 0 },
+        external: { rate: 0, completed: 0, total: 0 },
+      });
     } finally {
       setLoadingEnrollments(false);
     }
@@ -126,10 +223,10 @@ function UserDetailsDialog({ open, onClose, enrollment, onViewCourseDetails, onA
           
           <Grid item xs={12} sm={6}>
             <Typography variant="body2" color="text.secondary">
-              SBU
+              Department
             </Typography>
             <Typography variant="body1" gutterBottom>
-              <Chip label={enrollment.student_sbu} size="small" />
+              <Chip label={enrollment.student_department} size="small" />
             </Typography>
           </Grid>
           
@@ -139,15 +236,6 @@ function UserDetailsDialog({ open, onClose, enrollment, onViewCourseDetails, onA
             </Typography>
             <Typography variant="body1" gutterBottom>
               {enrollment.student_designation || 'N/A'}
-            </Typography>
-          </Grid>
-          
-          <Grid item xs={12} sm={6}>
-            <Typography variant="body2" color="text.secondary">
-              Experience (Years)
-            </Typography>
-            <Typography variant="body1" gutterBottom>
-              {enrollment.student_experience_years ?? 'N/A'}
             </Typography>
           </Grid>
           
@@ -203,20 +291,21 @@ function UserDetailsDialog({ open, onClose, enrollment, onViewCourseDetails, onA
               <Box display="flex" justifyContent="space-between" alignItems="center">
                 <Box>
                   <Typography variant="body2" color="text.secondary" gutterBottom>
-                    Overall Completion Rate
+                    {courseType === 'onsite' ? 'Onsite' : courseType === 'online' ? 'Online' : 'External'} Completion Rate
                   </Typography>
                   <Typography
                     variant="h5"
                     sx={{
                       fontWeight: 600,
                       color: (() => {
-                        if (overallCompletionRate >= 75) return theme.palette.success.main;
-                        if (overallCompletionRate >= 60) return theme.palette.warning.main;
+                        const rate = completionStats[courseType]?.rate || 0;
+                        if (rate >= 75) return theme.palette.success.main;
+                        if (rate >= 60) return theme.palette.warning.main;
                         return theme.palette.error.main;
                       })(),
                     }}
                   >
-                    {overallCompletionRate.toFixed(1)}%
+                    {(completionStats[courseType]?.rate || 0).toFixed(1)}%
                   </Typography>
                 </Box>
                 <Box textAlign="right">
@@ -228,13 +317,14 @@ function UserDetailsDialog({ open, onClose, enrollment, onViewCourseDetails, onA
                     sx={{
                       fontWeight: 600,
                       color: (() => {
-                        if (overallCompletionRate >= 75) return theme.palette.success.main;
-                        if (overallCompletionRate >= 60) return theme.palette.warning.main;
+                        const rate = completionStats[courseType]?.rate || 0;
+                        if (rate >= 75) return theme.palette.success.main;
+                        if (rate >= 60) return theme.palette.warning.main;
                         return theme.palette.error.main;
                       })(),
                     }}
                   >
-                    {completedCourses} / {totalCoursesAssigned}
+                    {completionStats[courseType]?.completed || 0} / {completionStats[courseType]?.total || 0}
                   </Typography>
                 </Box>
               </Box>
@@ -242,25 +332,72 @@ function UserDetailsDialog({ open, onClose, enrollment, onViewCourseDetails, onA
           </Grid>
           
           <Grid item xs={12} sx={{ mt: 3 }}>
-            <Typography 
-              variant="h6" 
-              gutterBottom
-              sx={{ 
-                mb: 2,
-                fontWeight: 600,
-              }}
-            >
-              Complete Course History
-            </Typography>
+            <Box sx={{ mb: 2 }}>
+              <Typography 
+                variant="h6" 
+                gutterBottom
+                sx={{ 
+                  mb: 2,
+                  fontWeight: 600,
+                }}
+              >
+                Complete Course History
+              </Typography>
+              <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
+                <Tabs
+                  value={courseType}
+                  onChange={(e, newValue) => setCourseType(newValue)}
+                  sx={{
+                    '& .MuiTab-root': {
+                      textTransform: 'none',
+                      fontWeight: 600,
+                      fontSize: '0.9rem',
+                    },
+                  }}
+                >
+                  <Tab label="Onsite" value="onsite" />
+                  <Tab label="Online" value="online" />
+                  <Tab label="External" value="external" />
+                </Tabs>
+              </Box>
+            </Box>
             <Divider sx={{ mb: 2 }} />
             {loadingEnrollments ? (
               <Box display="flex" justifyContent="center" p={2}>
                 <CircularProgress size={24} />
               </Box>
-            ) : studentEnrollments.length > 0 ? (
+            ) : (() => {
+              // Get enrollments based on selected course type
+              let displayEnrollments = [];
+              if (courseType === 'onsite') {
+                displayEnrollments = studentEnrollments;
+              } else if (courseType === 'online') {
+                displayEnrollments = onlineCourses;
+              } else if (courseType === 'external') {
+                // External courses - to be implemented later
+                displayEnrollments = [];
+              }
+              
+              return displayEnrollments.length > 0 ? (
               <Box display="flex" flexDirection="column" gap={2}>
-                {studentEnrollments
+                {displayEnrollments
                   .sort((a, b) => {
+                    // For online courses, use different sorting
+                    if (courseType === 'online') {
+                      // Priority 1: Completed
+                      if (a.completion_status === 'Completed' && b.completion_status !== 'Completed') return -1;
+                      if (b.completion_status === 'Completed' && a.completion_status !== 'Completed') return 1;
+                      // Priority 2: In Progress
+                      if (a.completion_status === 'In Progress' && b.completion_status !== 'In Progress') return -1;
+                      if (b.completion_status === 'In Progress' && a.completion_status !== 'In Progress') return 1;
+                      // Priority 3: Not Started
+                      // If same status, sort by lastaccess (most recent first)
+                      const lastAccessA = a.lastaccess ? new Date(a.lastaccess * 1000) : new Date(0);
+                      const lastAccessB = b.lastaccess ? new Date(b.lastaccess * 1000) : new Date(0);
+                      return lastAccessB - lastAccessA;
+                    }
+                    
+                    // For onsite courses, use original sorting
                     // Define order: Completed (1) > Failed (2) > Approved Not Started (3) > Pending (4) > Rejected (5) > Others (6)
                     const getStatusOrder = (enrollment) => {
                       // Priority 1: Completed
@@ -334,24 +471,26 @@ function UserDetailsDialog({ open, onClose, enrollment, onViewCourseDetails, onA
                         </Box>
                         
                         <Box display="flex" gap={3} mt={2} flexWrap="wrap">
-                          <Box>
-                            <Typography variant="caption" color="text.secondary" display="block">
-                              Approval Status
-                            </Typography>
-                            <Chip
-                              label={enroll.approval_status}
-                              color={
-                                enroll.approval_status === 'Approved' ? 'success' :
-                                enroll.approval_status === 'Pending' ? 'warning' :
-                                enroll.approval_status === 'Withdrawn' ? 'error' :
-                                enroll.approval_status === 'Rejected' ? 'error' : 'default'
-                              }
-                              size="small"
-                              sx={{ mt: 0.5 }}
-                            />
-                          </Box>
+                          {!enroll.is_lms_course && (
+                            <Box>
+                              <Typography variant="caption" color="text.secondary" display="block">
+                                Approval Status
+                              </Typography>
+                              <Chip
+                                label={enroll.approval_status}
+                                color={
+                                  enroll.approval_status === 'Approved' ? 'success' :
+                                  enroll.approval_status === 'Pending' ? 'warning' :
+                                  enroll.approval_status === 'Withdrawn' ? 'error' :
+                                  enroll.approval_status === 'Rejected' ? 'error' : 'default'
+                                }
+                                size="small"
+                                sx={{ mt: 0.5 }}
+                              />
+                            </Box>
+                          )}
                           
-                          {enroll.score !== null && enroll.score !== undefined && (
+                          {enroll.score !== null && enroll.score !== undefined && !enroll.is_lms_course && (
                             <Box>
                               <Typography variant="caption" color="text.secondary" display="block">
                                 Score
@@ -362,7 +501,29 @@ function UserDetailsDialog({ open, onClose, enrollment, onViewCourseDetails, onA
                             </Box>
                           )}
                           
-                          {enroll.attendance_percentage !== null && enroll.attendance_percentage !== undefined && (
+                          {enroll.is_lms_course && enroll.progress !== null && enroll.progress !== undefined && (
+                            <Box>
+                              <Typography variant="caption" color="text.secondary" display="block">
+                                Progress
+                              </Typography>
+                              <Typography 
+                                variant="body2" 
+                                sx={{ 
+                                  fontWeight: 600, 
+                                  mt: 0.5,
+                                  color: enroll.progress >= 100 
+                                    ? theme.palette.success.main 
+                                    : enroll.progress >= 50
+                                    ? theme.palette.warning.main
+                                    : theme.palette.error.main
+                                }}
+                              >
+                                {enroll.progress.toFixed(1)}%
+                              </Typography>
+                            </Box>
+                          )}
+                          
+                          {!enroll.is_lms_course && enroll.attendance_percentage !== null && enroll.attendance_percentage !== undefined && (
                             <Box>
                               <Typography variant="caption" color="text.secondary" display="block">
                                 Attendance
@@ -384,7 +545,7 @@ function UserDetailsDialog({ open, onClose, enrollment, onViewCourseDetails, onA
                             </Box>
                           )}
                           
-                          {enroll.attendance_status && (
+                          {!enroll.is_lms_course && enroll.attendance_status && (
                             <Box>
                               <Typography variant="caption" color="text.secondary" display="block">
                                 Attendance Details
@@ -395,7 +556,7 @@ function UserDetailsDialog({ open, onClose, enrollment, onViewCourseDetails, onA
                             </Box>
                           )}
                           
-                          {enroll.present !== null && enroll.total_attendance !== null && (
+                          {!enroll.is_lms_course && enroll.present !== null && enroll.total_attendance !== null && (
                             <Box>
                               <Typography variant="caption" color="text.secondary" display="block">
                                 Sessions
@@ -406,7 +567,7 @@ function UserDetailsDialog({ open, onClose, enrollment, onViewCourseDetails, onA
                             </Box>
                           )}
                           
-                          {enroll.course_start_date && (
+                          {!enroll.is_lms_course && enroll.course_start_date && (
                             <Box>
                               <Typography variant="caption" color="text.secondary" display="block">
                                 Start Date
@@ -417,13 +578,56 @@ function UserDetailsDialog({ open, onClose, enrollment, onViewCourseDetails, onA
                             </Box>
                           )}
                           
-                          {enroll.completion_date && (
+                          {enroll.course_end_date && (
+                            <Box>
+                              <Typography variant="caption" color="text.secondary" display="block">
+                                End Date
+                              </Typography>
+                              <Typography variant="body2" sx={{ mt: 0.5 }}>
+                                {formatDateForDisplay(enroll.course_end_date)}
+                              </Typography>
+                            </Box>
+                          )}
+                          
+                          {!enroll.is_lms_course && enroll.completion_date && (
                             <Box>
                               <Typography variant="caption" color="text.secondary" display="block">
                                 Completion Date
                               </Typography>
                               <Typography variant="body2" sx={{ mt: 0.5 }}>
                                 {formatDateForDisplay(enroll.completion_date)}
+                              </Typography>
+                            </Box>
+                          )}
+                          
+                          {enroll.is_lms_course && enroll.date_assigned && (
+                            <Box>
+                              <Typography variant="caption" color="text.secondary" display="block">
+                                Date Assigned
+                              </Typography>
+                              <Typography variant="body2" sx={{ mt: 0.5 }}>
+                                {enroll.date_assigned ? new Date(enroll.date_assigned * 1000).toLocaleDateString('en-US', {
+                                  year: 'numeric',
+                                  month: 'short',
+                                  day: 'numeric'
+                                }) : 'N/A'}
+                              </Typography>
+                            </Box>
+                          )}
+                          
+                          {enroll.is_lms_course && (
+                            <Box>
+                              <Typography variant="caption" color="text.secondary" display="block">
+                                Last Access
+                              </Typography>
+                              <Typography variant="body2" sx={{ mt: 0.5 }}>
+                                {enroll.lastaccess ? new Date(enroll.lastaccess * 1000).toLocaleDateString('en-US', {
+                                  year: 'numeric',
+                                  month: 'short',
+                                  day: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                }) : 'Never'}
                               </Typography>
                             </Box>
                           )}
@@ -435,9 +639,12 @@ function UserDetailsDialog({ open, onClose, enrollment, onViewCourseDetails, onA
               </Box>
             ) : (
               <Typography variant="body2" color="text.secondary">
-                No course history available.
+                {courseType === 'external' 
+                  ? 'External course history will be available soon.'
+                  : 'No course history available for this type.'}
               </Typography>
-            )}
+            );
+            })()}
           </Grid>
         </Grid>
       </DialogContent>

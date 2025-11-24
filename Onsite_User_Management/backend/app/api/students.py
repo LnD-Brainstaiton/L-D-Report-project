@@ -7,6 +7,7 @@ import aiofiles
 from datetime import datetime
 import pandas as pd
 import io
+import logging
 from app.db.base import get_db
 from app.models.student import Student
 from app.models.mentor import Mentor
@@ -14,6 +15,8 @@ from app.schemas.student import StudentCreate, StudentResponse
 from app.schemas.mentor import MentorResponse
 from app.core.file_utils import sanitize_filename, validate_file_extension, validate_file_size, get_safe_file_path
 from app.services.import_service import ImportService
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -32,30 +35,70 @@ def create_student(student: StudentCreate, db: Session = Depends(get_db)):
 
 @router.get("/", response_model=List[StudentResponse])
 def get_students(
-    sbu: Optional[str] = Query(None),
+    department: Optional[str] = Query(None),
     is_active: Optional[bool] = Query(True, description="Filter by active status"),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
     db: Session = Depends(get_db)
 ):
     """Get all students with optional filters."""
-    from app.core.validation import validate_sbu
+    from app.core.validation import validate_department
     
     query = db.query(Student)
     
     # Filter by active status
     query = query.filter(Student.is_active == is_active)
     
-    if sbu:
+    if department:
         try:
-            validated_sbu = validate_sbu(sbu)
-            query = query.filter(Student.sbu == validated_sbu)
+            validated_department = validate_department(department)
+            query = query.filter(Student.department == validated_department)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
     
     # Sort by employee_id (ascending)
     students = query.order_by(Student.employee_id.asc()).offset(skip).limit(limit).all()
     return [StudentResponse.from_orm(student) for student in students]
+
+@router.get("/departments")
+def get_departments(
+    is_active: Optional[bool] = Query(None, description="Filter by active status. If None, returns all departments"),
+    db: Session = Depends(get_db)
+):
+    """Get list of unique departments from the database."""
+    from sqlalchemy import distinct
+    
+    query = db.query(distinct(Student.department))
+    
+    if is_active is not None:
+        query = query.filter(Student.is_active == is_active)
+    
+    departments = [dept[0] for dept in query.all() if dept[0]]  # Filter out None values
+    departments.sort()  # Sort alphabetically
+    
+    return {"departments": departments}
+
+@router.get("/count")
+def get_student_count(
+    is_active: Optional[bool] = Query(True, description="Filter by active status"),
+    department: Optional[str] = Query(None),
+    db: Session = Depends(get_db)
+):
+    """Get count of students."""
+    from app.core.validation import validate_department
+    
+    query = db.query(Student)
+    query = query.filter(Student.is_active == is_active)
+    
+    if department:
+        try:
+            validated_department = validate_department(department)
+            query = query.filter(Student.department == validated_department)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+    
+    count = query.count()
+    return {"count": count, "is_active": is_active}
 
 @router.get("/{student_id}", response_model=StudentResponse)
 def get_student(student_id: int, db: Session = Depends(get_db)):
@@ -115,7 +158,7 @@ def get_student_enrollments(student_id: int, db: Session = Depends(get_db)):
         enrollment_dict = EnrollmentResponse.from_orm(enrollment).dict()
         enrollment_dict['student_name'] = enrollment.student.name
         enrollment_dict['student_email'] = enrollment.student.email
-        enrollment_dict['student_sbu'] = enrollment.student.sbu.value
+        enrollment_dict['student_department'] = enrollment.student.department
         enrollment_dict['student_employee_id'] = enrollment.student.employee_id
         enrollment_dict['student_designation'] = enrollment.student.designation
         enrollment_dict['student_experience_years'] = enrollment.student.experience_years
@@ -140,7 +183,7 @@ def get_student_enrollments(student_id: int, db: Session = Depends(get_db)):
 
 @router.get("/all/with-courses", response_model=List[dict])
 def get_all_students_with_courses(
-    sbu: Optional[str] = Query(None),
+    department: Optional[str] = Query(None),
     is_active: Optional[bool] = Query(True, description="Filter by active status"),
     skip: int = Query(0, ge=0),
     limit: int = Query(1000, ge=1, le=10000),
@@ -150,17 +193,17 @@ def get_all_students_with_courses(
     from app.models.enrollment import Enrollment, CompletionStatus
     from sqlalchemy.orm import joinedload
     
-    from app.core.validation import validate_sbu
+    from app.core.validation import validate_department
     
     query = db.query(Student)
     
     # Filter by active status
     query = query.filter(Student.is_active == is_active)
     
-    if sbu:
+    if department:
         try:
-            validated_sbu = validate_sbu(sbu)
-            query = query.filter(Student.sbu == validated_sbu)
+            validated_department = validate_department(department)
+            query = query.filter(Student.department == validated_department)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
     
@@ -350,28 +393,6 @@ def restore_student(
         "name": student.name
     }
 
-@router.get("/count")
-def get_student_count(
-    is_active: Optional[bool] = Query(True, description="Filter by active status"),
-    sbu: Optional[str] = Query(None),
-    db: Session = Depends(get_db)
-):
-    """Get count of students."""
-    from app.core.validation import validate_sbu
-    
-    query = db.query(Student)
-    query = query.filter(Student.is_active == is_active)
-    
-    if sbu:
-        try:
-            validated_sbu = validate_sbu(sbu)
-            query = query.filter(Student.sbu == validated_sbu)
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e))
-    
-    count = query.count()
-    return {"count": count, "is_active": is_active}
-
 @router.get("/report/overall")
 def generate_overall_report(db: Session = Depends(get_db)):
     """Generate an Excel report with all employee enrollment history (active employees only)."""
@@ -398,7 +419,7 @@ def generate_overall_report(db: Session = Depends(get_db)):
                     'bsid': student.employee_id or '',
                     'name': student.name or '',
                     'email': student.email or '',
-                    'sbu': student.sbu.value if student.sbu else '',
+                    'department': student.department or '',
                     'designation': student.designation or '',
                     'course_name': 'No courses taken yet',
                     'batch_code': 'N/A',
@@ -466,7 +487,7 @@ def generate_overall_report(db: Session = Depends(get_db)):
                     'bsid': student.employee_id or '',
                     'name': student.name or '',
                     'email': student.email or '',
-                    'sbu': student.sbu.value if student.sbu else '',
+                    'department': student.department or '',
                     'designation': student.designation or '',
                     'course_name': course_name,
                     'batch_code': batch_code,
@@ -484,7 +505,7 @@ def generate_overall_report(db: Session = Depends(get_db)):
         # If no enrollments, create empty DataFrame with columns
         if df.empty:
             df = pd.DataFrame(columns=[
-                'bsid', 'name', 'email', 'sbu', 'designation',
+                'bsid', 'name', 'email', 'department', 'designation',
                 'course_name', 'batch_code', 'attendance', 'score',
                 'completion_status', 'approval_date', 'completion_date',
                 'withdrawn'
@@ -558,7 +579,7 @@ def tag_student_as_mentor(student_id: int, db: Session = Depends(get_db)):
         student_id=student_id,
         name=student.name,
         email=student.email,
-        sbu=student.sbu,
+        department=student.department,
         designation=student.designation
     )
     db.add(db_mentor)
@@ -596,4 +617,107 @@ def remove_mentor_tag(student_id: int, db: Session = Depends(get_db)):
     db.delete(mentor)
     db.commit()
     return None
+
+@router.post("/sync-from-lms")
+async def sync_employees_from_lms(db: Session = Depends(get_db)):
+    """
+    Sync employees from LMS API to local database.
+    
+    Fetches all users from Moodle LMS and updates/creates student records.
+    Mapping:
+    - employee_id = username (e.g., "bs1981")
+    - name = fullname from real_info (or fullname field)
+    - email = email
+    - department = department (from API)
+    - is_active = determined by suspended status (suspended=0 means active)
+    """
+    from app.services.lms_service import LMSService
+    from app.core.validation import validate_department
+    
+    try:
+        # Fetch all users from LMS
+        lms_users = await LMSService.fetch_all_users()
+        
+        stats = {
+            "total_fetched": len(lms_users),
+            "created": 0,
+            "updated": 0,
+            "skipped": 0,
+            "errors": []
+        }
+        
+        for user in lms_users:
+            try:
+                # Map LMS user to student format
+                student_data = LMSService.map_lms_user_to_student(user)
+                
+                if not student_data:
+                    stats["skipped"] += 1
+                    continue
+                
+                employee_id = student_data["employee_id"]
+                email = student_data["email"]
+                
+                # Validate department
+                try:
+                    department = validate_department(student_data.get("department", "Other"))
+                except ValueError:
+                    department = "Other"  # Default if validation fails
+                
+                # Check if student exists by employee_id or email
+                existing_student = db.query(Student).filter(
+                    (Student.employee_id == employee_id) | (Student.email == email)
+                ).first()
+                
+                if existing_student:
+                    # Update existing student
+                    existing_student.name = student_data["name"]
+                    existing_student.email = email
+                    existing_student.department = department
+                    existing_student.is_active = student_data.get("is_active", True)
+                    if student_data.get("designation"):
+                        existing_student.designation = student_data["designation"]
+                    
+                    # Update employee_id if it changed (shouldn't happen, but handle it)
+                    if existing_student.employee_id != employee_id:
+                        # Check if new employee_id already exists
+                        conflict = db.query(Student).filter(
+                            Student.employee_id == employee_id,
+                            Student.id != existing_student.id
+                        ).first()
+                        if not conflict:
+                            existing_student.employee_id = employee_id
+                    
+                    stats["updated"] += 1
+                else:
+                    # Create new student
+                    new_student = Student(
+                        employee_id=employee_id,
+                        name=student_data["name"],
+                        email=email,
+                        department=department,
+                        is_active=student_data.get("is_active", True),
+                        designation=student_data.get("designation"),
+                    )
+                    db.add(new_student)
+                    stats["created"] += 1
+                
+            except Exception as e:
+                error_msg = f"Error processing user {user.get('username', user.get('id', 'unknown'))}: {str(e)}"
+                stats["errors"].append(error_msg)
+                logger.error(error_msg)
+                continue
+        
+        # Commit all changes
+        db.commit()
+        
+        return {
+            "message": "Sync completed",
+            "stats": stats
+        }
+        
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error syncing from LMS: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error syncing from LMS: {str(e)}")
 

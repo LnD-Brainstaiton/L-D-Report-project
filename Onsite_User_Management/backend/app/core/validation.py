@@ -81,30 +81,30 @@ def validate_employee_id(employee_id: str) -> str:
     
     return employee_id
 
-def validate_sbu(sbu: Optional[str]) -> Optional[str]:
+def validate_department(department: Optional[str]) -> Optional[str]:
     """
-    Validate SBU (Strategic Business Unit) value against a predefined list.
+    Validate department value. Since department is now a free text field from LMS API,
+    we only validate that it's a valid string (not empty if provided).
     
     Args:
-        sbu: SBU value to validate
+        department: Department value to validate
         
     Returns:
-        Validated SBU or None
+        Validated department or None
         
     Raises:
-        ValueError if SBU is not in the allowed list
+        ValueError if department is invalid
     """
-    if sbu is None:
+    if department is None:
         return None
     
-    sbu = validate_string_input(sbu, max_length=50)
+    department = validate_string_input(department, max_length=100)
     
-    # Check against allowed SBU list
-    allowed_sbus = ["IT", "HR", "Finance", "Operations", "Sales", "Marketing"]
-    if sbu not in allowed_sbus:
-        raise ValueError(f"Invalid SBU: {sbu}. Allowed values are: {', '.join(allowed_sbus)}")
+    # Department is now a free text field, so we just validate it's not empty
+    if not department.strip():
+        raise ValueError("Department cannot be empty")
     
-    return sbu
+    return department.strip()
 
 def sanitize_sql_like_pattern(pattern: str) -> str:
     """

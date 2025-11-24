@@ -37,7 +37,7 @@ function PreviousEmployees() {
   const [allUsers, setAllUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedUser, setExpandedUser] = useState(null);
-  const [selectedSBU, setSelectedSBU] = useState('');
+  const [selectedDepartment, setSelectedDepartment] = useState('');
   const [filterNeverTaken, setFilterNeverTaken] = useState('');
   const [employeeCount, setEmployeeCount] = useState(0);
   const [restoreDialogOpen, setRestoreDialogOpen] = useState(false);
@@ -47,10 +47,21 @@ function PreviousEmployees() {
   const [message, setMessage] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSearchUser, setSelectedSearchUser] = useState(null);
+  const [departments, setDepartments] = useState([]); // List of actual departments from database
 
   useEffect(() => {
     fetchUsers();
-  }, [selectedSBU, filterNeverTaken]);
+    fetchDepartments();
+  }, [selectedDepartment, filterNeverTaken]);
+
+  const fetchDepartments = async () => {
+    try {
+      const response = await studentsAPI.getDepartments({ is_active: false });
+      setDepartments(response.data.departments || []);
+    } catch (error) {
+      console.error('Error fetching departments:', error);
+    }
+  };
 
   // Filter users based on search query and filters
   const users = useMemo(() => {
@@ -88,7 +99,7 @@ function PreviousEmployees() {
     setLoading(true);
     try {
       const params = { is_active: false };
-      if (selectedSBU) params.sbu = selectedSBU;
+      if (selectedDepartment) params.department = selectedDepartment;
       const response = await studentsAPI.getAllWithCourses(params);
       let fetchedUsers = response.data;
 
@@ -252,19 +263,18 @@ function PreviousEmployees() {
             />
             <TextField
               select
-              label="SBU"
-              value={selectedSBU}
-              onChange={(e) => setSelectedSBU(e.target.value)}
+              label="Department"
+              value={selectedDepartment}
+              onChange={(e) => setSelectedDepartment(e.target.value)}
               sx={{ minWidth: 140 }}
               size="small"
             >
-              <MenuItem value="">All SBUs</MenuItem>
-              <MenuItem value="IT">IT</MenuItem>
-              <MenuItem value="HR">HR</MenuItem>
-              <MenuItem value="Finance">Finance</MenuItem>
-              <MenuItem value="Operations">Operations</MenuItem>
-              <MenuItem value="Sales">Sales</MenuItem>
-              <MenuItem value="Marketing">Marketing</MenuItem>
+              <MenuItem value="">All Departments</MenuItem>
+              {departments.map((dept) => (
+                <MenuItem key={dept} value={dept}>
+                  {dept}
+                </MenuItem>
+              ))}
             </TextField>
             <TextField
               select
@@ -277,12 +287,12 @@ function PreviousEmployees() {
               <MenuItem value="">All Employees</MenuItem>
               <MenuItem value="yes">No Course History</MenuItem>
             </TextField>
-            {(selectedSBU || filterNeverTaken || searchQuery) && (
+            {(selectedDepartment || filterNeverTaken || searchQuery) && (
               <Button
                 variant="text"
                 size="small"
                 onClick={() => {
-                  setSelectedSBU('');
+                  setSelectedDepartment('');
                   setFilterNeverTaken('');
                   setSearchQuery('');
                   setSelectedSearchUser(null);
@@ -317,8 +327,7 @@ function PreviousEmployees() {
                   <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>ID</TableCell>
                   <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>Name</TableCell>
                   <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>Email</TableCell>
-                  <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>SBU</TableCell>
-                  <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>Designation</TableCell>
+                  <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>Department</TableCell>
                   <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }} align="center">Course History</TableCell>
                   <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }} align="center">Actions</TableCell>
                 </TableRow>
@@ -340,7 +349,7 @@ function PreviousEmployees() {
                       <TableCell sx={{ color: '#64748b' }}>{user.email}</TableCell>
                       <TableCell>
                         <Chip
-                          label={user.sbu}
+                          label={user.department}
                           size="small"
                           sx={{
                             background: 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)',
@@ -349,7 +358,6 @@ function PreviousEmployees() {
                           }}
                         />
                       </TableCell>
-                      <TableCell sx={{ color: '#64748b' }}>{user.designation || '-'}</TableCell>
                       <TableCell align="center">
                         {user.enrollments && user.enrollments.length > 0 ? (
                           <IconButton

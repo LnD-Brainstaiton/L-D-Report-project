@@ -1,13 +1,12 @@
 from pydantic import BaseModel, EmailStr
 from typing import Optional
 from datetime import datetime, date
-from app.models.student import SBU
 
 class StudentCreate(BaseModel):
     employee_id: str
     name: str
     email: EmailStr
-    sbu: SBU
+    department: str  # Changed from sbu enum to department string
     designation: Optional[str] = None
     experience_years: int = 0
     career_start_date: Optional[date] = None
@@ -18,7 +17,7 @@ class StudentResponse(BaseModel):
     employee_id: str
     name: str
     email: str
-    sbu: SBU
+    department: str  # Changed from sbu enum to department string
     designation: Optional[str]
     experience_years: int
     career_start_date: Optional[date] = None

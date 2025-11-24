@@ -48,7 +48,7 @@ function Mentors() {
   const [mentors, setMentors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedType, setSelectedType] = useState('');
-  const [selectedSBU, setSelectedSBU] = useState('');
+  const [selectedDepartment, setSelectedDepartment] = useState('');
   const [selectedMentor, setSelectedMentor] = useState(null);
   const [mentorStats, setMentorStats] = useState(null);
   const [statsDialogOpen, setStatsDialogOpen] = useState(false);
@@ -147,9 +147,9 @@ function Mentors() {
       filtered = filtered.filter(m => m.is_internal === false);
     }
     
-    // Filter by SBU
-    if (selectedSBU) {
-      filtered = filtered.filter(m => m.sbu === selectedSBU);
+    // Filter by Department
+    if (selectedDepartment) {
+      filtered = filtered.filter(m => m.department === selectedDepartment);
     }
     
     // Filter by course history
@@ -164,7 +164,7 @@ function Mentors() {
         mentor.name?.toLowerCase().includes(query) ||
         mentor.email?.toLowerCase().includes(query) ||
         mentor.designation?.toLowerCase().includes(query) ||
-        mentor.sbu?.toLowerCase().includes(query) ||
+        mentor.department?.toLowerCase().includes(query) ||
         mentor.student?.employee_id?.toLowerCase().includes(query) ||
         mentor.student?.name?.toLowerCase().includes(query)
       );
@@ -173,7 +173,7 @@ function Mentors() {
     }
     
     return filtered;
-  }, [mentors, selectedType, selectedSBU, searchQuery, selectedSearchMentor, filterNoCourseHistory]);
+  }, [mentors, selectedType, selectedDepartment, searchQuery, selectedSearchMentor, filterNoCourseHistory]);
 
   return (
     <Box sx={{ minHeight: '100vh', background: `linear-gradient(135deg, ${alpha('#1e40af', 0.03)} 0%, ${alpha('#059669', 0.03)} 100%)` }}>
@@ -315,13 +315,13 @@ function Mentors() {
             </TextField>
             <TextField
               select
-              label="SBU"
-              value={selectedSBU}
-              onChange={(e) => setSelectedSBU(e.target.value)}
+              label="Department"
+              value={selectedDepartment}
+              onChange={(e) => setSelectedDepartment(e.target.value)}
               sx={{ minWidth: 140 }}
               size="small"
             >
-              <MenuItem value="">All SBUs</MenuItem>
+              <MenuItem value="">All Departments</MenuItem>
               <MenuItem value="IT">IT</MenuItem>
               <MenuItem value="HR">HR</MenuItem>
               <MenuItem value="Finance">Finance</MenuItem>
@@ -340,13 +340,13 @@ function Mentors() {
               <MenuItem value="">All Mentors</MenuItem>
               <MenuItem value="no_history">No Course History</MenuItem>
             </TextField>
-            {(selectedType || selectedSBU || searchQuery || filterNoCourseHistory) && (
+            {(selectedType || selectedDepartment || searchQuery || filterNoCourseHistory) && (
               <Button
                 variant="text"
                 size="small"
                 onClick={() => {
                   setSelectedType('');
-                  setSelectedSBU('');
+                  setSelectedDepartment('');
                   setSearchQuery('');
                   setSelectedSearchMentor(null);
                   setFilterNoCourseHistory(false);
@@ -382,7 +382,7 @@ function Mentors() {
                   <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>Name</TableCell>
                   <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>Mentor</TableCell>
                   <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>Email</TableCell>
-                  <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>SBU</TableCell>
+                  <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>Department</TableCell>
                   <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>Course History</TableCell>
                   <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>Actions</TableCell>
                 </TableRow>
@@ -460,9 +460,9 @@ function Mentors() {
                       </TableCell>
                       <TableCell sx={{ color: '#64748b' }}>{mentor.email || '-'}</TableCell>
                       <TableCell>
-                        {mentor.sbu ? (
+                        {mentor.department ? (
                           <Chip 
-                            label={mentor.sbu} 
+                            label={mentor.department} 
                             size="small"
                             sx={{
                               background: 'linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%)',

@@ -31,11 +31,11 @@ import {
   FormControlLabel,
   Checkbox,
 } from '@mui/material';
-import { Add, Delete, Search, Download, PersonAdd, CheckCircle, Edit, AccessTime } from '@mui/icons-material';
+import { Add, Delete, Search, Download, PersonAdd, CheckCircle, Edit, AccessTime, Visibility } from '@mui/icons-material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import { coursesAPI, mentorsAPI } from '../services/api';
+import { coursesAPI, mentorsAPI, lmsAPI } from '../services/api';
 import AssignInternalMentorDialog from '../components/AssignInternalMentorDialog';
 import AddExternalMentorDialog from '../components/AddExternalMentorDialog';
 import { getCourseStatus } from '../utils/courseUtils';
@@ -51,9 +51,13 @@ function Courses({ courseType = 'onsite', status = 'all' }) {
   const [message, setMessage] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSearchCourse, setSelectedSearchCourse] = useState(null);
-  const [startDateFilter, setStartDateFilter] = useState(null);
-  const [endDateFilter, setEndDateFilter] = useState(null);
-  const [selectedSBU, setSelectedSBU] = useState('');
+  const [timePeriod, setTimePeriod] = useState('all'); // 'all', 'month', 'quarter', 'year'
+  const [selectedMonth, setSelectedMonth] = useState(''); // Selected month (0-11) for month filter
+  const [selectedQuarter, setSelectedQuarter] = useState(''); // Selected quarter (1-4) for quarter filter
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear()); // Selected year
+  const [selectedDepartment, setSelectedDepartment] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [categories, setCategories] = useState([]); // List of unique categories for online courses
   const [formData, setFormData] = useState({
     name: '',
     batch_code: '',
@@ -87,49 +91,176 @@ function Courses({ courseType = 'onsite', status = 'all' }) {
   const fetchCourses = async () => {
     setLoading(true);
     try {
-      const response = await coursesAPI.getAll();
-      const allCoursesData = response.data;
+      let allCoursesData = [];
       
-      // First filter by course type (default to onsite if course_type is not set)
-      const filteredByType = allCoursesData.filter(course => {
-        const courseTypeValue = course.course_type || 'onsite';
-        return courseTypeValue === courseType;
-      });
-      
-      setAllCourses(filteredByType);
-      
-      // Then filter by status
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      
-      let filtered = filteredByType;
-      
-      if (status === 'all') {
-        // Show all courses of this type
-        filtered = filteredByType;
-      } else if (status === 'upcoming') {
-        // Upcoming: courses with status 'ongoing' or 'planning' but start_date > today
-        filtered = filteredByType.filter(course => {
-          const courseStatus = getCourseStatus(course);
-          const courseStartDate = new Date(course.start_date);
-          courseStartDate.setHours(0, 0, 0, 0);
-          return (courseStatus === 'ongoing' || courseStatus === 'planning') && courseStartDate > today;
-        });
-      } else {
-        // Filter by status (planning, ongoing, completed)
-        filtered = filteredByType.filter(course => {
-          const courseStatus = getCourseStatus(course);
-          // For ongoing, exclude upcoming courses
-          if (status === 'ongoing') {
-            const courseStartDate = new Date(course.start_date);
-            courseStartDate.setHours(0, 0, 0, 0);
-            return courseStatus === 'ongoing' && courseStartDate <= today;
+      // If online courses, fetch from LMS API
+      if (courseType === 'online') {
+        try {
+          // Fetch courses without enrollment counts (we'll count them when viewing course details)
+          const lmsResponse = await lmsAPI.getCourses();
+          const lmsCourses = lmsResponse.data.courses || [];
+          
+          // Map LMS courses to our course format
+          allCoursesData = lmsCourses.map(course => ({
+            id: course.id,
+            name: course.fullname,
+            fullname: course.fullname,
+            batch_code: course.shortname || '',
+            description: course.summary || '',
+            start_date: course.startdate ? new Date(course.startdate * 1000).toISOString().split('T')[0] : null,
+            end_date: course.enddate ? new Date(course.enddate * 1000).toISOString().split('T')[0] : null,
+            startdate: course.startdate, // Unix timestamp
+            enddate: course.enddate, // Unix timestamp
+            categoryname: course.categoryname || 'Unknown',
+            categoryid: course.categoryid,
+            course_type: 'online',
+            seat_limit: 0,
+            current_enrolled: 0, // Will be updated in background
+            status: 'ongoing', // Default status for LMS courses
+            visible: course.visible === 1,
+            is_lms_course: true, // Flag to identify LMS courses
+          }));
+          
+          // Set courses immediately so list loads fast
+          const filteredByType = allCoursesData.filter(course => {
+            const courseTypeValue = course.course_type || 'onsite';
+            return courseTypeValue === courseType;
+          });
+          setAllCourses(filteredByType);
+          
+          // Apply status filter and set courses
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          let filtered = filteredByType;
+          
+          // Filter by status for online courses (only upcoming and ongoing)
+          if (courseType === 'online') {
+            filtered = filtered.filter(course => {
+              const startDate = course.startdate ? new Date(course.startdate * 1000) : null;
+              const endDate = course.enddate ? new Date(course.enddate * 1000) : null;
+              
+              if (!startDate) return false;
+              
+              const isUpcoming = startDate > today;
+              const isOngoing = startDate <= today && (!endDate || endDate >= today);
+              
+              return isUpcoming || isOngoing;
+            });
           }
-          return courseStatus === status;
+          
+          setCourses(filtered);
+          
+          // Fetch enrollment counts in background (after list is displayed)
+          // This updates the counts as they come in without blocking the UI
+          const fetchEnrollmentCounts = async () => {
+            try {
+              const batchSize = 3; // Smaller batches to avoid timeouts
+              for (let i = 0; i < allCoursesData.length; i += batchSize) {
+                const batch = allCoursesData.slice(i, i + batchSize);
+                await Promise.all(
+                  batch.map(async (course) => {
+                    try {
+                      const enrollmentsResponse = await lmsAPI.getCourseEnrollments(course.id);
+                      const count = (enrollmentsResponse.data.enrollments || []).length;
+                      // Update both allCourses and courses state
+                      setAllCourses(prev => prev.map(c => 
+                        c.id === course.id ? { ...c, current_enrolled: count } : c
+                      ));
+                      setCourses(prev => prev.map(c => 
+                        c.id === course.id ? { ...c, current_enrolled: count } : c
+                      ));
+                    } catch (err) {
+                      // Silently handle errors - keep 0
+                      console.error(`Error fetching enrollments for course ${course.id}:`, err.message || err);
+                    }
+                  })
+                );
+              }
+            } catch (err) {
+              // Catch any errors in the fetchEnrollmentCounts function itself
+              console.error('Error in fetchEnrollmentCounts:', err);
+            }
+          };
+          
+          // Start fetching counts in background (don't await)
+          fetchEnrollmentCounts().catch(err => {
+            console.error('Error fetching enrollment counts in background:', err);
+          });
+          
+          // Extract unique categories for filter
+          const uniqueCategories = [...new Set(allCoursesData.map(c => c.categoryname).filter(Boolean))].sort();
+          setCategories(uniqueCategories);
+        } catch (lmsError) {
+          console.error('Error fetching LMS courses:', lmsError);
+          setMessage({ type: 'error', text: 'Error fetching online courses from LMS' });
+          setLoading(false);
+          return;
+        }
+      } else {
+        // For onsite courses, fetch from our API
+        const response = await coursesAPI.getAll();
+        allCoursesData = response.data;
+      }
+      
+      // For onsite courses, set all courses (online courses are already set above)
+      let filteredByType;
+      if (courseType !== 'online') {
+        // First filter by course type (default to onsite if course_type is not set)
+        filteredByType = allCoursesData.filter(course => {
+          const courseTypeValue = course.course_type || 'onsite';
+          return courseTypeValue === courseType;
+        });
+        
+        setAllCourses(filteredByType);
+      } else {
+        // For online courses, filteredByType is already set above
+        filteredByType = allCoursesData.filter(course => {
+          const courseTypeValue = course.course_type || 'onsite';
+          return courseTypeValue === courseType;
         });
       }
       
-      setCourses(filtered);
+      // Then filter by status (only for onsite courses, online courses already filtered above)
+      if (courseType !== 'online') {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        let filtered = filteredByType;
+        
+        if (status === 'all') {
+          // Show all courses of this type
+          filtered = filteredByType;
+        } else if (status === 'upcoming') {
+          // Upcoming: courses with status 'ongoing' or 'planning' but start_date > today
+          filtered = filteredByType.filter(course => {
+            const courseStatus = getCourseStatus(course);
+            const courseStartDate = course.startdate 
+              ? new Date(course.startdate * 1000) 
+              : (course.start_date ? new Date(course.start_date) : null);
+            if (!courseStartDate) return false;
+            courseStartDate.setHours(0, 0, 0, 0);
+            return (courseStatus === 'ongoing' || courseStatus === 'planning') && courseStartDate > today;
+          });
+        } else {
+          // Filter by status (planning, ongoing, completed)
+          filtered = filteredByType.filter(course => {
+            const courseStatus = getCourseStatus(course);
+            // For ongoing, exclude upcoming courses
+            if (status === 'ongoing') {
+              const courseStartDate = course.startdate 
+                ? new Date(course.startdate * 1000) 
+                : (course.start_date ? new Date(course.start_date) : null);
+              if (!courseStartDate) return false;
+              courseStartDate.setHours(0, 0, 0, 0);
+              return courseStatus === 'ongoing' && courseStartDate <= today;
+            }
+            return courseStatus === status;
+          });
+        }
+        
+        setCourses(filtered);
+      }
+      // For online courses, courses are already set above (line 151)
     } catch (error) {
       console.error('Error fetching courses:', error);
       setMessage({ type: 'error', text: 'Error fetching courses' });
@@ -155,6 +286,40 @@ function Courses({ courseType = 'onsite', status = 'all' }) {
   };
 
 
+  // Helper function to get date range based on time period selection
+  const getDateRange = () => {
+    switch (timePeriod) {
+      case 'month':
+        if (selectedMonth !== '' && selectedYear) {
+          const monthIndex = parseInt(selectedMonth);
+          const monthStart = new Date(selectedYear, monthIndex, 1);
+          const monthEnd = new Date(selectedYear, monthIndex + 1, 0);
+          monthEnd.setHours(23, 59, 59, 999);
+          return { start: monthStart, end: monthEnd };
+        }
+        return null;
+      case 'quarter':
+        if (selectedQuarter !== '' && selectedYear) {
+          const quarter = parseInt(selectedQuarter);
+          // Q1: Jan-Mar (0-2), Q2: Apr-Jun (3-5), Q3: Jul-Sep (6-8), Q4: Oct-Dec (9-11)
+          const quarterStartMonth = (quarter - 1) * 3;
+          const quarterStart = new Date(selectedYear, quarterStartMonth, 1);
+          const quarterEndMonth = quarterStartMonth + 2;
+          const quarterEnd = new Date(selectedYear, quarterEndMonth + 1, 0);
+          quarterEnd.setHours(23, 59, 59, 999);
+          return { start: quarterStart, end: quarterEnd };
+        }
+        return null;
+      case 'year':
+        const yearStart = new Date(selectedYear, 0, 1);
+        const yearEnd = new Date(selectedYear, 11, 31);
+        yearEnd.setHours(23, 59, 59, 999);
+        return { start: yearStart, end: yearEnd };
+      default:
+        return null;
+    }
+  };
+
   const filteredCourses = useMemo(() => {
     let filtered = [...courses];
     
@@ -168,28 +333,26 @@ function Courses({ courseType = 'onsite', status = 'all' }) {
       filtered = filtered.filter(course => course.id === selectedSearchCourse.id);
     }
     
-    if (startDateFilter) {
-      const filterDate = new Date(startDateFilter);
-      filterDate.setHours(0, 0, 0, 0);
-      filtered = filtered.filter(course => {
-        const courseDate = new Date(course.start_date);
-        courseDate.setHours(0, 0, 0, 0);
-        return courseDate >= filterDate;
-      });
+    // Filter by category (for online courses)
+    if (courseType === 'online' && selectedCategory) {
+      filtered = filtered.filter(course => course.categoryname === selectedCategory);
     }
     
-    if (endDateFilter) {
-      const filterDate = new Date(endDateFilter);
-      filterDate.setHours(23, 59, 59, 999);
+    // Filter by date range (month/quarter/year)
+    const dateRange = getDateRange();
+    if (dateRange) {
       filtered = filtered.filter(course => {
-        const courseDate = new Date(course.start_date);
+        const courseDate = course.startdate 
+          ? new Date(course.startdate * 1000)
+          : (course.start_date ? new Date(course.start_date) : null);
+        if (!courseDate) return false;
         courseDate.setHours(0, 0, 0, 0);
-        return courseDate <= filterDate;
+        return courseDate >= dateRange.start && courseDate <= dateRange.end;
       });
     }
     
     return filtered;
-  }, [courses, searchQuery, selectedSearchCourse, startDateFilter, endDateFilter]);
+  }, [courses, searchQuery, selectedSearchCourse, timePeriod, selectedMonth, selectedQuarter, selectedYear, selectedCategory, courseType]);
 
   const handleOpen = () => {
     setFormData({
@@ -500,13 +663,24 @@ function Courses({ courseType = 'onsite', status = 'all' }) {
                status === 'planning' ? ` Planning ${courseType.charAt(0).toUpperCase() + courseType.slice(1)} Courses` :
                ` Completed ${courseType.charAt(0).toUpperCase() + courseType.slice(1)} Courses`}
             </Typography>
-            <Typography variant="body2" sx={{ color: '#64748b', fontSize: '0.95rem' }}>
-              {status === 'all' ? `All ${courseType} courses` :
-               status === 'upcoming' ? `${courseType.charAt(0).toUpperCase() + courseType.slice(1)} courses scheduled to start soon` :
-               status === 'ongoing' ? `${courseType.charAt(0).toUpperCase() + courseType.slice(1)} courses currently in progress` :
-               status === 'planning' ? `${courseType.charAt(0).toUpperCase() + courseType.slice(1)} courses scheduled for the future` :
-               `${courseType.charAt(0).toUpperCase() + courseType.slice(1)} courses that have been completed`}
-            </Typography>
+            <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
+              <Typography variant="body2" sx={{ color: '#64748b', fontSize: '0.95rem' }}>
+                {status === 'all' ? `All ${courseType} courses` :
+                 status === 'upcoming' ? `${courseType.charAt(0).toUpperCase() + courseType.slice(1)} courses scheduled to start soon` :
+                 status === 'ongoing' ? `${courseType.charAt(0).toUpperCase() + courseType.slice(1)} courses currently in progress` :
+                 status === 'planning' ? `${courseType.charAt(0).toUpperCase() + courseType.slice(1)} courses scheduled for the future` :
+                 `${courseType.charAt(0).toUpperCase() + courseType.slice(1)} courses that have been completed`}
+              </Typography>
+              <Chip
+                label={`Total: ${filteredCourses.length} ${filteredCourses.length === 1 ? 'course' : 'courses'}`}
+                sx={{
+                  background: 'linear-gradient(135deg, rgba(30, 64, 175, 0.1) 0%, rgba(5, 150, 105, 0.1) 100%)',
+                  color: '#1e40af',
+                  fontWeight: 600,
+                  border: '1px solid rgba(30, 64, 175, 0.2)',
+                }}
+              />
+            </Box>
           </Box>
           <Box display="flex" gap={2}>
             {status === 'planning' && (
@@ -624,39 +798,127 @@ function Courses({ courseType = 'onsite', status = 'all' }) {
                   clearOnEscape
                   clearOnBlur={false}
                 />
-                <LocalizationProvider dateAdapter={AdapterDateFns}>
-                  <DatePicker
-                    label="Start Date"
-                    value={startDateFilter}
-                    onChange={(newValue) => setStartDateFilter(newValue)}
-                    slotProps={{
-                      textField: {
-                        size: 'small',
-                        sx: { minWidth: 160 },
-                      },
-                    }}
+                <TextField
+                  select
+                  label="Time Period"
+                  value={timePeriod}
+                  onChange={(e) => {
+                    setTimePeriod(e.target.value);
+                    if (e.target.value === 'all') {
+                      setSelectedMonth('');
+                      setSelectedQuarter('');
+                    }
+                  }}
+                  sx={{ minWidth: 150 }}
+                  size="small"
+                >
+                  <MenuItem value="all">All Time</MenuItem>
+                  <MenuItem value="month">Month</MenuItem>
+                  <MenuItem value="quarter">Quarter</MenuItem>
+                  <MenuItem value="year">Year</MenuItem>
+                </TextField>
+                {timePeriod === 'month' && (
+                  <>
+                    <TextField
+                      select
+                      label="Month"
+                      value={selectedMonth}
+                      onChange={(e) => setSelectedMonth(e.target.value)}
+                      sx={{ minWidth: 150 }}
+                      size="small"
+                    >
+                      <MenuItem value="0">January</MenuItem>
+                      <MenuItem value="1">February</MenuItem>
+                      <MenuItem value="2">March</MenuItem>
+                      <MenuItem value="3">April</MenuItem>
+                      <MenuItem value="4">May</MenuItem>
+                      <MenuItem value="5">June</MenuItem>
+                      <MenuItem value="6">July</MenuItem>
+                      <MenuItem value="7">August</MenuItem>
+                      <MenuItem value="8">September</MenuItem>
+                      <MenuItem value="9">October</MenuItem>
+                      <MenuItem value="10">November</MenuItem>
+                      <MenuItem value="11">December</MenuItem>
+                    </TextField>
+                    <TextField
+                      type="number"
+                      label="Year"
+                      value={selectedYear}
+                      onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                      inputProps={{ min: 2000, max: 2100 }}
+                      sx={{ minWidth: 100 }}
+                      size="small"
+                    />
+                  </>
+                )}
+                {timePeriod === 'quarter' && (
+                  <>
+                    <TextField
+                      select
+                      label="Quarter"
+                      value={selectedQuarter}
+                      onChange={(e) => setSelectedQuarter(e.target.value)}
+                      sx={{ minWidth: 120 }}
+                      size="small"
+                    >
+                      <MenuItem value="1">Q1 (Jan-Mar)</MenuItem>
+                      <MenuItem value="2">Q2 (Apr-Jun)</MenuItem>
+                      <MenuItem value="3">Q3 (Jul-Sep)</MenuItem>
+                      <MenuItem value="4">Q4 (Oct-Dec)</MenuItem>
+                    </TextField>
+                    <TextField
+                      type="number"
+                      label="Year"
+                      value={selectedYear}
+                      onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                      inputProps={{ min: 2000, max: 2100 }}
+                      sx={{ minWidth: 100 }}
+                      size="small"
+                    />
+                  </>
+                )}
+                {timePeriod === 'year' && (
+                  <TextField
+                    type="number"
+                    label="Year"
+                    value={selectedYear}
+                    onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                    inputProps={{ min: 2000, max: 2100 }}
+                    sx={{ minWidth: 100 }}
+                    size="small"
                   />
-                  <DatePicker
-                    label="End Date"
-                    value={endDateFilter}
-                    onChange={(newValue) => setEndDateFilter(newValue)}
-                    slotProps={{
-                      textField: {
-                        size: 'small',
-                        sx: { minWidth: 160 },
-                      },
-                    }}
-                  />
-                </LocalizationProvider>
-                {(startDateFilter || endDateFilter || searchQuery) && (
+                )}
+                {courseType === 'online' && categories.length > 0 && (
+                  <TextField
+                    select
+                    label="Category"
+                    value={selectedCategory}
+                    onChange={(e) => setSelectedCategory(e.target.value)}
+                    size="small"
+                    sx={{ minWidth: 180 }}
+                  >
+                    <MenuItem value="">
+                      <em>All Categories</em>
+                    </MenuItem>
+                    {categories.map((category) => (
+                      <MenuItem key={category} value={category}>
+                        {category}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                )}
+                {(timePeriod !== 'all' || searchQuery || selectedCategory) && (
                   <Button
                     variant="text"
                     size="small"
                     onClick={() => {
-                      setStartDateFilter(null);
-                      setEndDateFilter(null);
+                      setTimePeriod('all');
+                      setSelectedMonth('');
+                      setSelectedQuarter('');
+                      setSelectedYear(new Date().getFullYear());
                       setSearchQuery('');
                       setSelectedSearchCourse(null);
+                      setSelectedCategory('');
                     }}
                     sx={{ color: '#64748b', fontWeight: 500 }}
                   >
@@ -680,19 +942,20 @@ function Courses({ courseType = 'onsite', status = 'all' }) {
               <Table>
                 <TableHead>
                   <TableRow sx={{ background: 'linear-gradient(135deg, rgba(30, 64, 175, 0.05) 0%, rgba(5, 150, 105, 0.05) 100%)' }}>
-                    <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>Course Name</TableCell>
-                    <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>Batch Code</TableCell>
-                    <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>Start Date</TableCell>
-                    <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }} align="right">Seats</TableCell>
-                    <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }} align="right">Enrolled</TableCell>
-                    <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }} align="right">Available</TableCell>
-                    <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }} align="center">Actions</TableCell>
+                    <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem', width: '30%' }}>Course Name</TableCell>
+                    <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem', width: '15%' }}>Batch Code</TableCell>
+                    <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem', width: '15%' }}>Start Date</TableCell>
+                    <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem', width: '15%' }}>End Date</TableCell>
+                    {courseType === 'online' && (
+                      <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem', width: '15%' }}>Category</TableCell>
+                    )}
+                    <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem', width: '10%' }} align="right">Total Assigned</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {filteredCourses.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} align="center" sx={{ py: 6 }}>
+                      <TableCell colSpan={courseType === 'online' ? 6 : 5} align="center" sx={{ py: 6 }}>
                         <Typography color="text.secondary" sx={{ fontSize: '0.95rem' }}>
                           No courses found
                         </Typography>
@@ -712,53 +975,45 @@ function Courses({ courseType = 'onsite', status = 'all' }) {
                         }}
                         onClick={() => handleViewDetails(course.id)}
                       >
-                        <TableCell sx={{ fontWeight: 500, color: '#1e3a8a' }}>{course.name}</TableCell>
-                        <TableCell sx={{ color: '#475569' }}>{course.batch_code}</TableCell>
-                        <TableCell sx={{ color: '#64748b' }}>{formatDateForDisplay(course.start_date)}</TableCell>
-                        <TableCell align="right" sx={{ color: '#475569' }}>{course.seat_limit}</TableCell>
-                        <TableCell align="right" sx={{ color: '#475569' }}>{course.current_enrolled}</TableCell>
-                        <TableCell align="right">
-                          <Chip
-                            label={course.seat_limit - course.current_enrolled}
-                            size="small"
-                            sx={{
-                              background: course.seat_limit - course.current_enrolled > 0 
-                                ? 'linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%)'
-                                : 'linear-gradient(135deg, #fee2e2 0%, #fecaca 100%)',
-                              color: course.seat_limit - course.current_enrolled > 0 ? '#047857' : '#991b1b',
-                              fontWeight: 600,
-                            }}
-                          />
+                        <TableCell sx={{ fontWeight: 500, color: '#1e3a8a' }}>{course.name || course.fullname}</TableCell>
+                        <TableCell sx={{ color: '#475569' }}>{course.batch_code || '-'}</TableCell>
+                        <TableCell sx={{ color: '#64748b' }}>
+                          {course.startdate 
+                            ? new Date(course.startdate * 1000).toLocaleDateString('en-US', {
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric'
+                              })
+                            : course.start_date 
+                            ? formatDateForDisplay(course.start_date)
+                            : 'Not set'}
                         </TableCell>
-                        <TableCell align="center" onClick={(e) => e.stopPropagation()}>
-                          <Box display="flex" gap={0.5} justifyContent="center">
-                            <IconButton size="small" color="primary" title="Edit" onClick={() => handleEdit(course)}>
-                              <Edit sx={{ fontSize: '1.1rem' }} />
-                            </IconButton>
-                            <IconButton size="small" sx={{ color: '#94a3b8' }} title="Download" onClick={() => handleGenerateReport(course.id)}>
-                              <Download sx={{ fontSize: '1.1rem' }} />
-                            </IconButton>
-                            {status === 'planning' && (course.status === 'draft' || String(course.status).toLowerCase() === 'draft') && (
-                              <IconButton
-                                color="success"
-                                onClick={() => handleApproveCourse(course.id)}
-                                title="Approve Course"
-                                size="small"
-                              >
-                                <CheckCircle />
-                              </IconButton>
-                            )}
-                            {status !== 'completed' && (
-                              <IconButton
-                                color="error"
-                                onClick={() => handleDelete(course.id)}
-                                title="Delete Course"
-                                size="small"
-                              >
-                                <Delete />
-                              </IconButton>
-                            )}
-                          </Box>
+                        <TableCell sx={{ color: '#64748b' }}>
+                          {course.enddate 
+                            ? new Date(course.enddate * 1000).toLocaleDateString('en-US', {
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric'
+                              })
+                            : course.end_date 
+                            ? formatDateForDisplay(course.end_date)
+                            : 'Not set'}
+                        </TableCell>
+                        {courseType === 'online' && (
+                          <TableCell sx={{ color: '#475569' }}>
+                            <Chip
+                              label={course.categoryname || 'Unknown'}
+                              size="small"
+                              sx={{
+                                background: 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)',
+                                color: '#1e40af',
+                                fontWeight: 600,
+                              }}
+                            />
+                          </TableCell>
+                        )}
+                        <TableCell align="right" sx={{ color: '#475569', fontWeight: 600 }}>
+                          {course.current_enrolled || '-'}
                         </TableCell>
                       </TableRow>
                     ))

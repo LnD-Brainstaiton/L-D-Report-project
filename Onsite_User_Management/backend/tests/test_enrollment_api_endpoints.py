@@ -53,7 +53,7 @@ def test_approve_enrollment_endpoint():
             employee_id=f"TEST-APPROVE-{timestamp}",
             name="Test Student Approve",
             email=f"testapprove{timestamp}@example.com",
-            sbu="IT",
+            department="IT",
             designation="Developer"
         )
         db.add(student)
@@ -137,7 +137,7 @@ def test_reject_enrollment_endpoint():
             employee_id=f"TEST-REJECT-{timestamp}",
             name="Test Student Reject",
             email=f"testreject{timestamp}@example.com",
-            sbu="IT",
+            department="IT",
             designation="Developer"
         )
         db.add(student)
@@ -222,7 +222,7 @@ def test_withdraw_enrollment_endpoint():
             employee_id=f"TEST-WITHDRAW-{timestamp}",
             name="Test Student Withdraw",
             email=f"testwithdraw{timestamp}@example.com",
-            sbu="IT",
+            department="IT",
             designation="Developer"
         )
         db.add(student)
@@ -305,7 +305,7 @@ def test_reapprove_enrollment_endpoint():
             employee_id=f"TEST-REAPPROVE-{timestamp}",
             name="Test Student Reapprove",
             email=f"testreapprove{timestamp}@example.com",
-            sbu="IT",
+            department="IT",
             designation="Developer"
         )
         db.add(student)

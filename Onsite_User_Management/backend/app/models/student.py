@@ -1,18 +1,7 @@
-from sqlalchemy import Column, Integer, String, DateTime, Enum, Boolean, Date
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, Date
 from sqlalchemy.orm import relationship
 from app.db.base import Base
-import enum
 from datetime import datetime
-
-class SBU(str, enum.Enum):
-    """Strategic Business Unit enum."""
-    IT = "IT"
-    HR = "HR"
-    FINANCE = "Finance"
-    OPERATIONS = "Operations"
-    SALES = "Sales"
-    MARKETING = "Marketing"
-    OTHER = "Other"
 
 class Student(Base):
     __tablename__ = "students"
@@ -21,7 +10,7 @@ class Student(Base):
     employee_id = Column(String, unique=True, index=True, nullable=False)
     name = Column(String, nullable=False)
     email = Column(String, unique=True, index=True, nullable=False)
-    sbu = Column(Enum(SBU), nullable=False)
+    department = Column(String, nullable=False)  # Changed from sbu enum to department string
     designation = Column(String, nullable=True)
     experience_years = Column(Integer, default=0)
     career_start_date = Column(Date, nullable=True)  # For calculating total experience

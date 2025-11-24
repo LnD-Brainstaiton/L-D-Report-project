@@ -42,7 +42,7 @@ def test_create_enrollment():
                 employee_id="TEST-ENR-001",
                 name="Test Student ENR",
                 email="testenr@example.com",
-                sbu="IT",
+                department="IT",
                 designation="Developer"
             )
             db.add(student)

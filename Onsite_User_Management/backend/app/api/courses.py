@@ -474,7 +474,7 @@ def generate_course_report(course_id: int, db: Session = Depends(get_db)):
             'Employee ID': student.employee_id,
             'Name': student.name,
             'Email': student.email,
-            'SBU': student.sbu.value if student.sbu else '',
+            'Department': student.department or '',
             'Designation': student.designation or '',
             'Approval Status': enrollment.approval_status.value if enrollment.approval_status else '',
             'Completion Status': enrollment.completion_status.value if enrollment.completion_status else '',
@@ -497,7 +497,7 @@ def generate_course_report(course_id: int, db: Session = Depends(get_db)):
     # If no enrollments, create empty DataFrame with columns
     if df.empty:
         df = pd.DataFrame(columns=[
-            'Employee ID', 'Name', 'Email', 'SBU', 'Designation',
+            'Employee ID', 'Name', 'Email', 'Department', 'Designation',
             'Approval Status', 'Completion Status', 'Total Classes', 'Classes Attended',
             'Attendance', 'Score', 'Total Courses Assigned', 'Completed Courses',
             'Overall Completion Rate', 'Enrollment Date', 'Approval Date',

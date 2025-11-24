@@ -5,47 +5,47 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.core.validation import validate_sbu
+from app.core.validation import validate_department
 from app.models.enrollment import EligibilityStatus, ApprovalStatus, CompletionStatus
 
-def test_sbu_validation():
-    """Test SBU validation."""
+def test_department_validation():
+    """Test Department validation."""
     print("\n" + "=" * 60)
-    print("TEST: SBU Validation")
+    print("TEST: Department Validation")
     print("=" * 60)
     
-    valid_sbus = ["IT", "HR", "Finance", "Operations", "Sales", "Marketing"]
-    # Note: "HR " and "  Finance" will be stripped to "HR" and "Finance" which are valid
-    invalid_sbus = ["Invalid", "IT Department", "it", ""]
+    valid_departments = ["IT", "HR", "Finance", "Operations", "Sales", "Marketing", "CXO", "HealthTech"]
+    # Department is now a free text field, so we test that it accepts any non-empty string
+    invalid_departments = [""]  # Only empty string should be invalid
     
     all_passed = True
     
-    # Test valid SBUs
-    for sbu in valid_sbus:
+    # Test valid departments
+    for dept in valid_departments:
         try:
-            result = validate_sbu(sbu)
-            print(f"  ✓ '{sbu}' - Valid (as expected)")
-            if result != sbu:
-                print(f"    ✗ FAIL: Returned value '{result}' doesn't match input '{sbu}'")
+            result = validate_department(dept)
+            print(f"  ✓ '{dept}' - Valid (as expected)")
+            if result != dept.strip():
+                print(f"    ✗ FAIL: Returned value '{result}' doesn't match input '{dept}'")
                 all_passed = False
         except ValueError as e:
-            print(f"  ✗ '{sbu}' - Rejected (unexpected): {e}")
+            print(f"  ✗ '{dept}' - Rejected (unexpected): {e}")
             all_passed = False
     
-    # Test invalid SBUs
-    for sbu in invalid_sbus:
+    # Test invalid departments (empty string)
+    for dept in invalid_departments:
         try:
-            validate_sbu(sbu)
-            print(f"  ✗ '{sbu}' - Accepted (unexpected - should be rejected)")
+            validate_department(dept)
+            print(f"  ✗ '{dept}' - Accepted (unexpected - should be rejected)")
             all_passed = False
         except ValueError as e:
-            print(f"  ✓ '{sbu}' - Rejected (as expected): {e}")
+            print(f"  ✓ '{dept}' - Rejected (as expected): {e}")
     
-    # Test whitespace handling (should strip and validate)
+    # Test whitespace handling (should strip)
     whitespace_cases = [("HR ", "HR"), ("  Finance", "Finance"), ("  IT  ", "IT")]
     for original, expected in whitespace_cases:
         try:
-            result = validate_sbu(original)
+            result = validate_department(original)
             if result == expected:
                 print(f"  ✓ '{original}' -> '{result}' (whitespace stripped correctly)")
             else:
@@ -56,10 +56,10 @@ def test_sbu_validation():
             all_passed = False
     
     if all_passed:
-        print("\n✓ PASS: SBU validation works correctly")
+        print("\n✓ PASS: Department validation works correctly")
         return True
     else:
-        print("\n✗ FAIL: SBU validation has issues")
+        print("\n✗ FAIL: Department validation has issues")
         return False
 
 def test_eligibility_status_enum():
@@ -202,7 +202,7 @@ def main():
     print("=" * 60)
     
     results = []
-    results.append(test_sbu_validation())
+    results.append(test_department_validation())
     results.append(test_eligibility_status_enum())
     results.append(test_approval_status_enum())
     results.append(test_completion_status_enum())

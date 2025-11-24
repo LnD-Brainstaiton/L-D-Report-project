@@ -71,6 +71,7 @@ import {
   completionsAPI,
   studentsAPI,
   mentorsAPI,
+  lmsAPI,
 } from '../services/api';
 import UserDetailsDialog from '../components/UserDetailsDialog';
 import AssignInternalMentorDialog from '../components/AssignInternalMentorDialog';
@@ -94,20 +95,37 @@ function CourseDetail() {
   const [commentDialogOpen, setCommentDialogOpen] = useState(false);
   const [draftMentorsWithDetails, setDraftMentorsWithDetails] = useState([]);
   
-  // Enrollment sections
-  const approvedEnrollments = enrollments.filter(e => e.approval_status === 'Approved');
+  // Enrollment sections - different for onsite vs online courses
+  const isOnlineCourse = course?.is_lms_course;
+  
+  // For online courses: group by completion status
+  const completedOnline = enrollments.filter(e => 
+    e.is_lms_enrollment && (e.progress >= 100 || e.completion_status === 'Completed')
+  );
+  const inProgressOnline = enrollments.filter(e => 
+    e.is_lms_enrollment && e.progress > 0 && e.progress < 100 && e.completion_status === 'In Progress'
+  );
+  const notStartedOnline = enrollments.filter(e => 
+    e.is_lms_enrollment && (e.progress === 0 || e.completion_status === 'Not Started') && 
+    !(e.progress >= 100 || e.completion_status === 'Completed') &&
+    !(e.progress > 0 && e.progress < 100 && e.completion_status === 'In Progress')
+  );
+  
+  // For onsite courses: group by approval status
+  const approvedEnrollments = enrollments.filter(e => !e.is_lms_enrollment && e.approval_status === 'Approved');
   const eligiblePending = enrollments.filter(e => 
-    e.approval_status === 'Pending' && e.eligibility_status === 'Eligible'
+    !e.is_lms_enrollment && e.approval_status === 'Pending' && e.eligibility_status === 'Eligible'
   );
   const notEligible = enrollments.filter(e => 
+    !e.is_lms_enrollment &&
     e.approval_status !== 'Approved' && 
     e.approval_status !== 'Rejected' &&
     (e.eligibility_status === 'Ineligible (Missing Prerequisite)' ||
      e.eligibility_status === 'Ineligible (Already Taken)' ||
      e.eligibility_status === 'Ineligible (Annual Limit)')
   );
-  const rejected = enrollments.filter(e => e.approval_status === 'Rejected');
-  const withdrawn = enrollments.filter(e => e.approval_status === 'Withdrawn');
+  const rejected = enrollments.filter(e => !e.is_lms_enrollment && e.approval_status === 'Rejected');
+  const withdrawn = enrollments.filter(e => !e.is_lms_enrollment && e.approval_status === 'Withdrawn');
   
   // Dialogs
   const [withdrawDialogOpen, setWithdrawDialogOpen] = useState(false);
@@ -123,10 +141,10 @@ function CourseDetail() {
   
   // Preview data for enrollment import format (matches ADA2025A_registration.xlsx structure)
   const enrollmentPreviewData = [
-    { employee_id: 'EMP143', name: 'Casey Smith', email: 'casey.smith143@company.com', sbu: 'Operations', designation: 'Engineer', course_name: 'Advanced Data Analytics', batch_code: 'ADA2025A' },
-    { employee_id: 'EMP102', name: 'Morgan Williams', email: 'morgan.williams102@company.com', sbu: 'Marketing', designation: 'Engineer', course_name: 'Advanced Data Analytics', batch_code: 'ADA2025A' },
-    { employee_id: 'EMP144', name: 'Reese Williams', email: 'reese.williams144@company.com', sbu: 'Operations', designation: 'Manager', course_name: 'Advanced Data Analytics', batch_code: 'ADA2025A' },
-    { employee_id: 'EMP145', name: 'Alex Johnson', email: 'alex.johnson145@company.com', sbu: 'IT', designation: 'Coordinator', course_name: 'Advanced Data Analytics', batch_code: 'ADA2025A' },
+    { employee_id: 'EMP143', name: 'Casey Smith', email: 'casey.smith143@company.com', department: 'Operations', designation: 'Engineer', course_name: 'Advanced Data Analytics', batch_code: 'ADA2025A' },
+    { employee_id: 'EMP102', name: 'Morgan Williams', email: 'morgan.williams102@company.com', department: 'Marketing', designation: 'Engineer', course_name: 'Advanced Data Analytics', batch_code: 'ADA2025A' },
+    { employee_id: 'EMP144', name: 'Reese Williams', email: 'reese.williams144@company.com', department: 'Operations', designation: 'Manager', course_name: 'Advanced Data Analytics', batch_code: 'ADA2025A' },
+    { employee_id: 'EMP145', name: 'Alex Johnson', email: 'alex.johnson145@company.com', department: 'IT', designation: 'Coordinator', course_name: 'Advanced Data Analytics', batch_code: 'ADA2025A' },
   ];
   const [attendanceDialogOpen, setAttendanceDialogOpen] = useState(false);
   const [attendanceFile, setAttendanceFile] = useState(null);
@@ -182,32 +200,85 @@ function CourseDetail() {
   useEffect(() => {
     if (courseId) {
       fetchCourse();
-      fetchEnrollments();
     }
   }, [courseId]);
+
+  useEffect(() => {
+    if (course && courseId) {
+      fetchEnrollments();
+    }
+  }, [course, courseId]);
 
   const fetchCourse = async () => {
     setLoading(true);
     try {
-      const response = await coursesAPI.getById(courseId);
-      const courseData = response.data;
+      // Check if this is an LMS course by trying to fetch from LMS first
+      let courseData = null;
+      let isLmsCourse = false;
+      
+      try {
+        const lmsResponse = await lmsAPI.getCourses();
+        const lmsCourses = lmsResponse.data.courses || [];
+        const lmsCourse = lmsCourses.find(c => c.id === parseInt(courseId));
+        
+        if (lmsCourse) {
+          // This is an LMS course
+          isLmsCourse = true;
+          courseData = {
+            id: lmsCourse.id,
+            name: lmsCourse.fullname,
+            fullname: lmsCourse.fullname,
+            batch_code: lmsCourse.shortname || '',
+            description: lmsCourse.summary || '',
+            start_date: lmsCourse.startdate ? new Date(lmsCourse.startdate * 1000).toISOString().split('T')[0] : null,
+            end_date: lmsCourse.enddate ? new Date(lmsCourse.enddate * 1000).toISOString().split('T')[0] : null,
+            startdate: lmsCourse.startdate, // Unix timestamp
+            enddate: lmsCourse.enddate, // Unix timestamp
+            categoryname: lmsCourse.categoryname || 'Unknown',
+            categoryid: lmsCourse.categoryid,
+            course_type: 'online',
+            seat_limit: 0,
+            current_enrolled: 0,
+            status: 'ongoing',
+            visible: lmsCourse.visible === 1,
+            is_lms_course: true,
+          };
+        }
+      } catch (lmsError) {
+        // Not an LMS course or error fetching, try regular API
+        console.log('Not an LMS course or error fetching from LMS, trying regular API');
+      }
+      
+      // If not found in LMS, fetch from regular API
+      if (!courseData) {
+        const response = await coursesAPI.getById(courseId);
+        courseData = response.data;
+      }
+      
       setCourse(courseData);
       
-      // Set comments if available
-      if (courseData.comments) {
+      // Set comments if available (only for onsite courses, not LMS courses)
+      if (courseData.is_lms_course) {
+        // LMS courses don't have comments in local database
+        setComments([]);
+      } else if (courseData.comments) {
         setComments(courseData.comments);
       } else {
-        // Fetch comments separately if not included
+        // Fetch comments separately if not included (only for onsite courses)
         try {
           const commentsResponse = await coursesAPI.getComments(courseId);
           setComments(commentsResponse.data);
         } catch (err) {
-          console.error('Error fetching comments:', err);
+          // Silently handle 404 for courses without comments endpoint
+          if (err.response?.status !== 404) {
+            console.error('Error fetching comments:', err);
+          }
+          setComments([]);
         }
       }
       
-      // If course is in draft status, fetch draft data and mentor details
-      if (courseData.status === 'draft') {
+      // If course is in draft status, fetch draft data and mentor details (only for onsite courses)
+      if (!courseData.is_lms_course && courseData.status === 'draft') {
         try {
           // Try to get draft data
           let draftMentorAssignments = [];
@@ -263,8 +334,66 @@ function CourseDetail() {
   const fetchEnrollments = async () => {
     setLoadingEnrollments(true);
     try {
-      const response = await enrollmentsAPI.getAll({ course_id: courseId });
-      setEnrollments(response.data);
+      // Check if this is an LMS course
+      if (course && course.is_lms_course) {
+        // Fetch enrollments from LMS API
+        const lmsResponse = await lmsAPI.getCourseEnrollments(courseId);
+        const lmsEnrollments = lmsResponse.data.enrollments || [];
+        
+        // Map enrollments - we'll fetch progress in batches to avoid timeouts
+        // First, map all enrollments with basic info
+        const mappedEnrollments = lmsEnrollments.map((user) => ({
+          id: user.id,
+          student_id: user.id,
+          course_id: parseInt(courseId),
+          student_name: user.fullname,
+          student_email: user.email,
+          student_employee_id: user.employee_id || user.username,
+          student_department: user.department || 'Unknown',
+          progress: 0, // Will be updated below
+          completion_status: 'Not Started', // Will be updated below
+          // Date assigned: use firstaccess (when user first accessed the course) or course startdate
+          date_assigned: user.firstaccess || course.startdate || null,
+          // Last access: prefer lastcourseaccess (last access to this specific course) over lastaccess
+          lastaccess: user.lastcourseaccess || user.lastaccess || null,
+          is_lms_enrollment: true,
+        }));
+        
+        // Set enrollments immediately so users are visible
+        setEnrollments(mappedEnrollments);
+        
+        // Then fetch progress for each user in smaller batches (3 at a time)
+        const batchSize = 3;
+        for (let i = 0; i < mappedEnrollments.length; i += batchSize) {
+          const batch = mappedEnrollments.slice(i, i + batchSize);
+          await Promise.all(
+            batch.map(async (enrollment) => {
+              try {
+                const userCoursesResponse = await lmsAPI.getUserCourses(enrollment.student_employee_id);
+                const userCourses = userCoursesResponse.data.courses || [];
+                const userCourse = userCourses.find(c => c.id === parseInt(courseId));
+                
+                const progress = userCourse?.progress || 0;
+                const completionStatus = progress >= 100 ? 'Completed' : (progress > 0 ? 'In Progress' : 'Not Started');
+                
+                // Update the enrollment in the state
+                setEnrollments(prev => prev.map(e => 
+                  e.id === enrollment.id 
+                    ? { ...e, progress, completion_status: completionStatus }
+                    : e
+                ));
+              } catch (err) {
+                console.error(`Error fetching progress for user ${enrollment.student_employee_id}:`, err);
+                // Keep default values (0 progress, Not Started)
+              }
+            })
+          );
+        }
+      } else {
+        // Fetch enrollments from regular API for onsite courses
+        const response = await enrollmentsAPI.getAll({ course_id: courseId });
+        setEnrollments(response.data);
+      }
     } catch (error) {
       console.error('Error fetching enrollments:', error);
       setMessage({ type: 'error', text: 'Error fetching enrollments' });
@@ -1006,7 +1135,7 @@ function CourseDetail() {
                 <School sx={{ fontSize: 40 }} />
                 <Box flexGrow={1}>
                   <Typography variant="h4" sx={{ fontWeight: 700, mb: 0.5 }}>
-                    {course?.name}
+                    {course?.name || course?.fullname}
                   </Typography>
                   <Typography variant="body2" sx={{ opacity: 0.95, fontSize: '1rem' }}>
                     Batch Code: {course?.batch_code}
@@ -1021,7 +1150,108 @@ function CourseDetail() {
             </CardContent>
           </Card>
 
+          {/* LMS Course Details Card (for online courses) */}
+          {course?.is_lms_course && (
+            <Card
+              sx={{
+                mb: 3,
+                border: `1px solid ${alpha(theme.palette.info.main, 0.2)}`,
+                backgroundColor: alpha(theme.palette.info.main, 0.03),
+              }}
+            >
+              <CardContent>
+                <Typography variant="h6" sx={{ fontWeight: 700, mb: 2, color: theme.palette.info.main }}>
+                  Online Course Details
+                </Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600, mb: 0.5 }}>
+                      Full Name
+                    </Typography>
+                    <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                      {course.fullname || course.name}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600, mb: 0.5 }}>
+                      Category
+                    </Typography>
+                    <Chip
+                      label={course.categoryname || 'Unknown'}
+                      size="small"
+                      sx={{
+                        background: 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)',
+                        color: '#1e40af',
+                        fontWeight: 600,
+                      }}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600, mb: 0.5 }}>
+                      Start Date
+                    </Typography>
+                    <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                      {course.startdate 
+                        ? new Date(course.startdate * 1000).toLocaleString('en-US', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })
+                        : 'Not set'}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600, mb: 0.5 }}>
+                      End Date
+                    </Typography>
+                    <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                      {course.enddate 
+                        ? new Date(course.enddate * 1000).toLocaleString('en-US', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })
+                        : 'Not set'}
+                    </Typography>
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Stat Cards */}
+          {isOnlineCourse ? (
+            <Grid container spacing={3} sx={{ mb: 4 }}>
+              <Grid item xs={12} sm={6} md={4}>
+                <Card
+                  sx={{
+                    border: `1px solid ${alpha(theme.palette.primary.main, 0.15)}`,
+                    backgroundColor: alpha(theme.palette.primary.main, 0.05),
+                    height: '100%',
+                  }}
+                >
+                  <CardContent>
+                    <Box display="flex" alignItems="center" gap={1} mb={1}>
+                      <People sx={{ fontSize: 20, color: theme.palette.primary.main }} />
+                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+                        Total Assigned
+                      </Typography>
+                    </Box>
+                    <Typography variant="h5" sx={{ fontWeight: 700, color: theme.palette.primary.main, mb: 0.5 }}>
+                      {loadingEnrollments ? '...' : enrollments.length}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Students enrolled in this course
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+            </Grid>
+          ) : (
           <Grid container spacing={3} sx={{ mb: 4 }}>
             <Grid item xs={12} sm={6} md={3}>
               <Card
@@ -1122,8 +1352,10 @@ function CourseDetail() {
               </Card>
             </Grid>
           </Grid>
+          )}
 
-          {/* Action Buttons */}
+          {/* Action Buttons - Only for onsite courses */}
+          {!isOnlineCourse && (
           <Card sx={{ mb: 3, border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}` }}>
             <CardContent>
               <Box display="flex" gap={2} flexWrap="wrap">
@@ -1193,8 +1425,10 @@ function CourseDetail() {
               </Box>
             </CardContent>
           </Card>
+          )}
 
-          {/* Course Schedule Card */}
+          {/* Course Schedule Card - Only for onsite courses */}
+          {!isOnlineCourse && (
           <Card sx={{ mb: 3, border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}` }}>
             <CardContent>
               <Box display="flex" alignItems="center" justifyContent="space-between" mb={2.5}>
@@ -1243,8 +1477,10 @@ function CourseDetail() {
               )}
             </CardContent>
           </Card>
+          )}
 
-          {/* Assigned Mentors Card */}
+          {/* Assigned Mentors Card - Only for onsite courses */}
+          {!isOnlineCourse && (
           <Card sx={{ mb: 3, border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}` }}>
             <CardContent>
               <Box display="flex" alignItems="center" justifyContent="space-between" mb={2.5} flexWrap="wrap" gap={2}>
@@ -1404,8 +1640,10 @@ function CourseDetail() {
             })()}
             </CardContent>
           </Card>
+          )}
 
-          {/* Course Costs Section - Accounting Books Layout */}
+          {/* Course Costs Section - Only for onsite courses */}
+          {!isOnlineCourse && (
           <Card sx={{ mb: 3, border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}` }}>
             <CardContent>
               <Box display="flex" alignItems="center" justifyContent="space-between" mb={2.5} flexWrap="wrap" gap={2}>
@@ -1520,8 +1758,10 @@ function CourseDetail() {
               </Card>
             </CardContent>
           </Card>
+          )}
 
-          {/* Comment History Section */}
+          {/* Comment History Section - Only for onsite courses */}
+          {!isOnlineCourse && (
           <Card sx={{ mb: 3, border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}` }}>
             <CardContent>
               <Box display="flex" alignItems="center" justifyContent="space-between" mb={2.5}>
@@ -1578,6 +1818,7 @@ function CourseDetail() {
               )}
             </CardContent>
           </Card>
+          )}
 
           {/* Enrollment Sections */}
           {loadingEnrollments ? (
@@ -1586,6 +1827,69 @@ function CourseDetail() {
             </Box>
           ) : (
             <>
+              {/* Online Course Enrollment Sections */}
+              {isOnlineCourse ? (
+                <>
+                  {/* Completed Students */}
+                  {completedOnline.length > 0 && (
+                    <Card sx={{ 
+                      mb: 3,
+                      borderLeft: `4px solid ${theme.palette.success.main}`,
+                      backgroundColor: alpha(theme.palette.success.main, 0.05),
+                    }}>
+                      <CardContent>
+                        <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: theme.palette.success.main }}>
+                          Completed ({completedOnline.length})
+                        </Typography>
+                        <OnlineEnrollmentTable enrollments={completedOnline} />
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* In Progress Students */}
+                  {inProgressOnline.length > 0 && (
+                    <Card sx={{ 
+                      mb: 3,
+                      borderLeft: `4px solid ${theme.palette.warning.main}`,
+                      backgroundColor: alpha(theme.palette.warning.main, 0.05),
+                    }}>
+                      <CardContent>
+                        <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: theme.palette.warning.main }}>
+                          In Progress ({inProgressOnline.length})
+                        </Typography>
+                        <OnlineEnrollmentTable enrollments={inProgressOnline} />
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Not Started Students */}
+                  {notStartedOnline.length > 0 && (
+                    <Card sx={{ 
+                      mb: 3,
+                      borderLeft: `4px solid ${theme.palette.grey[500]}`,
+                      backgroundColor: alpha(theme.palette.grey[500], 0.05),
+                    }}>
+                      <CardContent>
+                        <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: theme.palette.grey[700] }}>
+                          Not Started ({notStartedOnline.length})
+                        </Typography>
+                        <OnlineEnrollmentTable enrollments={notStartedOnline} />
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {enrollments.length === 0 && (
+                    <Card>
+                      <CardContent>
+                        <Typography variant="body2" color="text.secondary" align="center" py={3}>
+                          No students enrolled in this online course yet.
+                        </Typography>
+                      </CardContent>
+                    </Card>
+                  )}
+                </>
+              ) : (
+                <>
               {/* Approved/Enrolled Students */}
               {approvedEnrollments.length > 0 && (
                 <Card sx={{ 
@@ -1714,6 +2018,8 @@ function CourseDetail() {
                   </CardContent>
                 </Card>
               )}
+                </>
+              )}
             </>
           )}
         </Box>
@@ -1819,7 +2125,7 @@ function CourseDetail() {
                         <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>employee_id</TableCell>
                         <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>name</TableCell>
                         <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>email</TableCell>
-                        <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>sbu</TableCell>
+                        <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>department</TableCell>
                         <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>designation</TableCell>
                         <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>course_name</TableCell>
                         <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>batch_code</TableCell>
@@ -1837,7 +2143,7 @@ function CourseDetail() {
                           <TableCell sx={{ fontSize: '0.75rem', whiteSpace: 'nowrap' }}>{row.name}</TableCell>
                           <TableCell sx={{ fontSize: '0.75rem', whiteSpace: 'nowrap' }}>{row.email}</TableCell>
                           <TableCell sx={{ fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
-                            <Chip label={row.sbu} size="small" sx={{ height: 20, fontSize: '0.7rem' }} />
+                            <Chip label={row.department} size="small" sx={{ height: 20, fontSize: '0.7rem' }} />
                           </TableCell>
                           <TableCell sx={{ fontSize: '0.75rem', whiteSpace: 'nowrap' }}>{row.designation}</TableCell>
                           <TableCell sx={{ fontSize: '0.75rem', whiteSpace: 'nowrap' }}>{row.course_name}</TableCell>
@@ -2421,7 +2727,103 @@ function CourseDetail() {
   );
 }
 
-// Enrollment Table Component
+// Online Enrollment Table Component
+function OnlineEnrollmentTable({ enrollments }) {
+  const theme = useTheme();
+  
+  // Determine row color based on completion status
+  const getRowBackgroundColor = (enrollment) => {
+    if (enrollment.progress >= 100 || enrollment.completion_status === 'Completed') {
+      return alpha(theme.palette.success.main, 0.08); // Green for completed
+    } else if (enrollment.progress > 0 && enrollment.progress < 100) {
+      return alpha(theme.palette.warning.main, 0.08); // Orange for in progress
+    } else {
+      return alpha(theme.palette.grey[500], 0.05); // Neutral grey for not started
+    }
+  };
+  
+  return (
+    <TableContainer>
+      <Table size="small">
+        <TableHead>
+          <TableRow sx={{ background: 'linear-gradient(135deg, rgba(30, 64, 175, 0.05) 0%, rgba(5, 150, 105, 0.05) 100%)' }}>
+            <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>Employee ID</TableCell>
+            <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>Name</TableCell>
+            <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>Date Assigned</TableCell>
+            <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>Last Access</TableCell>
+            <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }} align="right">Progress</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {enrollments.map((enrollment) => (
+            <TableRow
+              key={enrollment.id}
+              sx={{
+                backgroundColor: getRowBackgroundColor(enrollment),
+                borderBottom: '1px solid rgba(30, 64, 175, 0.08)',
+                '&:hover': {
+                  backgroundColor: (() => {
+                    if (enrollment.progress >= 100 || enrollment.completion_status === 'Completed') {
+                      return alpha(theme.palette.success.main, 0.12);
+                    } else if (enrollment.progress > 0 && enrollment.progress < 100) {
+                      return alpha(theme.palette.warning.main, 0.12);
+                    } else {
+                      return alpha(theme.palette.grey[500], 0.08);
+                    }
+                  })(),
+                },
+              }}
+            >
+              <TableCell sx={{ fontWeight: 500, color: '#1e3a8a' }}>{enrollment.student_employee_id}</TableCell>
+              <TableCell sx={{ color: '#475569', fontWeight: 500 }}>{enrollment.student_name}</TableCell>
+              <TableCell sx={{ color: '#64748b' }}>
+                {enrollment.date_assigned 
+                  ? new Date(enrollment.date_assigned * 1000).toLocaleDateString('en-US', {
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric'
+                    })
+                  : 'N/A'}
+              </TableCell>
+              <TableCell sx={{ color: '#64748b' }}>
+                {enrollment.lastaccess 
+                  ? new Date(enrollment.lastaccess * 1000).toLocaleDateString('en-US', {
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })
+                  : 'Never'}
+              </TableCell>
+              <TableCell align="right">
+                <Chip
+                  label={`${(enrollment.progress || 0).toFixed(1)}%`}
+                  size="small"
+                  sx={{
+                    background: enrollment.progress >= 100 
+                      ? 'linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%)'
+                      : enrollment.progress > 0
+                      ? 'linear-gradient(135deg, #fed7aa 0%, #fdba74 100%)'
+                      : 'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)',
+                    color: enrollment.progress >= 100 
+                      ? '#047857' 
+                      : enrollment.progress > 0
+                      ? '#c2410c'
+                      : '#475569',
+                    fontWeight: 600,
+                  }}
+                />
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </TableContainer>
+  );
+}
+
+// Enrollment Table Component (for onsite courses)
 function EnrollmentTable({ 
   enrollments, 
   onViewDetails, 
@@ -2444,7 +2846,7 @@ function EnrollmentTable({
             <TableCell>Employee ID</TableCell>
             <TableCell>Name</TableCell>
             <TableCell>Email</TableCell>
-            <TableCell>SBU</TableCell>
+            <TableCell>Department</TableCell>
             {showEligibilityReason && <TableCell>Eligibility Reason</TableCell>}
             <TableCell>Status</TableCell>
             <TableCell>Score</TableCell>
@@ -2459,7 +2861,7 @@ function EnrollmentTable({
               <TableCell>{enrollment.student_name}</TableCell>
               <TableCell>{enrollment.student_email}</TableCell>
               <TableCell>
-                <Chip label={enrollment.student_sbu} size="small" />
+                <Chip label={enrollment.student_department} size="small" />
               </TableCell>
               {showEligibilityReason && (
                 <TableCell>

@@ -1,7 +1,6 @@
 from pydantic import BaseModel, EmailStr, field_validator
 from typing import Optional
 from datetime import datetime
-from app.models.student import SBU
 from app.schemas.student import StudentResponse
 
 class MentorBase(BaseModel):
@@ -10,7 +9,7 @@ class MentorBase(BaseModel):
     name: str
     email: Optional[EmailStr] = None
     company: Optional[str] = None
-    sbu: Optional[SBU] = None
+    department: Optional[str] = None  # Changed from sbu enum to department string
     designation: Optional[str] = None
     specialty: Optional[str] = None
     
@@ -30,7 +29,7 @@ class MentorUpdate(BaseModel):
     name: Optional[str] = None
     email: Optional[EmailStr] = None
     company: Optional[str] = None
-    sbu: Optional[SBU] = None
+    department: Optional[str] = None  # Changed from sbu enum to department string
     designation: Optional[str] = None
     specialty: Optional[str] = None
 

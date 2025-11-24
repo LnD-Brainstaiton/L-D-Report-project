@@ -15,6 +15,8 @@ import {
   ListItem,
   ListItemButton,
   ListItemText,
+  Tabs,
+  Tab,
 } from '@mui/material';
 import {
   People,
@@ -26,7 +28,7 @@ import {
   Schedule,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
-import { coursesAPI, enrollmentsAPI } from '../services/api';
+import { coursesAPI, enrollmentsAPI, lmsAPI } from '../services/api';
 import { getCourseStatus } from '../utils/courseUtils';
 import { formatDateRange as formatDateRangeUtil, formatDateForDisplay, convertTo12HourFormat } from '../utils/dateUtils';
 import FullCalendar from '@fullcalendar/react';
@@ -38,9 +40,12 @@ function Dashboard() {
   const theme = useTheme();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
-  const [timePeriod, setTimePeriod] = useState('all'); // 'all', 'month', 'quarter', 'year', 'custom'
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const [courseType, setCourseType] = useState('onsite'); // 'onsite', 'online', 'external'
+  const [status, setStatus] = useState('upcoming'); // For online/external: 'upcoming' or 'ongoing'. For onsite: 'upcoming', 'ongoing', 'planning', 'completed'
+  const [timePeriod, setTimePeriod] = useState('all'); // 'all', 'year', 'month', 'quarter'
+  const [selectedMonth, setSelectedMonth] = useState(''); // Selected month (0-11) for month filter
+  const [selectedQuarter, setSelectedQuarter] = useState(''); // Selected quarter (1-4) for quarter filter
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear()); // Selected year
   const [filteredUpcomingCourses, setFilteredUpcomingCourses] = useState([]);
   const [filteredOngoingCourses, setFilteredOngoingCourses] = useState([]);
   const [filteredPlanningCourses, setFilteredPlanningCourses] = useState([]);
@@ -62,32 +67,51 @@ function Dashboard() {
   });
 
   useEffect(() => {
+    // Reset status when course type changes
+    if (courseType === 'onsite') {
+      setStatus('upcoming'); // Default for onsite
+    } else {
+      setStatus('upcoming'); // Default for online/external
+    }
+  }, [courseType]);
+
+  useEffect(() => {
     fetchDashboardData();
-  }, [timePeriod, startDate, endDate]);
+  }, [timePeriod, selectedMonth, selectedQuarter, selectedYear, courseType, status]);
 
 
   const getDateRange = () => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
-    if (timePeriod === 'custom' && startDate && endDate) {
-      return {
-        start: new Date(startDate),
-        end: new Date(endDate),
-      };
-    }
-    
     switch (timePeriod) {
       case 'month':
-        const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-        return { start: monthStart, end: today };
+        if (selectedMonth !== '' && selectedYear) {
+          const monthIndex = parseInt(selectedMonth);
+          const monthStart = new Date(selectedYear, monthIndex, 1);
+          // Get last day of the month
+          const monthEnd = new Date(selectedYear, monthIndex + 1, 0);
+          monthEnd.setHours(23, 59, 59, 999);
+          return { start: monthStart, end: monthEnd };
+        }
+        return null;
       case 'quarter':
-        const quarter = Math.floor(today.getMonth() / 3);
-        const quarterStart = new Date(today.getFullYear(), quarter * 3, 1);
-        return { start: quarterStart, end: today };
+        if (selectedQuarter !== '' && selectedYear) {
+          const quarter = parseInt(selectedQuarter);
+          // Q1: Jan-Mar (0-2), Q2: Apr-Jun (3-5), Q3: Jul-Sep (6-8), Q4: Oct-Dec (9-11)
+          const quarterStartMonth = (quarter - 1) * 3;
+          const quarterStart = new Date(selectedYear, quarterStartMonth, 1);
+          const quarterEndMonth = quarterStartMonth + 2;
+          const quarterEnd = new Date(selectedYear, quarterEndMonth + 1, 0);
+          quarterEnd.setHours(23, 59, 59, 999);
+          return { start: quarterStart, end: quarterEnd };
+        }
+        return null;
       case 'year':
-        const yearStart = new Date(today.getFullYear(), 0, 1);
-        return { start: yearStart, end: today };
+        const yearStart = new Date(selectedYear, 0, 1);
+        const yearEnd = new Date(selectedYear, 11, 31);
+        yearEnd.setHours(23, 59, 59, 999);
+        return { start: yearStart, end: yearEnd };
       default:
         return null;
     }
@@ -97,53 +121,112 @@ function Dashboard() {
     const dateRange = getDateRange();
     if (!dateRange) return 'All Time';
     
+    if (timePeriod === 'month' && selectedMonth !== '') {
+      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                          'July', 'August', 'September', 'October', 'November', 'December'];
+      return `${monthNames[parseInt(selectedMonth)]} ${selectedYear}`;
+    }
+    
+    if (timePeriod === 'quarter' && selectedQuarter !== '') {
+      return `Q${selectedQuarter} ${selectedYear}`;
+    }
+    
+    if (timePeriod === 'year') {
+      return `${selectedYear}`;
+    }
+    
     return formatDateRangeUtil(dateRange.start, dateRange.end);
   };
 
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
-      // Fetch all courses (only onsite for dashboard)
-      const coursesRes = await coursesAPI.getAll();
-      const fetchedCourses = coursesRes.data;
+      let fetchedCourses = [];
+      
+      // Fetch courses based on course type
+      if (courseType === 'online') {
+        // Fetch from LMS API
+        try {
+          const lmsResponse = await lmsAPI.getCourses();
+          const lmsCourses = lmsResponse.data.courses || [];
+          // Map LMS courses to our course format
+          fetchedCourses = lmsCourses.map(course => ({
+            id: course.id,
+            name: course.fullname,
+            fullname: course.fullname,
+            batch_code: course.shortname || '',
+            description: course.summary || '',
+            start_date: course.startdate ? new Date(course.startdate * 1000).toISOString().split('T')[0] : null,
+            end_date: course.enddate ? new Date(course.enddate * 1000).toISOString().split('T')[0] : null,
+            startdate: course.startdate, // Unix timestamp
+            enddate: course.enddate, // Unix timestamp
+            categoryname: course.categoryname || 'Unknown',
+            categoryid: course.categoryid,
+            course_type: 'online',
+            seat_limit: 0,
+            current_enrolled: 0,
+            status: 'ongoing', // Default status for LMS courses
+            visible: course.visible === 1,
+            is_lms_course: true,
+          }));
+        } catch (lmsError) {
+          console.error('Error fetching LMS courses:', lmsError);
+          fetchedCourses = [];
+        }
+      } else {
+        // Fetch from regular API for onsite and external
+        const coursesRes = await coursesAPI.getAll();
+        fetchedCourses = coursesRes.data;
+      }
 
-      // Filter by course type (default to onsite if course_type is not set)
+      // Filter by course type
       const filteredByType = fetchedCourses.filter(c => {
         const courseTypeValue = c.course_type || 'onsite';
-        return courseTypeValue === 'onsite';
+        return courseTypeValue === courseType;
       });
 
       // Get today's date for upcoming logic
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
+      // Helper function to get course start date (handles both Unix timestamp and date string)
+      const getCourseStartDate = (course) => {
+        if (course.startdate) {
+          return new Date(course.startdate * 1000);
+        }
+        return course.start_date ? new Date(course.start_date) : null;
+      };
+
       // Categorize courses
-      // Upcoming: courses with status 'ongoing' or 'draft' but start_date is in the future
+      // Upcoming: courses with status 'ongoing' or 'planning' but start_date is in the future
       const upcomingCourses = filteredByType.filter(c => {
-        const status = getCourseStatus(c);
-        const courseStartDate = new Date(c.start_date);
+        const courseStatus = getCourseStatus(c);
+        const courseStartDate = getCourseStartDate(c);
+        if (!courseStartDate) return false;
         courseStartDate.setHours(0, 0, 0, 0);
-        return (status === 'ongoing' || status === 'planning') && courseStartDate > today;
+        return (courseStatus === 'ongoing' || courseStatus === 'planning') && courseStartDate > today;
       });
 
       // Ongoing: courses that are ongoing and have started (not upcoming)
       const ongoingCourses = filteredByType.filter(c => {
-        const status = getCourseStatus(c);
-        if (status !== 'ongoing') return false;
-        const courseStartDate = new Date(c.start_date);
+        const courseStatus = getCourseStatus(c);
+        if (courseStatus !== 'ongoing') return false;
+        const courseStartDate = getCourseStartDate(c);
+        if (!courseStartDate) return false;
         courseStartDate.setHours(0, 0, 0, 0);
         return courseStartDate <= today;
       });
 
       const planningCourses = filteredByType.filter(c => {
-        const status = getCourseStatus(c);
-        if (status === 'ongoing') {
+        const courseStatus = getCourseStatus(c);
+        if (courseStatus === 'ongoing') {
           // Exclude ongoing courses that are upcoming
-          const courseStartDate = new Date(c.start_date);
+          const courseStartDate = getCourseStartDate(c);
+          if (!courseStartDate) return false;
           courseStartDate.setHours(0, 0, 0, 0);
           if (courseStartDate > today) return false;
         }
-        return status === 'planning';
+        return courseStatus === 'planning';
       });
 
       const completedCourses = filteredByType.filter(c => getCourseStatus(c) === 'completed');
@@ -161,10 +244,11 @@ function Dashboard() {
         
         // Filter upcoming courses
         filteredUpcoming = filteredByType.filter(c => {
-          const status = getCourseStatus(c);
-          const courseStartDate = new Date(c.start_date);
+          const courseStatus = getCourseStatus(c);
+          const courseStartDate = getCourseStartDate(c);
+          if (!courseStartDate) return false;
           courseStartDate.setHours(0, 0, 0, 0);
-          const isUpcoming = (status === 'ongoing' || status === 'planning') && courseStartDate > today;
+          const isUpcoming = (courseStatus === 'ongoing' || courseStatus === 'planning') && courseStartDate > today;
           if (!isUpcoming) return false;
           // Check if start date is within the period
           return courseStartDate >= periodStart && courseStartDate <= periodEnd;
@@ -178,9 +262,10 @@ function Dashboard() {
           
           // If course has status 'ongoing', check if it's active during the period
           if (isOngoingStatus) {
-            const courseStartDate = new Date(c.start_date);
+            const courseStartDate = getCourseStartDate(c);
+            if (!courseStartDate) return false;
             courseStartDate.setHours(0, 0, 0, 0);
-            const courseEndDate = c.end_date ? new Date(c.end_date) : null;
+            const courseEndDate = c.enddate ? new Date(c.enddate * 1000) : (c.end_date ? new Date(c.end_date) : null);
             if (courseEndDate) {
               courseEndDate.setHours(0, 0, 0, 0);
             }
@@ -201,9 +286,10 @@ function Dashboard() {
           }
           
           // For courses without explicit 'ongoing' status, use date-based logic
-          const courseStartDate = new Date(c.start_date);
+          const courseStartDate = getCourseStartDate(c);
+          if (!courseStartDate) return false;
           courseStartDate.setHours(0, 0, 0, 0);
-          const courseEndDate = c.end_date ? new Date(c.end_date) : null;
+          const courseEndDate = c.enddate ? new Date(c.enddate * 1000) : (c.end_date ? new Date(c.end_date) : null);
           if (courseEndDate) {
             courseEndDate.setHours(0, 0, 0, 0);
           }
@@ -239,7 +325,7 @@ function Dashboard() {
           const statusStr = c.status ? String(c.status).toLowerCase() : '';
           const isCompletedStatus = statusStr === 'completed';
           
-          const courseEndDate = c.end_date ? new Date(c.end_date) : null;
+          const courseEndDate = c.enddate ? new Date(c.enddate * 1000) : (c.end_date ? new Date(c.end_date) : null);
           if (!courseEndDate && !isCompletedStatus) {
             return false;
           }
@@ -275,9 +361,10 @@ function Dashboard() {
           }
           
           // For courses without explicit status, use date-based logic
-          const courseStartDate = new Date(c.start_date);
+          const courseStartDate = getCourseStartDate(c);
+          if (!courseStartDate) return false;
           courseStartDate.setHours(0, 0, 0, 0);
-          const courseEndDate = c.end_date ? new Date(c.end_date) : null;
+          const courseEndDate = c.enddate ? new Date(c.enddate * 1000) : (c.end_date ? new Date(c.end_date) : null);
           if (courseEndDate) {
             courseEndDate.setHours(0, 0, 0, 0);
           }
@@ -337,14 +424,15 @@ function Dashboard() {
         return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
       };
 
-      // Only process ongoing courses (not upcoming) for calendar events
-      const ongoingCoursesForCalendar = filteredByType.filter(c => {
-        const status = getCourseStatus(c);
-        if (status !== 'ongoing') return false;
-        const courseStartDate = new Date(c.start_date);
+      // Only process ongoing courses (not upcoming) for calendar events (onsite only)
+      const ongoingCoursesForCalendar = courseType === 'onsite' ? filteredByType.filter(c => {
+        const courseStatus = getCourseStatus(c);
+        if (courseStatus !== 'ongoing') return false;
+        const courseStartDate = getCourseStartDate(c);
+        if (!courseStartDate) return false;
         courseStartDate.setHours(0, 0, 0, 0);
         return courseStartDate <= today;
-      });
+      }) : [];
       
       ongoingCoursesForCalendar.forEach(course => {
         // Generate unique color for this course
@@ -428,13 +516,47 @@ function Dashboard() {
       const statsRes = await enrollmentsAPI.getDashboardStats();
       const statsData = statsRes.data;
 
+      // Update stats based on selected status
+      let displayUpcoming = filteredUpcoming.length;
+      let displayOngoing = filteredOngoing.length;
+      let displayPlanning = filteredPlanning.length;
+      let displayCompleted = filteredCompleted.length;
+
+      // If a specific status is selected, only show that status count
+      if (courseType === 'onsite') {
+        if (status === 'upcoming') {
+          displayOngoing = 0;
+          displayPlanning = 0;
+          displayCompleted = 0;
+        } else if (status === 'ongoing') {
+          displayUpcoming = 0;
+          displayPlanning = 0;
+          displayCompleted = 0;
+        } else if (status === 'planning') {
+          displayUpcoming = 0;
+          displayOngoing = 0;
+          displayCompleted = 0;
+        } else if (status === 'completed') {
+          displayUpcoming = 0;
+          displayOngoing = 0;
+          displayPlanning = 0;
+        }
+      } else {
+        // For online/external, only show upcoming or ongoing
+        if (status === 'upcoming') {
+          displayOngoing = 0;
+        } else if (status === 'ongoing') {
+          displayUpcoming = 0;
+        }
+      }
+
       setStats({
         activeEmployees: statsData.active_employees || 0,
         previousEmployees: statsData.previous_employees || 0,
-        upcomingCourses: filteredUpcoming.length,
-        ongoingCourses: filteredOngoing.length,
-        planningCourses: filteredPlanning.length,
-        completedCourses: filteredCompleted.length,
+        upcomingCourses: displayUpcoming,
+        ongoingCourses: displayOngoing,
+        planningCourses: displayPlanning,
+        completedCourses: displayCompleted,
         totalEnrollments: statsData.total_enrollments || 0,
         approvedEnrollments: statsData.approved_enrollments || 0,
         pendingEnrollments: statsData.pending_enrollments || 0,
@@ -534,7 +656,7 @@ function Dashboard() {
                       }
                       secondary={
                         <Typography variant="caption" color="text.secondary">
-                          {course.batch_code} • {formatDateForDisplay(new Date(course.start_date))}
+                          {course.batch_code} • {formatDateForDisplay(course.startdate ? new Date(course.startdate * 1000) : (course.start_date ? new Date(course.start_date) : new Date()))}
                         </Typography>
                       }
                     />
@@ -592,41 +714,89 @@ function Dashboard() {
             value={timePeriod}
             onChange={(e) => {
               setTimePeriod(e.target.value);
-              if (e.target.value !== 'custom') {
-                setStartDate('');
-                setEndDate('');
+              if (e.target.value === 'all') {
+                setSelectedMonth('');
+                setSelectedQuarter('');
               }
             }}
-            sx={{ minWidth: 180 }}
+            sx={{ minWidth: 150 }}
             size="small"
           >
             <MenuItem value="all">All Time</MenuItem>
-            <MenuItem value="month">This Month</MenuItem>
-            <MenuItem value="quarter">This Quarter</MenuItem>
-            <MenuItem value="year">This Year</MenuItem>
-            <MenuItem value="custom">Custom Range</MenuItem>
+            <MenuItem value="month">Month</MenuItem>
+            <MenuItem value="quarter">Quarter</MenuItem>
+            <MenuItem value="year">Year</MenuItem>
           </TextField>
-          {timePeriod === 'custom' && (
+          {timePeriod === 'month' && (
             <>
               <TextField
-                type="date"
-                label="Start Date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                InputLabelProps={{ shrink: true }}
-                size="small"
+                select
+                label="Month"
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
                 sx={{ minWidth: 150 }}
-              />
+                size="small"
+              >
+                <MenuItem value="0">January</MenuItem>
+                <MenuItem value="1">February</MenuItem>
+                <MenuItem value="2">March</MenuItem>
+                <MenuItem value="3">April</MenuItem>
+                <MenuItem value="4">May</MenuItem>
+                <MenuItem value="5">June</MenuItem>
+                <MenuItem value="6">July</MenuItem>
+                <MenuItem value="7">August</MenuItem>
+                <MenuItem value="8">September</MenuItem>
+                <MenuItem value="9">October</MenuItem>
+                <MenuItem value="10">November</MenuItem>
+                <MenuItem value="11">December</MenuItem>
+              </TextField>
               <TextField
-                type="date"
-                label="End Date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                InputLabelProps={{ shrink: true }}
+                type="number"
+                label="Year"
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                inputProps={{ min: 2000, max: 2100 }}
+                sx={{ minWidth: 100 }}
                 size="small"
-                sx={{ minWidth: 150 }}
               />
             </>
+          )}
+          {timePeriod === 'quarter' && (
+            <>
+              <TextField
+                select
+                label="Quarter"
+                value={selectedQuarter}
+                onChange={(e) => setSelectedQuarter(e.target.value)}
+                sx={{ minWidth: 120 }}
+                size="small"
+              >
+                <MenuItem value="1">Q1 (Jan-Mar)</MenuItem>
+                <MenuItem value="2">Q2 (Apr-Jun)</MenuItem>
+                <MenuItem value="3">Q3 (Jul-Sep)</MenuItem>
+                <MenuItem value="4">Q4 (Oct-Dec)</MenuItem>
+              </TextField>
+              <TextField
+                type="number"
+                label="Year"
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                inputProps={{ min: 2000, max: 2100 }}
+                sx={{ minWidth: 100 }}
+                size="small"
+              />
+            </>
+          )}
+          {timePeriod === 'year' && (
+            <TextField
+              type="number"
+              label="Year"
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+              inputProps={{ min: 2000, max: 2100 }}
+              sx={{ minWidth: 100 }}
+              size="small"
+            />
           )}
           {timePeriod !== 'all' && (
             <Chip
@@ -639,18 +809,93 @@ function Dashboard() {
         </Box>
       </Box>
 
-      {/* Main Statistics Cards */}
-          <Grid container spacing={3} mb={4}>
-            <Grid item xs={12} sm={6} md={2.4}>
-              <StatCard
-                title="Active Employees"
-                value={stats.activeEmployees}
-                icon={<People sx={{ fontSize: 32, color: theme.palette.primary.main }} />}
-                color={theme.palette.primary.main}
-                onClick={() => navigate('/users')}
-                subtitle="Currently active"
+      {/* Course Type Tabs */}
+      <Card sx={{ mb: 3, border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}` }}>
+        <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+          <Tabs
+            value={courseType}
+            onChange={(e, newValue) => setCourseType(newValue)}
+            sx={{
+              '& .MuiTab-root': {
+                textTransform: 'none',
+                fontWeight: 600,
+                fontSize: '0.95rem',
+                minHeight: 48,
+              },
+            }}
+          >
+            <Tab label="Onsite" value="onsite" />
+            <Tab label="Online" value="online" />
+            <Tab label="External" value="external" />
+          </Tabs>
+        </Box>
+        <Box sx={{ p: 2, display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+          {courseType === 'onsite' ? (
+            <>
+              <Chip
+                label="Upcoming"
+                onClick={() => setStatus('upcoming')}
+                color={status === 'upcoming' ? 'primary' : 'default'}
+                variant={status === 'upcoming' ? 'filled' : 'outlined'}
+                sx={{ cursor: 'pointer', fontWeight: status === 'upcoming' ? 600 : 400 }}
               />
-            </Grid>
+              <Chip
+                label="Ongoing"
+                onClick={() => setStatus('ongoing')}
+                color={status === 'ongoing' ? 'primary' : 'default'}
+                variant={status === 'ongoing' ? 'filled' : 'outlined'}
+                sx={{ cursor: 'pointer', fontWeight: status === 'ongoing' ? 600 : 400 }}
+              />
+              <Chip
+                label="Planning"
+                onClick={() => setStatus('planning')}
+                color={status === 'planning' ? 'primary' : 'default'}
+                variant={status === 'planning' ? 'filled' : 'outlined'}
+                sx={{ cursor: 'pointer', fontWeight: status === 'planning' ? 600 : 400 }}
+              />
+              <Chip
+                label="Completed"
+                onClick={() => setStatus('completed')}
+                color={status === 'completed' ? 'primary' : 'default'}
+                variant={status === 'completed' ? 'filled' : 'outlined'}
+                sx={{ cursor: 'pointer', fontWeight: status === 'completed' ? 600 : 400 }}
+              />
+            </>
+          ) : (
+            <>
+              <Chip
+                label="Upcoming"
+                onClick={() => setStatus('upcoming')}
+                color={status === 'upcoming' ? 'primary' : 'default'}
+                variant={status === 'upcoming' ? 'filled' : 'outlined'}
+                sx={{ cursor: 'pointer', fontWeight: status === 'upcoming' ? 600 : 400 }}
+              />
+              <Chip
+                label="Ongoing"
+                onClick={() => setStatus('ongoing')}
+                color={status === 'ongoing' ? 'primary' : 'default'}
+                variant={status === 'ongoing' ? 'filled' : 'outlined'}
+                sx={{ cursor: 'pointer', fontWeight: status === 'ongoing' ? 600 : 400 }}
+              />
+            </>
+          )}
+        </Box>
+      </Card>
+
+      {/* Main Statistics Cards */}
+      <Grid container spacing={3} mb={4}>
+        <Grid item xs={12} sm={6} md={2.4}>
+          <StatCard
+            title="Active Employees"
+            value={stats.activeEmployees}
+            icon={<People sx={{ fontSize: 32, color: theme.palette.primary.main }} />}
+            color={theme.palette.primary.main}
+            onClick={() => navigate('/users')}
+            subtitle="Currently active"
+          />
+        </Grid>
+        {courseType === 'onsite' ? (
+          <>
             <Grid item xs={12} sm={6} md={2.4}>
               <StatCard
                 title="Upcoming Courses"
@@ -659,7 +904,7 @@ function Dashboard() {
                 color={theme.palette.secondary.main}
                 onClick={() => navigate('/courses/onsite/upcoming')}
                 subtitle={timePeriod !== 'all' ? formatDateRange() : 'Scheduled to start'}
-                courses={filteredUpcomingCourses}
+                courses={status === 'upcoming' ? filteredUpcomingCourses : []}
               />
             </Grid>
             <Grid item xs={12} sm={6} md={2.4}>
@@ -670,7 +915,7 @@ function Dashboard() {
                 color={theme.palette.success.main}
                 onClick={() => navigate('/courses/onsite/ongoing')}
                 subtitle={timePeriod !== 'all' ? formatDateRange() : 'In progress'}
-                courses={filteredOngoingCourses}
+                courses={status === 'ongoing' ? filteredOngoingCourses : []}
               />
             </Grid>
             <Grid item xs={12} sm={6} md={2.4}>
@@ -681,7 +926,7 @@ function Dashboard() {
                 color={theme.palette.info.main}
                 onClick={() => navigate('/courses/onsite/planning')}
                 subtitle={timePeriod !== 'all' ? formatDateRange() : 'Scheduled'}
-                courses={filteredPlanningCourses}
+                courses={status === 'planning' ? filteredPlanningCourses : []}
               />
             </Grid>
             <Grid item xs={12} sm={6} md={2.4}>
@@ -692,46 +937,74 @@ function Dashboard() {
                 color={theme.palette.warning.main}
                 onClick={() => navigate('/courses/onsite/completed')}
                 subtitle={timePeriod !== 'all' ? formatDateRange() : 'Finished'}
-                courses={filteredCompletedCourses}
+                courses={status === 'completed' ? filteredCompletedCourses : []}
               />
             </Grid>
-          </Grid>
+          </>
+        ) : (
+          <>
+            <Grid item xs={12} sm={6} md={4.8}>
+              <StatCard
+                title="Upcoming Courses"
+                value={stats.upcomingCourses}
+                icon={<Schedule sx={{ fontSize: 32, color: theme.palette.secondary.main }} />}
+                color={theme.palette.secondary.main}
+                onClick={() => navigate(`/courses/${courseType}`)}
+                subtitle={timePeriod !== 'all' ? formatDateRange() : 'Scheduled to start'}
+                courses={status === 'upcoming' ? filteredUpcomingCourses : []}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6} md={4.8}>
+              <StatCard
+                title="Ongoing Courses"
+                value={stats.ongoingCourses}
+                icon={<PlayCircle sx={{ fontSize: 32, color: theme.palette.success.main }} />}
+                color={theme.palette.success.main}
+                onClick={() => navigate(`/courses/${courseType}`)}
+                subtitle={timePeriod !== 'all' ? formatDateRange() : 'In progress'}
+                courses={status === 'ongoing' ? filteredOngoingCourses : []}
+              />
+            </Grid>
+          </>
+        )}
+      </Grid>
 
-      {/* FullCalendar */}
-      <Grid container spacing={3}>
-        <Grid item xs={12}>
-          <Card
-            sx={{
-              border: `1px solid ${alpha(theme.palette.primary.main, 0.15)}`,
-              background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.04)} 0%, ${alpha(theme.palette.info.main, 0.04)} 100%)`,
-              boxShadow: `0 4px 16px ${alpha(theme.palette.primary.main, 0.08)}`,
-            }}
-          >
-            <CardContent>
-              <Box display="flex" alignItems="center" justifyContent="space-between" mb={3} flexWrap="wrap" gap={2}>
-                <Box display="flex" alignItems="center" gap={2}>
-                  <Box
-                    sx={{
-                      p: 1.5,
-                      borderRadius: 2,
-                      backgroundColor: alpha(theme.palette.primary.main, 0.12),
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    <CalendarToday sx={{ fontSize: 32, color: theme.palette.primary.main }} />
-                  </Box>
-                  <Box>
-                    <Typography variant="h5" sx={{ fontWeight: 700, color: theme.palette.primary.main }}>
-                      Class Schedule Calendar
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      View scheduled classes for ongoing courses
-                    </Typography>
+      {/* FullCalendar - Only show for onsite courses */}
+      {courseType === 'onsite' && (
+        <Grid container spacing={3}>
+          <Grid item xs={12}>
+            <Card
+              sx={{
+                border: `1px solid ${alpha(theme.palette.primary.main, 0.15)}`,
+                background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.04)} 0%, ${alpha(theme.palette.info.main, 0.04)} 100%)`,
+                boxShadow: `0 4px 16px ${alpha(theme.palette.primary.main, 0.08)}`,
+              }}
+            >
+              <CardContent>
+                <Box display="flex" alignItems="center" justifyContent="space-between" mb={3} flexWrap="wrap" gap={2}>
+                  <Box display="flex" alignItems="center" gap={2}>
+                    <Box
+                      sx={{
+                        p: 1.5,
+                        borderRadius: 2,
+                        backgroundColor: alpha(theme.palette.primary.main, 0.12),
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <CalendarToday sx={{ fontSize: 32, color: theme.palette.primary.main }} />
+                    </Box>
+                    <Box>
+                      <Typography variant="h5" sx={{ fontWeight: 700, color: theme.palette.primary.main }}>
+                        Class Schedule Calendar
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        View scheduled classes for ongoing courses
+                      </Typography>
+                    </Box>
                   </Box>
                 </Box>
-              </Box>
 
               <Box sx={{ 
                 '& .fc': { 
@@ -840,6 +1113,7 @@ function Dashboard() {
           </Card>
         </Grid>
       </Grid>
+      )}
     </Box>
   );
 }

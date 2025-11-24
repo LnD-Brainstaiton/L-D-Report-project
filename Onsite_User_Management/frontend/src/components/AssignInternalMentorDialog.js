@@ -9,6 +9,7 @@ import {
   Autocomplete,
   InputAdornment,
   CircularProgress,
+  Typography,
 } from '@mui/material';
 import { studentsAPI, mentorsAPI } from '../services/api';
 
@@ -150,7 +151,11 @@ function AssignInternalMentorDialog({ open, onClose, onAssign, isDraft = false }
           }}
           inputProps={{ min: 0, step: 0.01 }}
         />
-        {isDraft}
+        {isDraft && (
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+            Note: This assignment will be saved to draft.
+          </Typography>
+        )}
       </DialogContent>
       <DialogActions>
         <Button onClick={handleClose} sx={{ textTransform: 'uppercase' }}>Cancel</Button>

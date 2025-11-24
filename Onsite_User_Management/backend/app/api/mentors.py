@@ -67,7 +67,7 @@ def create_external_mentor(mentor: MentorCreate, db: Session = Depends(get_db)):
         name=mentor.name,
         email=mentor.email,
         company=mentor.company,
-        sbu=mentor.sbu,
+        department=mentor.department,
         designation=mentor.designation,
         specialty=mentor.specialty
     )
@@ -95,7 +95,7 @@ def create_internal_mentor(student_id: int, db: Session = Depends(get_db)):
         student_id=student_id,
         name=student.name,
         email=student.email,
-        sbu=student.sbu,
+        department=student.department,
         designation=student.designation
     )
     db.add(db_mentor)

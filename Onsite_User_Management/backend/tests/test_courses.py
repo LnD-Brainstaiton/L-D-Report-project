@@ -167,7 +167,7 @@ def test_delete_course_preserves_enrollments(course_id):
                 employee_id="TEST-CM-001",
                 name="Test Student CM",
                 email="testcm@example.com",
-                sbu="IT",
+                department="IT",
                 designation="Developer"
             )
             db.add(student)

@@ -1,7 +1,6 @@
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, UniqueConstraint, Enum
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship
 from app.db.base import Base
-from app.models.student import SBU
 from datetime import datetime
 
 class Mentor(Base):
@@ -19,7 +18,7 @@ class Mentor(Base):
     name = Column(String, nullable=False)
     email = Column(String, nullable=True, index=True)
     company = Column(String, nullable=True)  # Company name for external mentors
-    sbu = Column(Enum(SBU), nullable=True)  # For internal mentors, may mirror student
+    department = Column(String, nullable=True)  # Changed from sbu enum to department string
     designation = Column(String, nullable=True)  # For internal mentors, may mirror student
     specialty = Column(String, nullable=True)  # Specialty/area of expertise
     

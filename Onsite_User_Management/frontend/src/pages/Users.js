@@ -41,7 +41,7 @@ function Users() {
   const [allUsers, setAllUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedUser, setExpandedUser] = useState(null);
-  const [selectedSBU, setSelectedSBU] = useState('');
+  const [selectedDepartment, setSelectedDepartment] = useState('');
   const [filterNeverTaken, setFilterNeverTaken] = useState('');
   const [employeeCount, setEmployeeCount] = useState(0);
   const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
@@ -55,7 +55,7 @@ function Users() {
     employee_id: '',
     name: '',
     email: '',
-    sbu: 'IT',
+    department: '',
     designation: '',
     experience_years: 0,
     career_start_date: null,
@@ -70,21 +70,31 @@ function Users() {
   const [mentorStatuses, setMentorStatuses] = useState({}); // Track mentor status per user
   const [updatingMentorStatus, setUpdatingMentorStatus] = useState({});
   const [filterMentorStatus, setFilterMentorStatus] = useState(''); // Filter: '', 'mentor', 'not_mentor'
-  
+  const [departments, setDepartments] = useState([]); // List of actual departments from database
   
   // Sample preview data from employee_data_101_200.xlsx
   const previewData = [
-    { employee_id: 'EMP101', name: 'Cameron Williams', email: 'cameron.williams101@company.com', sbu: 'Support', designation: 'Coordinator', career_start_date: '11-01-2021', bs_join_date: '12-02-2022' },
-    { employee_id: 'EMP102', name: 'Morgan Williams', email: 'morgan.williams102@company.com', sbu: 'Marketing', designation: 'Engineer', career_start_date: '12-01-2022', bs_join_date: '12-02-2023' },
-    { employee_id: 'EMP103', name: 'Morgan Moore', email: 'morgan.moore103@company.com', sbu: 'Finance', designation: 'Coordinator', career_start_date: '11-01-2018', bs_join_date: '13-08-2019' },
-    { employee_id: 'EMP104', name: 'Casey Miller', email: 'casey.miller104@company.com', sbu: 'Marketing', designation: 'Coordinator', career_start_date: '11-01-2019', bs_join_date: '13-08-2020' },
-    { employee_id: 'EMP105', name: 'Alex Jones', email: 'alex.jones105@company.com', sbu: 'HR', designation: 'Manager', career_start_date: '15-03-2020', bs_join_date: '20-05-2021' },
+    { employee_id: 'EMP101', name: 'Cameron Williams', email: 'cameron.williams101@company.com', department: 'Support', designation: 'Coordinator', career_start_date: '11-01-2021', bs_join_date: '12-02-2022' },
+    { employee_id: 'EMP102', name: 'Morgan Williams', email: 'morgan.williams102@company.com', department: 'Marketing', designation: 'Engineer', career_start_date: '12-01-2022', bs_join_date: '12-02-2023' },
+    { employee_id: 'EMP103', name: 'Morgan Moore', email: 'morgan.moore103@company.com', department: 'Finance', designation: 'Coordinator', career_start_date: '11-01-2018', bs_join_date: '13-08-2019' },
+    { employee_id: 'EMP104', name: 'Casey Miller', email: 'casey.miller104@company.com', department: 'Marketing', designation: 'Coordinator', career_start_date: '11-01-2019', bs_join_date: '13-08-2020' },
+    { employee_id: 'EMP105', name: 'Alex Jones', email: 'alex.jones105@company.com', department: 'HR', designation: 'Manager', career_start_date: '15-03-2020', bs_join_date: '20-05-2021' },
   ];
 
   useEffect(() => {
     fetchUsers();
     fetchMentorStatuses();
-  }, [selectedSBU, filterNeverTaken]);
+    fetchDepartments();
+  }, [selectedDepartment, filterNeverTaken]);
+
+  const fetchDepartments = async () => {
+    try {
+      const response = await studentsAPI.getDepartments({ is_active: true });
+      setDepartments(response.data.departments || []);
+    } catch (error) {
+      console.error('Error fetching departments:', error);
+    }
+  };
 
   const fetchMentorStatuses = async () => {
     try {
@@ -167,7 +177,7 @@ function Users() {
     setLoading(true);
     try {
       const params = { is_active: true };
-      if (selectedSBU) params.sbu = selectedSBU;
+      if (selectedDepartment) params.department = selectedDepartment;
       const response = await studentsAPI.getAllWithCourses(params);
       let fetchedUsers = response.data;
       
@@ -218,7 +228,7 @@ function Users() {
       student_id: user.id,
       student_name: user.name,
       student_email: user.email,
-      student_sbu: user.sbu,
+      student_department: user.department,
       student_employee_id: user.employee_id,
       student_designation: user.designation,
       student_experience_years: user.experience_years,
@@ -244,7 +254,7 @@ function Users() {
         employee_id: '',
         name: '',
         email: '',
-        sbu: 'IT',
+        department: 'IT',
         designation: '',
         experience_years: 0,
         career_start_date: null,
@@ -526,19 +536,18 @@ function Users() {
             />
             <TextField
               select
-              label="SBU"
-              value={selectedSBU}
-              onChange={(e) => setSelectedSBU(e.target.value)}
+              label="Department"
+              value={selectedDepartment}
+              onChange={(e) => setSelectedDepartment(e.target.value)}
               sx={{ minWidth: 140 }}
               size="small"
             >
-              <MenuItem value="">All SBUs</MenuItem>
-              <MenuItem value="IT">IT</MenuItem>
-              <MenuItem value="HR">HR</MenuItem>
-              <MenuItem value="Finance">Finance</MenuItem>
-              <MenuItem value="Operations">Operations</MenuItem>
-              <MenuItem value="Sales">Sales</MenuItem>
-              <MenuItem value="Marketing">Marketing</MenuItem>
+              <MenuItem value="">All Departments</MenuItem>
+              {departments.map((dept) => (
+                <MenuItem key={dept} value={dept}>
+                  {dept}
+                </MenuItem>
+              ))}
             </TextField>
             <TextField
               select
@@ -563,12 +572,12 @@ function Users() {
               <MenuItem value="mentor">Mentors</MenuItem>
               <MenuItem value="not_mentor">Non-Mentors</MenuItem>
             </TextField>
-            {(selectedSBU || filterNeverTaken || filterMentorStatus || searchQuery) && (
+            {(selectedDepartment || filterNeverTaken || filterMentorStatus || searchQuery) && (
               <Button
                 variant="text"
                 size="small"
                 onClick={() => {
-                  setSelectedSBU('');
+                  setSelectedDepartment('');
                   setFilterNeverTaken('');
                   setFilterMentorStatus('');
                   setSearchQuery('');
@@ -604,7 +613,7 @@ function Users() {
                   <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>ID</TableCell>
                   <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>Name</TableCell>
                   <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>Email</TableCell>
-                  <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>SBU</TableCell>
+                  <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>Department</TableCell>
                   <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>Mentor</TableCell>
                   <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }} align="center">Course History</TableCell>
                   <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }} align="center">Actions</TableCell>
@@ -631,7 +640,7 @@ function Users() {
                       <TableCell sx={{ color: '#64748b' }}>{user.email}</TableCell>
                       <TableCell>
                         <Chip 
-                          label={user.sbu} 
+                          label={user.department} 
                           size="small"
                           sx={{
                             background: 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)',
@@ -917,18 +926,17 @@ function Users() {
             />
             <TextField
               select
-              label="SBU"
-              value={newStudent.sbu}
-              onChange={(e) => setNewStudent({ ...newStudent, sbu: e.target.value })}
+              label="Department"
+              value={newStudent.department}
+              onChange={(e) => setNewStudent({ ...newStudent, department: e.target.value })}
               fullWidth
               required
             >
-              <MenuItem value="IT">IT</MenuItem>
-              <MenuItem value="HR">HR</MenuItem>
-              <MenuItem value="Finance">Finance</MenuItem>
-              <MenuItem value="Operations">Operations</MenuItem>
-              <MenuItem value="Sales">Sales</MenuItem>
-              <MenuItem value="Marketing">Marketing</MenuItem>
+              {departments.map((dept) => (
+                <MenuItem key={dept} value={dept}>
+                  {dept}
+                </MenuItem>
+              ))}
             </TextField>
             <TextField
               label="Designation"
@@ -1039,7 +1047,7 @@ function Users() {
                           <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>employee_id</TableCell>
                           <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>name</TableCell>
                           <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>email</TableCell>
-                          <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>sbu</TableCell>
+                          <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>department</TableCell>
                           <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>designation</TableCell>
                           <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>career_start_date</TableCell>
                           <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>bs_join_date</TableCell>
@@ -1057,7 +1065,7 @@ function Users() {
                             <TableCell sx={{ fontSize: '0.75rem', whiteSpace: 'nowrap' }}>{row.name}</TableCell>
                             <TableCell sx={{ fontSize: '0.75rem', whiteSpace: 'nowrap' }}>{row.email}</TableCell>
                             <TableCell sx={{ fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
-                              <Chip label={row.sbu} size="small" sx={{ height: 20, fontSize: '0.7rem' }} />
+                              <Chip label={row.department} size="small" sx={{ height: 20, fontSize: '0.7rem' }} />
                             </TableCell>
                             <TableCell sx={{ fontSize: '0.75rem', whiteSpace: 'nowrap' }}>{row.designation}</TableCell>
                             <TableCell sx={{ fontSize: '0.75rem', whiteSpace: 'nowrap' }}>{row.career_start_date || 'N/A'}</TableCell>

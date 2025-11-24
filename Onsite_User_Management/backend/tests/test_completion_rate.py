@@ -27,7 +27,7 @@ def test_overall_completion_rate_calculation():
                 employee_id="TEST-CR-001",
                 name="Test Student CR",
                 email="testcr@example.com",
-                sbu="IT",
+                department="IT",
                 designation="Developer"
             )
             db.add(student)
@@ -203,7 +203,7 @@ def test_completion_rate_with_no_courses():
                 employee_id="TEST-CR-002",
                 name="Test Student CR No Courses",
                 email="testcr2@example.com",
-                sbu="IT",
+                department="IT",
                 designation="Developer"
             )
             db.add(student)

@@ -63,7 +63,7 @@ def test_prerequisite_check():
                 employee_id="TEST-ELIG-001",
                 name="Test Student ELIG",
                 email="testelig@example.com",
-                sbu="IT",
+                department="IT",
                 designation="Developer"
             )
             db.add(student)
@@ -255,7 +255,7 @@ def test_annual_limit_check():
                 employee_id="TEST-ELIG-003",
                 name="Test Student ELIG 3",
                 email="testelig3@example.com",
-                sbu="IT",
+                department="IT",
                 designation="Developer"
             )
             db.add(student)

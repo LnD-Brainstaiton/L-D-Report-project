@@ -18,7 +18,7 @@ def get_enrollments(
     student_id: Optional[int] = Query(None),
     eligibility_status: Optional[str] = Query(None),
     approval_status: Optional[str] = Query(None),
-    sbu: Optional[str] = Query(None),
+    department: Optional[str] = Query(None),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
     db: Session = Depends(get_db)
@@ -44,12 +44,12 @@ def get_enrollments(
             query = query.filter(Enrollment.approval_status == approval_status)
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid approval_status value")
-    if sbu:
+    if department:
         from app.models.student import Student
-        from app.core.validation import validate_sbu
+        from app.core.validation import validate_department
         try:
-            validated_sbu = validate_sbu(sbu)
-            query = query.join(Student).filter(Student.sbu == validated_sbu)
+            validated_department = validate_department(department)
+            query = query.join(Student).filter(Student.department == validated_department)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
     
@@ -62,7 +62,7 @@ def get_enrollments(
         enrollment_dict = EnrollmentResponse.from_orm(enrollment).dict()
         enrollment_dict['student_name'] = enrollment.student.name
         enrollment_dict['student_email'] = enrollment.student.email
-        enrollment_dict['student_sbu'] = enrollment.student.sbu.value
+        enrollment_dict['student_department'] = enrollment.student.department
         enrollment_dict['student_employee_id'] = enrollment.student.employee_id
         enrollment_dict['student_designation'] = enrollment.student.designation
         enrollment_dict['student_experience_years'] = enrollment.student.experience_years
@@ -117,7 +117,7 @@ def get_enrollments(
 @router.get("/eligible", response_model=List[EnrollmentResponse])
 def get_eligible_enrollments(
     course_id: Optional[int] = Query(None),
-    sbu: Optional[str] = Query(None),
+    department: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
     """Get eligible enrollments pending approval."""
@@ -128,9 +128,9 @@ def get_eligible_enrollments(
     
     if course_id:
         query = query.filter(Enrollment.course_id == course_id)
-    if sbu:
+    if department:
         from app.models.student import Student
-        query = query.join(Student).filter(Student.sbu == sbu)
+        query = query.join(Student).filter(Student.department == department)
     
     enrollments = query.all()
     
@@ -139,7 +139,7 @@ def get_eligible_enrollments(
         enrollment_dict = EnrollmentResponse.from_orm(enrollment).dict()
         enrollment_dict['student_name'] = enrollment.student.name
         enrollment_dict['student_email'] = enrollment.student.email
-        enrollment_dict['student_sbu'] = enrollment.student.sbu.value
+        enrollment_dict['student_department'] = enrollment.student.department
         enrollment_dict['student_employee_id'] = enrollment.student.employee_id
         enrollment_dict['student_designation'] = enrollment.student.designation
         enrollment_dict['student_experience_years'] = enrollment.student.experience_years
@@ -184,7 +184,7 @@ def approve_enrollment(
     enrollment_dict = EnrollmentResponse.from_orm(enrollment).dict()
     enrollment_dict['student_name'] = enrollment.student.name
     enrollment_dict['student_email'] = enrollment.student.email
-    enrollment_dict['student_sbu'] = enrollment.student.sbu.value
+    enrollment_dict['student_department'] = enrollment.student.department
     enrollment_dict['student_employee_id'] = enrollment.student.employee_id
     enrollment_dict['student_designation'] = enrollment.student.designation
     enrollment_dict['student_experience_years'] = enrollment.student.experience_years
@@ -285,7 +285,7 @@ def withdraw_enrollment(
     enrollment_dict = EnrollmentResponse.from_orm(enrollment).dict()
     enrollment_dict['student_name'] = enrollment.student.name
     enrollment_dict['student_email'] = enrollment.student.email
-    enrollment_dict['student_sbu'] = enrollment.student.sbu.value
+    enrollment_dict['student_department'] = enrollment.student.department
     enrollment_dict['student_employee_id'] = enrollment.student.employee_id
     enrollment_dict['student_designation'] = enrollment.student.designation
     enrollment_dict['student_experience_years'] = enrollment.student.experience_years
@@ -336,7 +336,7 @@ def reapprove_enrollment(
     enrollment_dict = EnrollmentResponse.from_orm(enrollment).dict()
     enrollment_dict['student_name'] = enrollment.student.name
     enrollment_dict['student_email'] = enrollment.student.email
-    enrollment_dict['student_sbu'] = enrollment.student.sbu.value
+    enrollment_dict['student_department'] = enrollment.student.department
     enrollment_dict['student_employee_id'] = enrollment.student.employee_id
     enrollment_dict['student_designation'] = enrollment.student.designation
     enrollment_dict['student_experience_years'] = enrollment.student.experience_years
@@ -423,7 +423,7 @@ def create_enrollment(
     enrollment_dict = EnrollmentResponse.from_orm(enrollment).dict()
     enrollment_dict['student_name'] = enrollment.student.name
     enrollment_dict['student_email'] = enrollment.student.email
-    enrollment_dict['student_sbu'] = enrollment.student.sbu.value
+    enrollment_dict['student_department'] = enrollment.student.department
     enrollment_dict['student_employee_id'] = enrollment.student.employee_id
     enrollment_dict['student_designation'] = enrollment.student.designation
     enrollment_dict['student_experience_years'] = enrollment.student.experience_years
@@ -500,7 +500,7 @@ def get_enrollment(enrollment_id: int, db: Session = Depends(get_db)):
     enrollment_dict = EnrollmentResponse.from_orm(enrollment).dict()
     enrollment_dict['student_name'] = enrollment.student.name
     enrollment_dict['student_email'] = enrollment.student.email
-    enrollment_dict['student_sbu'] = enrollment.student.sbu.value
+    enrollment_dict['student_department'] = enrollment.student.department
     enrollment_dict['student_employee_id'] = enrollment.student.employee_id
     enrollment_dict['student_designation'] = enrollment.student.designation
     enrollment_dict['student_experience_years'] = enrollment.student.experience_years

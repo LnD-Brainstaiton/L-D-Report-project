@@ -26,7 +26,7 @@ def test_parse_excel():
         'employee_id': ['EMP001', 'EMP002', 'EMP003'],
         'name': ['John Doe', 'Jane Smith', 'Bob Johnson'],
         'email': ['john@example.com', 'jane@example.com', 'bob@example.com'],
-        'sbu': ['IT', 'HR', 'Finance'],
+        'department': ['IT', 'HR', 'Finance'],
         'designation': ['Developer', 'Manager', 'Analyst']
     }
     df = pd.DataFrame(test_data)
@@ -76,7 +76,7 @@ def test_parse_csv():
         'employee_id': ['EMP004', 'EMP005'],
         'name': ['Alice Brown', 'Charlie Wilson'],
         'email': ['alice@example.com', 'charlie@example.com'],
-        'sbu': ['Operations', 'Sales'],
+        'department': ['Operations', 'Sales'],
         'designation': ['Coordinator', 'Executive']
     }
     df = pd.DataFrame(test_data)
@@ -143,7 +143,7 @@ def test_process_incoming_enrollments():
             employee_id=f"TEST-IMPORT-{timestamp}",
             name="Test Student Import",
             email=f"testimport{timestamp}@example.com",
-            sbu="IT",
+            department="IT",
             designation="Developer"
         )
         db.add(student)
@@ -155,7 +155,7 @@ def test_process_incoming_enrollments():
             'employee_id': student.employee_id,
             'name': student.name,
             'email': student.email,
-            'sbu': student.sbu,
+            'department': student.department,
             'designation': student.designation
         }]
         
@@ -205,7 +205,7 @@ def test_column_name_normalization():
         'Employee ID': ['EMP006'],  # Space instead of underscore
         'Name': ['Test User'],
         'Email': ['test@example.com'],
-        'SBU': ['IT'],
+        'Department': ['IT'],
         'Designation': ['Developer']
     }
     df = pd.DataFrame(test_data)

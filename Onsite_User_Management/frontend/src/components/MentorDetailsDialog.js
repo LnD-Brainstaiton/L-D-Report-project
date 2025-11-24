@@ -105,10 +105,10 @@ function MentorDetailsDialog({ open, onClose, mentor }) {
           
           <Grid item xs={12} sm={6}>
             <Typography variant="body2" color="text.secondary">
-              SBU
+              Department
             </Typography>
             <Typography variant="body1" gutterBottom>
-              {mentor.sbu ? <Chip label={mentor.sbu} size="small" /> : 'N/A'}
+              {mentor.department ? <Chip label={mentor.department} size="small" /> : 'N/A'}
             </Typography>
           </Grid>
           

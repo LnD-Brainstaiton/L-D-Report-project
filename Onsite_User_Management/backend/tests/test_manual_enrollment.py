@@ -42,7 +42,7 @@ def test_manual_enrollment_auto_approve_eligible():
                 employee_id="TEST-ME-001",
                 name="Test Student ME",
                 email="testme@example.com",
-                sbu="IT",
+                department="IT",
                 designation="Developer"
             )
             db.add(student)
@@ -121,7 +121,7 @@ def test_manual_enrollment_not_eligible():
                 employee_id="TEST-ME-002",
                 name="Test Student ME 2",
                 email="testme2@example.com",
-                sbu="IT",
+                department="IT",
                 designation="Developer"
             )
             db.add(student)
@@ -195,7 +195,7 @@ def test_manual_enrollment_seat_limit():
                 employee_id="TEST-ME-003",
                 name="Test Student ME 3",
                 email="testme3@example.com",
-                sbu="IT",
+                department="IT",
                 designation="Developer"
             )
             db.add(student)
