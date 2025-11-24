@@ -623,7 +623,7 @@ async def sync_employees_from_lms(db: Session = Depends(get_db)):
     """
     Sync employees from LMS API to local database.
     
-    Fetches all users from Moodle LMS and updates/creates student records.
+    Fetches all users from Moodle LMS (uses cache if available) and updates/creates student records.
     Mapping:
     - employee_id = username (e.g., "bs1981")
     - name = fullname from real_info (or fullname field)
@@ -632,11 +632,22 @@ async def sync_employees_from_lms(db: Session = Depends(get_db)):
     - is_active = determined by suspended status (suspended=0 means active)
     """
     from app.services.lms_service import LMSService
+    from app.services.lms_cache_service import LMSCacheService
     from app.core.validation import validate_department
     
     try:
-        # Fetch all users from LMS
-        lms_users = await LMSService.fetch_all_users()
+        # Try to get from cache first
+        cached_users = await LMSCacheService.get_cached_users(db)
+        
+        if cached_users:
+            logger.info("Using cached users data for sync")
+            lms_users = cached_users
+        else:
+            # Fetch from API if cache miss or expired
+            logger.info("Cache miss or expired, fetching users from LMS API")
+            lms_users = await LMSService.fetch_all_users()
+            # Cache the results
+            await LMSCacheService.cache_users(db, lms_users)
         
         stats = {
             "total_fetched": len(lms_users),

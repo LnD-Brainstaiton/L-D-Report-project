@@ -51,6 +51,13 @@ function Dashboard() {
   const [filteredPlanningCourses, setFilteredPlanningCourses] = useState([]);
   const [filteredCompletedCourses, setFilteredCompletedCourses] = useState([]);
   const [calendarEvents, setCalendarEvents] = useState([]);
+  // Track how many courses to display in each stat card
+  const [displayCounts, setDisplayCounts] = useState({
+    upcoming: 10,
+    ongoing: 10,
+    planning: 10,
+    completed: 10,
+  });
   const [stats, setStats] = useState({
     activeEmployees: 0,
     previousEmployees: 0,
@@ -69,7 +76,7 @@ function Dashboard() {
   useEffect(() => {
     // Reset status when course type changes
     if (courseType === 'onsite') {
-      setStatus('upcoming'); // Default for onsite
+      setStatus('planning'); // Default for onsite - changed to planning
     } else {
       setStatus('upcoming'); // Default for online/external
     }
@@ -197,25 +204,49 @@ function Dashboard() {
         return course.start_date ? new Date(course.start_date) : null;
       };
 
-      // Categorize courses
-      // Upcoming: courses with status 'ongoing' or 'planning' but start_date is in the future
-      const upcomingCourses = filteredByType.filter(c => {
-        const courseStatus = getCourseStatus(c);
-        const courseStartDate = getCourseStartDate(c);
-        if (!courseStartDate) return false;
-        courseStartDate.setHours(0, 0, 0, 0);
-        return (courseStatus === 'ongoing' || courseStatus === 'planning') && courseStartDate > today;
-      });
+      // Categorize courses - different logic for online vs onsite
+      let upcomingCourses = [];
+      let ongoingCourses = [];
+      
+      if (courseType === 'online') {
+        // For online courses: use date-based logic only
+        upcomingCourses = filteredByType.filter(c => {
+          const courseStartDate = getCourseStartDate(c);
+          if (!courseStartDate) return false;
+          courseStartDate.setHours(0, 0, 0, 0);
+          return courseStartDate > today;
+        });
+        
+        ongoingCourses = filteredByType.filter(c => {
+          const courseStartDate = getCourseStartDate(c);
+          const courseEndDate = c.enddate ? new Date(c.enddate * 1000) : (c.end_date ? new Date(c.end_date) : null);
+          if (!courseStartDate) return false;
+          courseStartDate.setHours(0, 0, 0, 0);
+          if (courseEndDate) {
+            courseEndDate.setHours(0, 0, 0, 0);
+          }
+          // Ongoing: started and not ended (or no end date)
+          return courseStartDate <= today && (!courseEndDate || courseEndDate >= today);
+        });
+      } else {
+        // For onsite courses: use status-based logic
+        upcomingCourses = filteredByType.filter(c => {
+          const courseStatus = getCourseStatus(c);
+          const courseStartDate = getCourseStartDate(c);
+          if (!courseStartDate) return false;
+          courseStartDate.setHours(0, 0, 0, 0);
+          return (courseStatus === 'ongoing' || courseStatus === 'planning') && courseStartDate > today;
+        });
 
-      // Ongoing: courses that are ongoing and have started (not upcoming)
-      const ongoingCourses = filteredByType.filter(c => {
-        const courseStatus = getCourseStatus(c);
-        if (courseStatus !== 'ongoing') return false;
-        const courseStartDate = getCourseStartDate(c);
-        if (!courseStartDate) return false;
-        courseStartDate.setHours(0, 0, 0, 0);
-        return courseStartDate <= today;
-      });
+        ongoingCourses = filteredByType.filter(c => {
+          const courseStatus = getCourseStatus(c);
+          if (courseStatus !== 'ongoing') return false;
+          const courseStartDate = getCourseStartDate(c);
+          if (!courseStartDate) return false;
+          courseStartDate.setHours(0, 0, 0, 0);
+          return courseStartDate <= today;
+        });
+      }
 
       const planningCourses = filteredByType.filter(c => {
         const courseStatus = getCourseStatus(c);
@@ -242,20 +273,48 @@ function Dashboard() {
         const periodStart = dateRange.start;
         const periodEnd = dateRange.end;
         
-        // Filter upcoming courses
-        filteredUpcoming = filteredByType.filter(c => {
-          const courseStatus = getCourseStatus(c);
-          const courseStartDate = getCourseStartDate(c);
-          if (!courseStartDate) return false;
-          courseStartDate.setHours(0, 0, 0, 0);
-          const isUpcoming = (courseStatus === 'ongoing' || courseStatus === 'planning') && courseStartDate > today;
-          if (!isUpcoming) return false;
-          // Check if start date is within the period
-          return courseStartDate >= periodStart && courseStartDate <= periodEnd;
-        });
+        if (courseType === 'online') {
+          // For online courses: use date-based filtering only
+          filteredUpcoming = filteredByType.filter(c => {
+            const courseStartDate = getCourseStartDate(c);
+            if (!courseStartDate) return false;
+            courseStartDate.setHours(0, 0, 0, 0);
+            // Upcoming: start date is in the future and within the period
+            return courseStartDate > today && courseStartDate >= periodStart && courseStartDate <= periodEnd;
+          });
+          
+          filteredOngoing = filteredByType.filter(c => {
+            const courseStartDate = getCourseStartDate(c);
+            const courseEndDate = c.enddate ? new Date(c.enddate * 1000) : (c.end_date ? new Date(c.end_date) : null);
+            if (!courseStartDate) return false;
+            courseStartDate.setHours(0, 0, 0, 0);
+            if (courseEndDate) {
+              courseEndDate.setHours(0, 0, 0, 0);
+            }
+            // Ongoing: started and not ended (or no end date), and active during the period
+            const isOngoing = courseStartDate <= today && (!courseEndDate || courseEndDate >= today);
+            if (!isOngoing) return false;
+            // Check if course is active during the period
+            const startsBeforePeriodEnd = courseStartDate <= periodEnd;
+            const endsAfterPeriodStart = !courseEndDate || courseEndDate >= periodStart;
+            return startsBeforePeriodEnd && endsAfterPeriodStart;
+          });
+        } else {
+          // For onsite courses: use status-based filtering
+          // Filter upcoming courses
+          filteredUpcoming = filteredByType.filter(c => {
+            const courseStatus = getCourseStatus(c);
+            const courseStartDate = getCourseStartDate(c);
+            if (!courseStartDate) return false;
+            courseStartDate.setHours(0, 0, 0, 0);
+            const isUpcoming = (courseStatus === 'ongoing' || courseStatus === 'planning') && courseStartDate > today;
+            if (!isUpcoming) return false;
+            // Check if start date is within the period
+            return courseStartDate >= periodStart && courseStartDate <= periodEnd;
+          });
         
-        // Re-filter all courses based on period logic, but respect status field first
-        filteredOngoing = filteredByType.filter(c => {
+          // Re-filter all courses based on period logic, but respect status field first
+          filteredOngoing = filteredByType.filter(c => {
           // First check the status field - if it's 'ongoing', include it if dates match
           const statusStr = c.status ? String(c.status).toLowerCase() : '';
           const isOngoingStatus = statusStr === 'ongoing';
@@ -319,8 +378,8 @@ function Dashboard() {
           return endsAfterPeriod || noEndDate;
         });
         
-        // Completed: Course ended within the period
-        filteredCompleted = filteredByType.filter(c => {
+          // Completed: Course ended within the period
+          filteredCompleted = filteredByType.filter(c => {
           // First check the status field - if it's 'completed', include it if dates match
           const statusStr = c.status ? String(c.status).toLowerCase() : '';
           const isCompletedStatus = statusStr === 'completed';
@@ -344,10 +403,10 @@ function Dashboard() {
           return isCompletedStatus;
         });
         
-        // Planning: Everything that is not completed and not ongoing (and not upcoming)
-        // - Courses with draft status
-        // - OR courses that haven't started yet (start date is after the period)
-        filteredPlanning = filteredByType.filter(c => {
+          // Planning: Everything that is not completed and not ongoing (and not upcoming)
+          // - Courses with draft status
+          // - OR courses that haven't started yet (start date is after the period)
+          filteredPlanning = filteredByType.filter(c => {
           const statusStr = c.status ? String(c.status).toLowerCase() : '';
           
           // Exclude courses with explicit 'ongoing' or 'completed' status
@@ -396,6 +455,7 @@ function Dashboard() {
           
           return false;
         });
+        }
       }
 
       // Store filtered courses for display
@@ -516,47 +576,15 @@ function Dashboard() {
       const statsRes = await enrollmentsAPI.getDashboardStats();
       const statsData = statsRes.data;
 
-      // Update stats based on selected status
-      let displayUpcoming = filteredUpcoming.length;
-      let displayOngoing = filteredOngoing.length;
-      let displayPlanning = filteredPlanning.length;
-      let displayCompleted = filteredCompleted.length;
-
-      // If a specific status is selected, only show that status count
-      if (courseType === 'onsite') {
-        if (status === 'upcoming') {
-          displayOngoing = 0;
-          displayPlanning = 0;
-          displayCompleted = 0;
-        } else if (status === 'ongoing') {
-          displayUpcoming = 0;
-          displayPlanning = 0;
-          displayCompleted = 0;
-        } else if (status === 'planning') {
-          displayUpcoming = 0;
-          displayOngoing = 0;
-          displayCompleted = 0;
-        } else if (status === 'completed') {
-          displayUpcoming = 0;
-          displayOngoing = 0;
-          displayPlanning = 0;
-        }
-      } else {
-        // For online/external, only show upcoming or ongoing
-        if (status === 'upcoming') {
-          displayOngoing = 0;
-        } else if (status === 'ongoing') {
-          displayUpcoming = 0;
-        }
-      }
-
+      // Update stats - always show all counts, not filtered by selected status
+      // The selected status only filters which courses are displayed in the stat cards
       setStats({
-        activeEmployees: statsData.active_employees || 0,
+        activeEmployees: 0, // Removed - not needed
         previousEmployees: statsData.previous_employees || 0,
-        upcomingCourses: displayUpcoming,
-        ongoingCourses: displayOngoing,
-        planningCourses: displayPlanning,
-        completedCourses: displayCompleted,
+        upcomingCourses: filteredUpcoming.length,
+        ongoingCourses: filteredOngoing.length,
+        planningCourses: filteredPlanning.length,
+        completedCourses: filteredCompleted.length,
         totalEnrollments: statsData.total_enrollments || 0,
         approvedEnrollments: statsData.approved_enrollments || 0,
         pendingEnrollments: statsData.pending_enrollments || 0,
@@ -571,9 +599,19 @@ function Dashboard() {
     }
   };
 
-  const StatCard = ({ title, value, icon, color, onClick, subtitle, courses = [] }) => {
+  const StatCard = ({ title, value, icon, color, onClick, subtitle, courses = [], statusKey }) => {
     const dateRange = getDateRange();
     const showCourses = dateRange !== null && courses.length > 0;
+    const displayCount = displayCounts[statusKey] || 10;
+    const remainingCount = courses.length - displayCount;
+    
+    const handleLoadMore = (e) => {
+      e.stopPropagation(); // Prevent card click
+      setDisplayCounts(prev => ({
+        ...prev,
+        [statusKey]: Math.min(prev[statusKey] + 20, courses.length), // Load 20 more at a time
+      }));
+    };
     
     return (
       <Card
@@ -638,10 +676,13 @@ function Dashboard() {
         {showCourses && (
           <Box sx={{ borderTop: `1px solid ${alpha(color, 0.15)}`, maxHeight: 300, overflow: 'auto' }}>
             <List dense sx={{ py: 0 }}>
-              {courses.slice(0, 10).map((course) => (
+              {courses.slice(0, displayCount).map((course) => (
                 <ListItem key={course.id} disablePadding>
                   <ListItemButton
-                    onClick={() => navigate(`/courses/${course.id}`)}
+                    onClick={() => {
+                      const courseType = course.course_type || 'onsite';
+                      navigate(`/courses/${course.id}`, { state: { courseType } });
+                    }}
                     sx={{
                       '&:hover': {
                         backgroundColor: alpha(color, 0.08),
@@ -664,11 +705,31 @@ function Dashboard() {
                   </ListItemButton>
                 </ListItem>
               ))}
-              {courses.length > 10 && (
+              {remainingCount > 0 && (
                 <ListItem>
-                  <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic' }}>
-                    +{courses.length - 10} more courses
-                  </Typography>
+                  <ListItemButton
+                    onClick={handleLoadMore}
+                    sx={{
+                      '&:hover': {
+                        backgroundColor: alpha(color, 0.08),
+                      },
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <Typography 
+                      variant="caption" 
+                      sx={{ 
+                        fontWeight: 600,
+                        color: color,
+                        cursor: 'pointer',
+                        '&:hover': {
+                          textDecoration: 'underline',
+                        },
+                      }}
+                    >
+                      +{remainingCount} more courses
+                    </Typography>
+                  </ListItemButton>
                 </ListItem>
               )}
             </List>
@@ -833,6 +894,13 @@ function Dashboard() {
           {courseType === 'onsite' ? (
             <>
               <Chip
+                label="Planning"
+                onClick={() => setStatus('planning')}
+                color={status === 'planning' ? 'primary' : 'default'}
+                variant={status === 'planning' ? 'filled' : 'outlined'}
+                sx={{ cursor: 'pointer', fontWeight: status === 'planning' ? 600 : 400 }}
+              />
+              <Chip
                 label="Upcoming"
                 onClick={() => setStatus('upcoming')}
                 color={status === 'upcoming' ? 'primary' : 'default'}
@@ -845,13 +913,6 @@ function Dashboard() {
                 color={status === 'ongoing' ? 'primary' : 'default'}
                 variant={status === 'ongoing' ? 'filled' : 'outlined'}
                 sx={{ cursor: 'pointer', fontWeight: status === 'ongoing' ? 600 : 400 }}
-              />
-              <Chip
-                label="Planning"
-                onClick={() => setStatus('planning')}
-                color={status === 'planning' ? 'primary' : 'default'}
-                variant={status === 'planning' ? 'filled' : 'outlined'}
-                sx={{ cursor: 'pointer', fontWeight: status === 'planning' ? 600 : 400 }}
               />
               <Chip
                 label="Completed"
@@ -884,41 +945,9 @@ function Dashboard() {
 
       {/* Main Statistics Cards */}
       <Grid container spacing={3} mb={4}>
-        <Grid item xs={12} sm={6} md={2.4}>
-          <StatCard
-            title="Active Employees"
-            value={stats.activeEmployees}
-            icon={<People sx={{ fontSize: 32, color: theme.palette.primary.main }} />}
-            color={theme.palette.primary.main}
-            onClick={() => navigate('/users')}
-            subtitle="Currently active"
-          />
-        </Grid>
         {courseType === 'onsite' ? (
           <>
-            <Grid item xs={12} sm={6} md={2.4}>
-              <StatCard
-                title="Upcoming Courses"
-                value={stats.upcomingCourses}
-                icon={<Schedule sx={{ fontSize: 32, color: theme.palette.secondary.main }} />}
-                color={theme.palette.secondary.main}
-                onClick={() => navigate('/courses/onsite/upcoming')}
-                subtitle={timePeriod !== 'all' ? formatDateRange() : 'Scheduled to start'}
-                courses={status === 'upcoming' ? filteredUpcomingCourses : []}
-              />
-            </Grid>
-            <Grid item xs={12} sm={6} md={2.4}>
-              <StatCard
-                title="Ongoing Courses"
-                value={stats.ongoingCourses}
-                icon={<PlayCircle sx={{ fontSize: 32, color: theme.palette.success.main }} />}
-                color={theme.palette.success.main}
-                onClick={() => navigate('/courses/onsite/ongoing')}
-                subtitle={timePeriod !== 'all' ? formatDateRange() : 'In progress'}
-                courses={status === 'ongoing' ? filteredOngoingCourses : []}
-              />
-            </Grid>
-            <Grid item xs={12} sm={6} md={2.4}>
+            <Grid item xs={12} sm={6} md={3}>
               <StatCard
                 title="Planning Courses"
                 value={stats.planningCourses}
@@ -927,9 +956,34 @@ function Dashboard() {
                 onClick={() => navigate('/courses/onsite/planning')}
                 subtitle={timePeriod !== 'all' ? formatDateRange() : 'Scheduled'}
                 courses={status === 'planning' ? filteredPlanningCourses : []}
+                statusKey="planning"
               />
             </Grid>
-            <Grid item xs={12} sm={6} md={2.4}>
+            <Grid item xs={12} sm={6} md={3}>
+              <StatCard
+                title="Upcoming Courses"
+                value={stats.upcomingCourses}
+                icon={<Schedule sx={{ fontSize: 32, color: theme.palette.secondary.main }} />}
+                color={theme.palette.secondary.main}
+                onClick={() => navigate('/courses/onsite/upcoming')}
+                subtitle={timePeriod !== 'all' ? formatDateRange() : 'Scheduled to start'}
+                courses={status === 'upcoming' ? filteredUpcomingCourses : []}
+                statusKey="upcoming"
+              />
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <StatCard
+                title="Ongoing Courses"
+                value={stats.ongoingCourses}
+                icon={<PlayCircle sx={{ fontSize: 32, color: theme.palette.success.main }} />}
+                color={theme.palette.success.main}
+                onClick={() => navigate('/courses/onsite/ongoing')}
+                subtitle={timePeriod !== 'all' ? formatDateRange() : 'In progress'}
+                courses={status === 'ongoing' ? filteredOngoingCourses : []}
+                statusKey="ongoing"
+              />
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
               <StatCard
                 title="Completed Courses"
                 value={stats.completedCourses}
@@ -938,31 +992,34 @@ function Dashboard() {
                 onClick={() => navigate('/courses/onsite/completed')}
                 subtitle={timePeriod !== 'all' ? formatDateRange() : 'Finished'}
                 courses={status === 'completed' ? filteredCompletedCourses : []}
+                statusKey="completed"
               />
             </Grid>
           </>
         ) : (
           <>
-            <Grid item xs={12} sm={6} md={4.8}>
+            <Grid item xs={12} sm={6} md={6}>
               <StatCard
                 title="Upcoming Courses"
                 value={stats.upcomingCourses}
                 icon={<Schedule sx={{ fontSize: 32, color: theme.palette.secondary.main }} />}
                 color={theme.palette.secondary.main}
-                onClick={() => navigate(`/courses/${courseType}`)}
+                onClick={() => navigate(`/courses/${courseType}`, { state: { courseType } })}
                 subtitle={timePeriod !== 'all' ? formatDateRange() : 'Scheduled to start'}
                 courses={status === 'upcoming' ? filteredUpcomingCourses : []}
+                statusKey="upcoming"
               />
             </Grid>
-            <Grid item xs={12} sm={6} md={4.8}>
+            <Grid item xs={12} sm={6} md={6}>
               <StatCard
                 title="Ongoing Courses"
                 value={stats.ongoingCourses}
                 icon={<PlayCircle sx={{ fontSize: 32, color: theme.palette.success.main }} />}
                 color={theme.palette.success.main}
-                onClick={() => navigate(`/courses/${courseType}`)}
+                onClick={() => navigate(`/courses/${courseType}`, { state: { courseType } })}
                 subtitle={timePeriod !== 'all' ? formatDateRange() : 'In progress'}
                 courses={status === 'ongoing' ? filteredOngoingCourses : []}
+                statusKey="ongoing"
               />
             </Grid>
           </>
@@ -1100,13 +1157,13 @@ function Dashboard() {
                   }}
                   slotMinTime="09:00:00"
                   slotMaxTime="21:00:00"
-                  height={450}
+                  height={350}
                   weekends={true}
                   editable={false}
                   selectable={false}
                   dayMaxEvents={2}
                   moreLinkClick="popover"
-                  aspectRatio={1.8}
+                  aspectRatio={2.2}
                 />
               </Box>
             </CardContent>

@@ -30,8 +30,6 @@ import {
   Divider,
   FormControlLabel,
   Checkbox,
-  Tabs,
-  Tab,
 } from '@mui/material';
 import { Add, Delete, Search, Download, PersonAdd, CheckCircle, Edit, AccessTime, Visibility } from '@mui/icons-material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
@@ -60,8 +58,6 @@ function Courses({ courseType = 'onsite', status = 'all' }) {
   const [selectedDepartment, setSelectedDepartment] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [categories, setCategories] = useState([]); // List of unique categories for online courses
-  // Local status state for online courses (defaults to 'all')
-  const [localStatus, setLocalStatus] = useState(courseType === 'online' ? 'all' : status);
   const [formData, setFormData] = useState({
     name: '',
     batch_code: '',
@@ -81,18 +77,9 @@ function Courses({ courseType = 'onsite', status = 'all' }) {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingCourse, setEditingCourse] = useState(null);
 
-  // Update localStatus when courseType changes
-  useEffect(() => {
-    if (courseType === 'online') {
-      setLocalStatus('all');
-    } else {
-      setLocalStatus(status);
-    }
-  }, [courseType, status]);
-
   useEffect(() => {
     fetchCourses();
-  }, [courseType === 'online' ? localStatus : status, courseType]);
+  }, [status, courseType]);
 
   useEffect(() => {
     if (open || editDialogOpen) {
@@ -141,38 +128,11 @@ function Courses({ courseType = 'onsite', status = 'all' }) {
           });
           setAllCourses(filteredByType);
           
-          // Apply status filter and set courses
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          let filtered = filteredByType;
-          
-          // Filter by status for online courses (only upcoming and ongoing, unless status filter is 'all')
-          // Note: For online courses, we show all courses by default, but can filter by status
-          const currentStatus = courseType === 'online' ? localStatus : status;
-          if (courseType === 'online' && currentStatus !== 'all') {
-            filtered = filtered.filter(course => {
-              const startDate = course.startdate ? new Date(course.startdate * 1000) : null;
-              const endDate = course.enddate ? new Date(course.enddate * 1000) : null;
-              
-              if (!startDate) return false;
-              
-              if (currentStatus === 'upcoming') {
-                return startDate > today;
-              } else if (currentStatus === 'ongoing') {
-                const isOngoing = startDate <= today && (!endDate || endDate >= today);
-                return isOngoing;
-              } else if (currentStatus === 'completed') {
-                return endDate && endDate < today;
-              }
-              
-              return true;
-            });
-          } else if (courseType === 'online' && currentStatus === 'all') {
-            // Show all courses, but still filter out courses without startdate
-            filtered = filtered.filter(course => {
-              return course.startdate !== null && course.startdate !== undefined;
-            });
-          }
+          // For online courses, show all courses (no status filtering - handled in Dashboard)
+          // Filter out courses without startdate
+          let filtered = filteredByType.filter(course => {
+            return course.startdate !== null && course.startdate !== undefined;
+          });
           
           setCourses(filtered);
           
@@ -684,18 +644,18 @@ function Courses({ courseType = 'onsite', status = 'all' }) {
                 letterSpacing: '-0.02em',
               }}
             >
-              {(courseType === 'online' ? localStatus : status) === 'all' ? ` All ${courseType.charAt(0).toUpperCase() + courseType.slice(1)} Courses` :
-               (courseType === 'online' ? localStatus : status) === 'upcoming' ? ` Upcoming ${courseType.charAt(0).toUpperCase() + courseType.slice(1)} Courses` :
-               (courseType === 'online' ? localStatus : status) === 'ongoing' ? ` Ongoing ${courseType.charAt(0).toUpperCase() + courseType.slice(1)} Courses` :
-               (courseType === 'online' ? localStatus : status) === 'planning' ? ` Planning ${courseType.charAt(0).toUpperCase() + courseType.slice(1)} Courses` :
+              {status === 'all' ? ` All ${courseType.charAt(0).toUpperCase() + courseType.slice(1)} Courses` :
+               status === 'upcoming' ? ` Upcoming ${courseType.charAt(0).toUpperCase() + courseType.slice(1)} Courses` :
+               status === 'ongoing' ? ` Ongoing ${courseType.charAt(0).toUpperCase() + courseType.slice(1)} Courses` :
+               status === 'planning' ? ` Planning ${courseType.charAt(0).toUpperCase() + courseType.slice(1)} Courses` :
                ` Completed ${courseType.charAt(0).toUpperCase() + courseType.slice(1)} Courses`}
             </Typography>
             <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
               <Typography variant="body2" sx={{ color: '#64748b', fontSize: '0.95rem' }}>
-                {(courseType === 'online' ? localStatus : status) === 'all' ? `All ${courseType} courses` :
-                 (courseType === 'online' ? localStatus : status) === 'upcoming' ? `${courseType.charAt(0).toUpperCase() + courseType.slice(1)} courses scheduled to start soon` :
-                 (courseType === 'online' ? localStatus : status) === 'ongoing' ? `${courseType.charAt(0).toUpperCase() + courseType.slice(1)} courses currently in progress` :
-                 (courseType === 'online' ? localStatus : status) === 'planning' ? `${courseType.charAt(0).toUpperCase() + courseType.slice(1)} courses scheduled for the future` :
+                {status === 'all' ? `All ${courseType} courses` :
+                 status === 'upcoming' ? `${courseType.charAt(0).toUpperCase() + courseType.slice(1)} courses scheduled to start soon` :
+                 status === 'ongoing' ? `${courseType.charAt(0).toUpperCase() + courseType.slice(1)} courses currently in progress` :
+                 status === 'planning' ? `${courseType.charAt(0).toUpperCase() + courseType.slice(1)} courses scheduled for the future` :
                  `${courseType.charAt(0).toUpperCase() + courseType.slice(1)} courses that have been completed`}
               </Typography>
               <Chip
@@ -734,30 +694,6 @@ function Courses({ courseType = 'onsite', status = 'all' }) {
         </Box>
       </Box>
 
-      {/* Status Filter Tabs for Online Courses */}
-      {courseType === 'online' && (
-        <Card sx={{ mb: 3, border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}` }}>
-          <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-            <Tabs
-              value={localStatus}
-              onChange={(e, newValue) => setLocalStatus(newValue)}
-              sx={{
-                '& .MuiTab-root': {
-                  textTransform: 'none',
-                  fontWeight: 600,
-                  fontSize: '0.95rem',
-                  minHeight: 48,
-                },
-              }}
-            >
-              <Tab label="All" value="all" />
-              <Tab label="Upcoming" value="upcoming" />
-              <Tab label="Ongoing" value="ongoing" />
-              <Tab label="Completed" value="completed" />
-            </Tabs>
-          </Box>
-        </Card>
-      )}
 
       {message && (
         <Alert 

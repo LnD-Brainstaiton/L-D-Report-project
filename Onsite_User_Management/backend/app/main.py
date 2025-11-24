@@ -9,6 +9,7 @@ from app.core.config import settings
 from app.api import api_router
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
+from apscheduler.triggers.cron import CronTrigger
 import logging
 
 logger = logging.getLogger(__name__)
@@ -21,12 +22,14 @@ async def lifespan(app: FastAPI):
     """Manage application lifespan - startup and shutdown."""
     # Startup
     global scheduler
+    
+    # Create scheduler (always create it, even if no jobs are added)
+    scheduler = BackgroundScheduler()
+    
+    # Schedule reminder check if email is enabled
     if settings.SMTP_ENABLED and settings.ADMIN_EMAIL:
         try:
             from app.services.reminder_service import ReminderService
-            
-            # Create and start scheduler
-            scheduler = BackgroundScheduler()
             
             # Schedule reminder check to run every minute
             scheduler.add_job(
@@ -36,13 +39,53 @@ async def lifespan(app: FastAPI):
                 name='Check and send class reminders',
                 replace_existing=True
             )
-            
-            scheduler.start()
-            logger.info("Scheduler started - class reminders will be checked every minute")
+            logger.info("Scheduled class reminder check - will run every minute")
         except Exception as e:
-            logger.error(f"Failed to start scheduler: {str(e)}")
+            logger.error(f"Failed to schedule reminder check: {str(e)}")
     else:
-        logger.info("Scheduler not started - email service not enabled or ADMIN_EMAIL not configured")
+        logger.info("Class reminder check not scheduled - email service not enabled or ADMIN_EMAIL not configured")
+    
+    # Schedule LMS cache refresh to run daily at 2 AM
+    try:
+        from app.services.lms_cache_service import LMSCacheService
+        from app.db.base import SessionLocal
+        
+        def refresh_lms_cache():
+            """Background job to refresh LMS cache."""
+            db = SessionLocal()
+            try:
+                import asyncio
+                # Run async function in sync context
+                try:
+                    loop = asyncio.get_event_loop()
+                except RuntimeError:
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                
+                loop.run_until_complete(LMSCacheService.refresh_all_caches(db))
+                logger.info("LMS cache refresh completed successfully")
+            except Exception as e:
+                logger.error(f"Error refreshing LMS cache: {str(e)}")
+            finally:
+                db.close()
+        
+        scheduler.add_job(
+            refresh_lms_cache,
+            trigger=CronTrigger(hour=18, minute=0),  # Run daily at 12 AM Bangladesh time (UTC+6 = 18:00 UTC previous day)
+            id='lms_cache_refresh',
+            name='Refresh LMS cache daily at 12 AM Bangladesh time',
+            replace_existing=True
+        )
+        logger.info("Scheduled LMS cache refresh - will run daily at 12 AM Bangladesh time (18:00 UTC)")
+    except Exception as e:
+        logger.error(f"Failed to schedule LMS cache refresh: {str(e)}")
+    
+    # Start scheduler if any jobs were added
+    if scheduler.get_jobs():
+        scheduler.start()
+        logger.info("Scheduler started")
+    else:
+        logger.info("Scheduler not started - no jobs scheduled")
     
     yield
     

@@ -1908,7 +1908,13 @@ function CourseDetail() {
                         <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: theme.palette.success.main }}>
                           Completed ({completedOnline.length})
                         </Typography>
-                        <OnlineEnrollmentTable enrollments={completedOnline} />
+                        <OnlineEnrollmentTable 
+                          enrollments={completedOnline}
+                          onViewDetails={(enrollment) => {
+                            setSelectedUserEnrollment(enrollment);
+                            setUserDetailsOpen(true);
+                          }}
+                        />
                       </CardContent>
                     </Card>
                   )}
@@ -1924,7 +1930,13 @@ function CourseDetail() {
                         <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: theme.palette.warning.main }}>
                           In Progress ({inProgressOnline.length})
                         </Typography>
-                        <OnlineEnrollmentTable enrollments={inProgressOnline} />
+                        <OnlineEnrollmentTable 
+                          enrollments={inProgressOnline}
+                          onViewDetails={(enrollment) => {
+                            setSelectedUserEnrollment(enrollment);
+                            setUserDetailsOpen(true);
+                          }}
+                        />
                       </CardContent>
                     </Card>
                   )}
@@ -1940,7 +1952,13 @@ function CourseDetail() {
                         <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: theme.palette.grey[700] }}>
                           Not Started ({notStartedOnline.length})
                         </Typography>
-                        <OnlineEnrollmentTable enrollments={notStartedOnline} />
+                        <OnlineEnrollmentTable 
+                          enrollments={notStartedOnline}
+                          onViewDetails={(enrollment) => {
+                            setSelectedUserEnrollment(enrollment);
+                            setUserDetailsOpen(true);
+                          }}
+                        />
                       </CardContent>
                     </Card>
                   )}
@@ -2000,6 +2018,10 @@ function CourseDetail() {
                     </Typography>
                     <EnrollmentTable
                       enrollments={eligiblePending}
+                      onViewDetails={(e) => {
+                        setSelectedUserEnrollment(e);
+                        setUserDetailsOpen(true);
+                      }}
                       onApprove={handleApprove}
                       onReject={handleReject}
                       showActions={true}
@@ -2021,6 +2043,10 @@ function CourseDetail() {
                     </Typography>
                     <EnrollmentTable
                       enrollments={notEligible}
+                      onViewDetails={(e) => {
+                        setSelectedUserEnrollment(e);
+                        setUserDetailsOpen(true);
+                      }}
                       onApprove={handleApprove}
                       onReject={handleReject}
                       showEligibilityReason={true}
@@ -2068,6 +2094,10 @@ function CourseDetail() {
                     </Typography>
                     <EnrollmentTable
                       enrollments={withdrawn}
+                      onViewDetails={(e) => {
+                        setSelectedUserEnrollment(e);
+                        setUserDetailsOpen(true);
+                      }}
                       onReapprove={handleReapprove}
                       showActions={true}
                       actionsHeaderText="Add"
@@ -2832,7 +2862,7 @@ function CourseDetail() {
 }
 
 // Online Enrollment Table Component
-function OnlineEnrollmentTable({ enrollments }) {
+function OnlineEnrollmentTable({ enrollments, onViewDetails }) {
   const theme = useTheme();
   
   // Determine row color based on completion status
@@ -2878,7 +2908,20 @@ function OnlineEnrollmentTable({ enrollments }) {
                 },
               }}
             >
-              <TableCell sx={{ fontWeight: 500, color: '#1e3a8a' }}>{enrollment.student_employee_id}</TableCell>
+              <TableCell 
+                sx={{ 
+                  fontWeight: 500, 
+                  color: '#1e3a8a',
+                  cursor: onViewDetails ? 'pointer' : 'default',
+                  '&:hover': onViewDetails ? {
+                    color: theme.palette.primary.main,
+                    textDecoration: 'underline'
+                  } : {}
+                }}
+                onClick={onViewDetails ? () => onViewDetails(enrollment) : undefined}
+              >
+                {enrollment.student_employee_id}
+              </TableCell>
               <TableCell sx={{ color: '#475569', fontWeight: 500 }}>{enrollment.student_name}</TableCell>
               <TableCell sx={{ color: '#64748b' }}>
                 {enrollment.date_assigned 
@@ -2961,7 +3004,20 @@ function EnrollmentTable({
         <TableBody>
           {enrollments.map((enrollment) => (
             <TableRow key={enrollment.id}>
-              <TableCell>{enrollment.student_employee_id}</TableCell>
+              <TableCell 
+                sx={{
+                  cursor: onViewDetails ? 'pointer' : 'default',
+                  color: onViewDetails ? theme.palette.primary.main : 'inherit',
+                  fontWeight: onViewDetails ? 500 : 400,
+                  '&:hover': onViewDetails ? {
+                    textDecoration: 'underline',
+                    color: theme.palette.primary.dark
+                  } : {}
+                }}
+                onClick={onViewDetails ? () => onViewDetails(enrollment) : undefined}
+              >
+                {enrollment.student_employee_id}
+              </TableCell>
               <TableCell>{enrollment.student_name}</TableCell>
               <TableCell>{enrollment.student_email}</TableCell>
               <TableCell>

@@ -1,6 +1,7 @@
 """Service for interacting with Moodle LMS API."""
 import httpx
 from typing import List, Dict, Optional, Any
+from sqlalchemy.orm import Session
 from app.core.config import settings
 import logging
 
@@ -351,16 +352,34 @@ class LMSService:
             raise
     
     @staticmethod
-    async def fetch_user_by_username(username: str) -> Optional[Dict[str, Any]]:
+    async def fetch_user_by_username(username: str, db: Optional[Any] = None) -> Optional[Dict[str, Any]]:
         """
-        Find a user in LMS by username (employee_id) using core_user_get_users_by_field.
+        Find a user in LMS by username (employee_id).
+        First tries to find in cached users, then falls back to API if needed.
         
         Args:
             username: The username/employee_id to search for
+            db: Optional database session to check cache
             
         Returns:
             User dictionary if found, None otherwise
         """
+        # Try to get from cache first if db is provided
+        if db:
+            try:
+                from app.services.lms_cache_service import LMSCacheService
+                cached_users = await LMSCacheService.get_cached_users(db)
+                if cached_users:
+                    # Search in cached users
+                    for user in cached_users:
+                        if user.get("username") == username:
+                            logger.info(f"Found user {username} in cache")
+                            return user
+                    logger.info(f"User {username} not found in cache, will try API")
+            except Exception as e:
+                logger.warning(f"Error checking cache for user {username}: {str(e)}, falling back to API")
+        
+        # Fallback to API if cache miss or db not provided
         if not settings.LMS_TOKEN:
             raise ValueError("LMS_TOKEN is not configured. Please set it in .env file")
         
@@ -401,12 +420,14 @@ class LMSService:
             return None
     
     @staticmethod
-    async def fetch_user_courses(username: str) -> List[Dict[str, Any]]:
+    async def fetch_user_courses(username: str, db: Optional[Any] = None) -> List[Dict[str, Any]]:
         """
         Fetch all courses for a specific user from Moodle LMS using core_enrol_get_users_courses.
+        Uses cached user data if available.
         
         Args:
             username: The username/employee_id to find and get courses for
+            db: Optional database session to check cache
             
         Returns:
             List of course dictionaries for the user
@@ -414,8 +435,8 @@ class LMSService:
         if not settings.LMS_TOKEN:
             raise ValueError("LMS_TOKEN is not configured. Please set it in .env file")
         
-        # First, find the user by username to get their ID
-        user = await LMSService.fetch_user_by_username(username)
+        # First, find the user by username to get their ID (uses cache if db provided)
+        user = await LMSService.fetch_user_by_username(username, db)
         if not user:
             logger.warning(f"User with username {username} not found in LMS")
             return []
