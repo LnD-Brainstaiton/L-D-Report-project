@@ -7,7 +7,10 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal
 import pandas as pd
 import io
+import logging
 from app.db.base import get_db
+
+logger = logging.getLogger(__name__)
 from app.models.course import Course, CourseStatus
 from app.models.enrollment import Enrollment
 from app.models.course_mentor import CourseMentor
@@ -91,7 +94,7 @@ def get_courses(
         
         if courses_to_update:
             db.commit()
-            print(f"Auto-updated {len(courses_to_update)} course(s) from ongoing to completed based on end_date")
+            logger.info(f"Auto-updated {len(courses_to_update)} course(s) from ongoing to completed based on end_date")
         
         # Try to load courses with mentors relationship
         # If that fails, fall back to loading mentors separately
@@ -104,7 +107,7 @@ def get_courses(
             courses = query.order_by(Course.start_date.desc()).offset(skip).limit(limit).all()
         except Exception as load_error:
             # Fallback: load courses without eager loading
-            print(f"Warning: Failed to eager load mentors: {load_error}")
+            logger.warning(f"Failed to eager load mentors: {load_error}")
             courses = db.query(Course).order_by(Course.start_date.desc()).offset(skip).limit(limit).all()
         
         # Load mentors, comments, and drafts separately if not already loaded
@@ -159,9 +162,7 @@ def get_courses(
                         mentors_list.append(CourseMentorResponse.from_orm(cm))
                     except Exception as e:
                         # Skip mentor if serialization fails
-                        print(f"Warning: Failed to serialize mentor {cm.id}: {str(e)}")
-                        import traceback
-                        traceback.print_exc()
+                        logger.warning(f"Failed to serialize mentor {cm.id}: {str(e)}", exc_info=True)
                         continue
                 
                 # Construct response manually to avoid lazy loading issues
@@ -204,9 +205,7 @@ def get_courses(
                 result.append(CourseResponse(**course_dict))
             except Exception as e:
                 # Skip course if serialization fails
-                print(f"Warning: Failed to serialize course {course.id}: {str(e)}")
-                import traceback
-                traceback.print_exc()
+                logger.warning(f"Failed to serialize course {course.id}: {str(e)}", exc_info=True)
                 continue
         
         return result

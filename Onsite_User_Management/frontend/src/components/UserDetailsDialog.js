@@ -38,16 +38,13 @@ function UserDetailsDialog({ open, onClose, enrollment, onViewCourseDetails, onA
 
   const fetchStudentEnrollments = async () => {
     if (!enrollment?.student_id) {
-      console.log('UserDetailsDialog: No student_id in enrollment:', enrollment);
       return;
     }
     
     setLoadingEnrollments(true);
     try {
       // Fetch onsite enrollments
-      console.log('UserDetailsDialog: Fetching enrollments for student_id:', enrollment.student_id);
       const response = await studentsAPI.getEnrollments(enrollment.student_id);
-      console.log('UserDetailsDialog: Received enrollments:', response.data);
       
       // Handle both old format (array) and new format (object with enrollments and stats)
       let onsiteEnrollments = [];
@@ -169,7 +166,6 @@ function UserDetailsDialog({ open, onClose, enrollment, onViewCourseDetails, onA
   };
 
   useEffect(() => {
-    console.log('UserDetailsDialog: useEffect triggered, open:', open, 'enrollment:', enrollment);
     if (open && enrollment?.student_id) {
       fetchStudentEnrollments();
     } else {

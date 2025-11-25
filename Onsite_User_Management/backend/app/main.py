@@ -132,8 +132,8 @@ async def global_exception_handler(request: Request, exc: Exception):
         }
     
     # Log the error for debugging
-    print(f"Error: {str(exc)}")
-    print(traceback.format_exc())
+    logger.error(f"Unhandled error: {str(exc)}")
+    logger.error(traceback.format_exc())
     
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

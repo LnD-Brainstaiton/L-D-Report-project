@@ -556,9 +556,7 @@ def generate_overall_report(db: Session = Depends(get_db)):
             headers={"Content-Disposition": f"attachment; filename={filename}"}
         )
     except Exception as e:
-        import traceback
-        error_details = traceback.format_exc()
-        print(f"Error generating overall report: {error_details}")
+        logger.error(f"Error generating overall report: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error generating report: {str(e)}")
 
 @router.post("/{student_id}/mentor-tag", response_model=MentorResponse, status_code=201)
