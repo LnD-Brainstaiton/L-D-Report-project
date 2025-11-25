@@ -15,7 +15,7 @@ build/
 .coverage
 htmlcov/
 
-# Environment variables
+# Environment variables (NEVER commit these!)
 .env
 .env.local
 .env.*.local
@@ -23,6 +23,12 @@ htmlcov/
 **/.env
 **/.env.*
 !.env.example
+backend/.env
+frontend/.env
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
 
 # IDEs
 .vscode/
@@ -52,6 +58,16 @@ logs/
 server.log
 **/server.log
 
+# Secrets and Credentials (NEVER commit these!)
+*.key
+*.pem
+*.p12
+*.pfx
+*secret*
+*credential*
+secrets/
+credentials/
+
 # Node
 node_modules/
 npm-debug.log*
@@ -73,7 +89,9 @@ TECH_STACK_AND_FEATURES.md
 
 #API Docs
 API.md
-test_lms_api.py
-view_lms_data.py
-clear_all_employees.py
+
+# Test/Debug Scripts (may contain sensitive data)
+test_*.py
+view_*.py
+clear_*.py
 

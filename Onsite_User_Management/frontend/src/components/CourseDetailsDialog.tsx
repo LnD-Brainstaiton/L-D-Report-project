@@ -1,0 +1,259 @@
+import React from 'react';
+import { formatDateForDisplay, formatDateTimeForDisplay } from '../utils/dateUtils';
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  Grid,
+  Typography,
+  Chip,
+  Divider,
+  Alert,
+} from '@mui/material';
+import { Enrollment } from '../types';
+
+interface CourseDetailsDialogProps {
+  open: boolean;
+  onClose: () => void;
+  enrollment: Enrollment | null;
+}
+
+function CourseDetailsDialog({ open, onClose, enrollment }: CourseDetailsDialogProps): React.ReactElement | null {
+  if (!enrollment) return null;
+  const approvalStatus = (enrollment.approval_status || '').toString();
+  const eligibilityStatus = (enrollment.eligibility_status || '').toString();
+  const completionStatus = (enrollment.completion_status || '').toString();
+  const normalizedApproval = approvalStatus.toLowerCase();
+  const normalizedEligibility = eligibilityStatus.toLowerCase();
+  const normalizedCompletion = completionStatus.toLowerCase();
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+      <DialogTitle>
+        Course Details - {enrollment.course_name}
+      </DialogTitle>
+      <DialogContent>
+        <Grid container spacing={2} sx={{ mt: 1 }}>
+          <Grid item xs={12}>
+            <Typography variant="h6" gutterBottom>
+              Course Information
+            </Typography>
+            <Divider sx={{ mb: 2 }} />
+          </Grid>
+          
+          <Grid item xs={12} sm={6}>
+            <Typography variant="body2" color="text.secondary">
+              Course Name
+            </Typography>
+            <Typography variant="body1" gutterBottom>
+              {enrollment.course_name}
+            </Typography>
+          </Grid>
+          
+          <Grid item xs={12} sm={6}>
+            <Typography variant="body2" color="text.secondary">
+              Batch Code
+            </Typography>
+            <Typography variant="body1" gutterBottom>
+              {enrollment.course_batch_code || enrollment.batch_code || 'N/A'}
+            </Typography>
+          </Grid>
+          
+          {enrollment.course_description && (
+            <Grid item xs={12}>
+              <Typography variant="body2" color="text.secondary">
+                Description
+              </Typography>
+              <Typography variant="body1" gutterBottom>
+                {enrollment.course_description}
+              </Typography>
+            </Grid>
+          )}
+          
+          {enrollment.course_start_date && (
+            <Grid item xs={12} sm={6}>
+              <Typography variant="body2" color="text.secondary">
+                Start Date
+              </Typography>
+              <Typography variant="body1" gutterBottom>
+                {formatDateForDisplay(enrollment.course_start_date)}
+              </Typography>
+            </Grid>
+          )}
+          
+          {enrollment.course_end_date && (
+            <Grid item xs={12} sm={6}>
+              <Typography variant="body2" color="text.secondary">
+                End Date
+              </Typography>
+              <Typography variant="body1" gutterBottom>
+                {formatDateForDisplay(enrollment.course_end_date)}
+              </Typography>
+            </Grid>
+          )}
+          
+          <Grid item xs={12} sx={{ mt: 2 }}>
+            <Typography variant="h6" gutterBottom>
+              Enrollment Status
+            </Typography>
+            <Divider sx={{ mb: 2 }} />
+          </Grid>
+          
+          <Grid item xs={12} sm={6}>
+            <Typography variant="body2" color="text.secondary">
+              Approval Status
+            </Typography>
+            <Typography variant="body1" gutterBottom>
+              <Chip
+                label={approvalStatus || 'N/A'}
+                color={
+                  normalizedApproval === 'approved'
+                    ? 'success'
+                    : normalizedApproval === 'pending'
+                    ? 'warning'
+                    : normalizedApproval === 'rejected' || normalizedApproval === 'withdrawn'
+                    ? 'error'
+                    : 'default'
+                }
+                size="small"
+              />
+            </Typography>
+          </Grid>
+          
+          <Grid item xs={12} sm={6}>
+            <Typography variant="body2" color="text.secondary">
+              Eligibility Status
+            </Typography>
+            <Typography variant="body1" gutterBottom>
+              <Chip
+                label={eligibilityStatus || 'N/A'}
+                color={normalizedEligibility === 'eligible' ? 'success' : 'error'}
+                size="small"
+              />
+            </Typography>
+          </Grid>
+          
+          {enrollment.approved_by && (
+            <Grid item xs={12} sm={6}>
+              <Typography variant="body2" color="text.secondary">
+                Approved By
+              </Typography>
+              <Typography variant="body1" gutterBottom>
+                {enrollment.approved_by}
+              </Typography>
+            </Grid>
+          )}
+          
+          {enrollment.approved_at && (
+            <Grid item xs={12} sm={6}>
+              <Typography variant="body2" color="text.secondary">
+                Approved At
+              </Typography>
+              <Typography variant="body1" gutterBottom>
+                {formatDateTimeForDisplay(enrollment.approved_at)}
+              </Typography>
+            </Grid>
+          )}
+          
+          {enrollment.rejection_reason && (
+            <Grid item xs={12}>
+              <Typography variant="body2" color="text.secondary">
+                Rejection/Withdrawal Reason
+              </Typography>
+              <Alert severity="error" sx={{ mt: 1 }}>
+                {enrollment.rejection_reason}
+              </Alert>
+            </Grid>
+          )}
+          
+          <Grid item xs={12} sx={{ mt: 2 }}>
+            <Typography variant="h6" gutterBottom>
+              Completion & Assessment
+            </Typography>
+            <Divider sx={{ mb: 2 }} />
+          </Grid>
+          
+          <Grid item xs={12} sm={6}>
+            <Typography variant="body2" color="text.secondary">
+              Completion Status
+            </Typography>
+            <Typography variant="body1" gutterBottom>
+              <Chip
+                label={completionStatus || 'N/A'}
+                color={
+                  normalizedCompletion === 'completed'
+                    ? 'success'
+                    : normalizedCompletion === 'in progress'
+                    ? 'info'
+                    : normalizedCompletion === 'failed'
+                    ? 'error'
+                    : 'default'
+                }
+                size="small"
+              />
+            </Typography>
+          </Grid>
+          
+          <Grid item xs={12} sm={6}>
+            <Typography variant="body2" color="text.secondary">
+              Assessment Completed
+            </Typography>
+            <Typography variant="body1" gutterBottom>
+              <Chip
+                label={normalizedCompletion === 'completed' || normalizedCompletion === 'failed' ? 'Yes' : 'No'}
+                color={normalizedCompletion === 'completed' || normalizedCompletion === 'failed' ? 'success' : 'default'}
+                size="small"
+              />
+            </Typography>
+          </Grid>
+          
+          <Grid item xs={12} sm={6}>
+            <Typography variant="body2" color="text.secondary">
+              Score
+            </Typography>
+            <Typography variant="body1" gutterBottom>
+              {enrollment.score !== null && enrollment.score !== undefined ? `${enrollment.score}%` : 'Not Available'}
+            </Typography>
+          </Grid>
+          
+          <Grid item xs={12} sm={6}>
+            <Typography variant="body2" color="text.secondary">
+              Attendance
+            </Typography>
+            <Typography variant="body1" gutterBottom>
+              {enrollment.attendance_percentage !== null && enrollment.attendance_percentage !== undefined ? `${enrollment.attendance_percentage}%` : 'Not Available'}
+            </Typography>
+          </Grid>
+          
+          {enrollment.completion_date && (
+            <Grid item xs={12} sm={6}>
+              <Typography variant="body2" color="text.secondary">
+                Completion Date
+              </Typography>
+              <Typography variant="body1" gutterBottom>
+                {formatDateTimeForDisplay(enrollment.completion_date)}
+              </Typography>
+            </Grid>
+          )}
+          
+          <Grid item xs={12} sm={6}>
+            <Typography variant="body2" color="text.secondary">
+              Enrollment Date
+            </Typography>
+            <Typography variant="body1" gutterBottom>
+              {formatDateTimeForDisplay(enrollment.created_at || '')}
+            </Typography>
+          </Grid>
+        </Grid>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>Close</Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
+export default CourseDetailsDialog;
+

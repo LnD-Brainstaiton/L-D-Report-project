@@ -1,10 +1,12 @@
 from pydantic_settings import BaseSettings
-from typing import List, Union
+from typing import List, Union, Optional
 from pydantic import field_validator
+import os
+import sys
 
 class Settings(BaseSettings):
-    # Database
-    DATABASE_URL: str = "postgresql://user:password@localhost/enrollment_db"
+    # Database - REQUIRED in production
+    DATABASE_URL: str
     
     # Azure AD (Optional - for Microsoft Forms integration)
     AZURE_CLIENT_ID: str = ""
@@ -15,8 +17,8 @@ class Settings(BaseSettings):
     MICROSOFT_GRAPH_API_KEY: str = ""
     MICROSOFT_GRAPH_SCOPE: str = "https://graph.microsoft.com/.default"
     
-    # Security
-    SECRET_KEY: str = "your-secret-key-change-in-production"
+    # Security - REQUIRED in production
+    SECRET_KEY: str
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     
@@ -43,9 +45,9 @@ class Settings(BaseSettings):
     AZURE_STORAGE_CONNECTION_STRING: str = ""
     AZURE_STORAGE_CONTAINER: str = "enrollment-uploads"
     
-    # Admin Authentication
-    ADMIN_EMAIL: str = ""
-    ADMIN_PASSWORD: str = ""
+    # Admin Authentication - REQUIRED in production
+    ADMIN_EMAIL: str
+    ADMIN_PASSWORD: str
     
     # Email Configuration (for reminders)
     SMTP_ENABLED: bool = False
@@ -66,5 +68,21 @@ class Settings(BaseSettings):
         env_file = ".env"
         case_sensitive = True
 
-settings = Settings()
+# Initialize settings
+try:
+    settings = Settings()
+except Exception as e:
+    print(f"ERROR: Failed to load settings. Please ensure all required environment variables are set.")
+    print(f"Required variables: DATABASE_URL, SECRET_KEY, ADMIN_EMAIL, ADMIN_PASSWORD")
+    print(f"Error details: {e}")
+    if os.getenv("ENVIRONMENT") == "production":
+        sys.exit(1)
+    else:
+        # For development, provide helpful defaults
+        print("\n⚠️  WARNING: Using development defaults. DO NOT use in production!")
+        os.environ.setdefault("DATABASE_URL", "postgresql://user:password@localhost/enrollment_db")
+        os.environ.setdefault("SECRET_KEY", "dev-secret-key-CHANGE-THIS")
+        os.environ.setdefault("ADMIN_EMAIL", "admin@example.com")
+        os.environ.setdefault("ADMIN_PASSWORD", "admin123")
+        settings = Settings()
 
