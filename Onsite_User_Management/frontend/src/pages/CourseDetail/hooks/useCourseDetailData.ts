@@ -42,7 +42,9 @@ export const useCourseDetailData = (courseId: string | undefined, courseType: st
       if (courseType === 'online') {
         // Online course - fetch from LMS API only
         const lmsResponse = await lmsAPI.getCourses();
-        const lmsCourses = Array.isArray(lmsResponse.data) ? lmsResponse.data : [];
+        // Handle both array and object response formats
+        const responseData = lmsResponse.data as any;
+        const lmsCourses = responseData.courses || (Array.isArray(responseData) ? responseData : []);
         const lmsCourse = lmsCourses.find((c: any) => c.id === parseInt(courseId!));
         
         if (!lmsCourse) {
@@ -67,6 +69,7 @@ export const useCourseDetailData = (courseId: string | undefined, courseType: st
           status: 'ongoing',
           visible: lmsCourse.visible === 1,
           is_lms_course: true,
+          is_mandatory: lmsCourse.is_mandatory || false,
         } as Course;
       } else {
         // Onsite course - fetch from regular API only (local database)

@@ -17,8 +17,10 @@ import {
   alpha,
   Tabs,
   Tab,
+  Tooltip,
 } from '@mui/material';
-import { studentsAPI, lmsAPI } from '../services/api';
+import { Star } from '@mui/icons-material';
+import { studentsAPI } from '../services/api';
 import { formatExperience } from '../utils/experienceUtils';
 import { formatDateForDisplay } from '../utils/dateUtils';
 import type { Enrollment, CourseType } from '../types';
@@ -50,6 +52,7 @@ interface OnlineCourseEnrollment {
   date_assigned: number | null;
   lastaccess: number | null;
   is_lms_course: boolean;
+  is_mandatory: boolean;
 }
 
 interface CompletionStats {
@@ -94,85 +97,62 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> = ({
     setLoadingEnrollments(true);
     try {
       const response = await studentsAPI.getEnrollments(enrollment.student_id);
+      const data = response.data as any;
 
+      // Get onsite enrollments
       let onsiteEnrollments: EnrollmentWithDetails[] = [];
-      if (Array.isArray(response.data)) {
-        onsiteEnrollments = response.data || [];
+      if (Array.isArray(data)) {
+        onsiteEnrollments = data || [];
       } else {
-        onsiteEnrollments = (response.data as { enrollments: EnrollmentWithDetails[] }).enrollments || [];
+        onsiteEnrollments = data.enrollments || [];
       }
-
       setStudentEnrollments(onsiteEnrollments);
 
-      if (enrollment.student_employee_id) {
-        try {
-          const lmsResponse = await lmsAPI.getUserCourses(enrollment.student_employee_id);
-          const lmsCourses = Array.isArray(lmsResponse.data) ? lmsResponse.data : [];
+      // Get online courses from the same response (no separate LMS API call needed)
+      const onlineCoursesList = data.online_courses || [];
+      const mappedOnlineCourses: OnlineCourseEnrollment[] = onlineCoursesList.map((course: any) => ({
+        id: course.id,
+        course_id: course.course_id,
+        course_name: course.course_name,
+        batch_code: course.batch_code || '',
+        course_type: 'online',
+        completion_status: course.completion_status,
+        progress: course.progress || 0,
+        course_end_date: course.course_end_date,
+        date_assigned: course.course_start_date,
+        lastaccess: course.lastaccess,
+        is_lms_course: true,
+        is_mandatory: course.is_mandatory || false,
+      }));
+      // Sort mandatory courses first
+      mappedOnlineCourses.sort((a, b) => {
+        if (a.is_mandatory && !b.is_mandatory) return -1;
+        if (!a.is_mandatory && b.is_mandatory) return 1;
+        return 0;
+      });
+      setOnlineCourses(mappedOnlineCourses);
 
-          const mappedOnlineCourses: OnlineCourseEnrollment[] = lmsCourses.map((course: any) => {
-            const progress = course.progress || 0;
-            const completionStatus = progress >= 100 ? 'Completed' : progress > 0 ? 'In Progress' : 'Not Started';
-
-            return {
-              id: `lms_${course.id}`,
-              course_id: course.id,
-              course_name: course.fullname,
-              batch_code: course.shortname || '',
-              course_type: 'online',
-              completion_status: completionStatus,
-              progress: progress,
-              course_end_date: course.enddate ? new Date(course.enddate * 1000).toISOString().split('T')[0] : null,
-              date_assigned: course.startdate || course.timemodified || null,
-              lastaccess: course.lastaccess || null,
-              is_lms_course: true,
-            };
-          });
-
-          setOnlineCourses(mappedOnlineCourses);
-
-          const onlineCompleted = mappedOnlineCourses.filter((c) => c.completion_status === 'Completed').length;
-          const onlineTotal = mappedOnlineCourses.length;
-          const onlineRate = onlineTotal > 0 ? (onlineCompleted / onlineTotal) * 100 : 0;
-
-          const onsiteRelevant = onsiteEnrollments
-            .filter(
-              (e) =>
-                e.approval_status === 'Withdrawn' ||
-                (e.approval_status === 'Approved' && ['Completed', 'Failed'].includes(e.completion_status || ''))
-            )
-            .filter((e) => e.approval_status !== 'Rejected');
-
-          const onsiteTotal = onsiteRelevant.length;
-          const onsiteCompleted = onsiteRelevant.filter((e) => e.completion_status === 'Completed').length;
-          const onsiteRate = onsiteTotal > 0 ? (onsiteCompleted / onsiteTotal) * 100 : 0;
-
-          setCompletionStats({
-            onsite: { rate: onsiteRate, completed: onsiteCompleted, total: onsiteTotal },
-            online: { rate: onlineRate, completed: onlineCompleted, total: onlineTotal },
-            external: { rate: 0, completed: 0, total: 0 },
-          });
-        } catch (lmsError) {
-          console.error('UserDetailsDialog: Error fetching LMS courses:', lmsError);
-          setOnlineCourses([]);
-
-          const onsiteRelevant = onsiteEnrollments
-            .filter(
-              (e) =>
-                e.approval_status === 'Withdrawn' ||
-                (e.approval_status === 'Approved' && ['Completed', 'Failed'].includes(e.completion_status || ''))
-            )
-            .filter((e) => e.approval_status !== 'Rejected');
-          const onsiteTotal = onsiteRelevant.length;
-          const onsiteCompleted = onsiteRelevant.filter((e) => e.completion_status === 'Completed').length;
-          const onsiteRate = onsiteTotal > 0 ? (onsiteCompleted / onsiteTotal) * 100 : 0;
-
-          setCompletionStats({
-            onsite: { rate: onsiteRate, completed: onsiteCompleted, total: onsiteTotal },
-            online: { rate: 0, completed: 0, total: 0 },
-            external: { rate: 0, completed: 0, total: 0 },
-          });
-        }
+      // Use stats from backend if available, otherwise calculate
+      if (data.onsite_stats && data.online_stats) {
+        setCompletionStats({
+          onsite: { 
+            rate: data.onsite_stats.rate, 
+            completed: data.onsite_stats.completed, 
+            total: data.onsite_stats.total 
+          },
+          online: { 
+            rate: data.online_stats.rate, 
+            completed: data.online_stats.completed, 
+            total: data.online_stats.total 
+          },
+          external: { rate: 0, completed: 0, total: 0 },
+        });
       } else {
+        // Fallback calculation
+        const onlineCompleted = mappedOnlineCourses.filter((c) => c.completion_status === 'Completed').length;
+        const onlineTotal = mappedOnlineCourses.length;
+        const onlineRate = onlineTotal > 0 ? (onlineCompleted / onlineTotal) * 100 : 0;
+
         const onsiteRelevant = onsiteEnrollments
           .filter(
             (e) =>
@@ -180,13 +160,14 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> = ({
               (e.approval_status === 'Approved' && ['Completed', 'Failed'].includes(e.completion_status || ''))
           )
           .filter((e) => e.approval_status !== 'Rejected');
+
         const onsiteTotal = onsiteRelevant.length;
         const onsiteCompleted = onsiteRelevant.filter((e) => e.completion_status === 'Completed').length;
         const onsiteRate = onsiteTotal > 0 ? (onsiteCompleted / onsiteTotal) * 100 : 0;
 
         setCompletionStats({
           onsite: { rate: onsiteRate, completed: onsiteCompleted, total: onsiteTotal },
-          online: { rate: 0, completed: 0, total: 0 },
+          online: { rate: onlineRate, completed: onlineCompleted, total: onlineTotal },
           external: { rate: 0, completed: 0, total: 0 },
         });
       }
@@ -385,9 +366,28 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> = ({
                           <CardContent>
                             <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
                               <Box>
-                                <Typography variant="h6" sx={{ fontWeight: 600, mb: 0.5 }}>
-                                  {enroll.course_name}
-                                </Typography>
+                                <Box display="flex" alignItems="center" gap={1} mb={0.5}>
+                                  <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                                    {enroll.course_name}
+                                  </Typography>
+                                  {enroll.is_mandatory && (
+                                    <Tooltip title="Mandatory Course">
+                                      <Chip
+                                        icon={<Star sx={{ fontSize: 14 }} />}
+                                        label="Mandatory"
+                                        size="small"
+                                        sx={{
+                                          background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
+                                          color: '#92400e',
+                                          fontWeight: 600,
+                                          fontSize: '0.7rem',
+                                          height: 22,
+                                          '& .MuiChip-icon': { color: '#f59e0b' },
+                                        }}
+                                      />
+                                    </Tooltip>
+                                  )}
+                                </Box>
                                 <Typography variant="body2" color="text.secondary">
                                   Batch: {enroll.batch_code}
                                 </Typography>

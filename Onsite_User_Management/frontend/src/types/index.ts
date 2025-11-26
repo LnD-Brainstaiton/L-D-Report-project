@@ -99,6 +99,7 @@ export interface Course extends BaseEntity {
   current_enrolled?: number;
   visible?: boolean;
   is_lms_course?: boolean;
+  is_mandatory?: boolean;  // Mandatory course flag from LMS
   comments?: Comment[];
   draft?: {
     mentor_assignments?: CourseMentorAssignment[];
@@ -340,6 +341,7 @@ export interface OnlineCourse {
   score?: number;
   time_spent?: number;
   is_external?: boolean;
+  is_mandatory?: boolean;  // Mandatory course flag from LMS
 }
 
 // ============================================================================

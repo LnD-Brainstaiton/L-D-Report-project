@@ -250,12 +250,23 @@ const Users: React.FC = () => {
               value={selectedSearchUser}
               onChange={(_, newValue) => {
                 setSelectedSearchUser(newValue as StudentWithEnrollments | null);
-                if (newValue) setSearchQuery(newValue.name || '');
-                else setSearchQuery('');
+                if (newValue) {
+                  setSearchQuery(newValue.name || '');
+                  // Auto-open details when selecting from search
+                  handleViewDetails(newValue as StudentWithEnrollments);
+                } else {
+                  setSearchQuery('');
+                }
               }}
-              onInputChange={(_, newInputValue) => {
-                setSearchQuery(newInputValue);
-                if (!newInputValue) setSelectedSearchUser(null);
+              onInputChange={(_, newInputValue, reason) => {
+                // Only update search query on user input, not on selection
+                if (reason === 'input') {
+                  setSearchQuery(newInputValue);
+                  if (!newInputValue) setSelectedSearchUser(null);
+                } else if (reason === 'clear') {
+                  setSearchQuery('');
+                  setSelectedSearchUser(null);
+                }
               }}
               inputValue={searchQuery}
               filterOptions={(options, { inputValue }) => {
@@ -274,6 +285,8 @@ const Users: React.FC = () => {
                 />
               )}
               noOptionsText="No employees found"
+              clearOnBlur={false}
+              blurOnSelect={true}
             />
             <TextField select label="Department" value={selectedDepartment} onChange={(e) => setSelectedDepartment(e.target.value)} sx={{ minWidth: 140 }} size="small">
               <MenuItem value="">All Departments</MenuItem>

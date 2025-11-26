@@ -437,43 +437,15 @@ def create_enrollment(
 
 @router.get("/dashboard/stats")
 async def get_dashboard_stats(db: Session = Depends(get_db)):
-    """Get dashboard statistics including counts for employees, courses, and enrollments."""
-    # Count active and previous employees from ERP (source of truth)
-    from app.services.erp_cache_service import ERPCacheService
-    from app.services.erp_service import ERPService
+    """Get dashboard statistics including counts for employees, courses, and enrollments.
     
-    try:
-        cached_employees = await ERPCacheService.get_cached_employees(db)
-        if not cached_employees:
-            # If cache is empty, fetch from API
-            cached_employees = await ERPService.fetch_all_employees()
-            await ERPCacheService.cache_employees(db, cached_employees)
-        
-        # Count based on exitDate: if exitDate exists, employee is inactive
-        # Note: cached employees are stored as list of lists: [[emp1], [emp2], ...]
-        active_employees_count = 0
-        previous_employees_count = 0
-        
-        for emp in cached_employees:
-            # Handle nested list structure - employees are wrapped in lists
-            if isinstance(emp, list) and len(emp) > 0:
-                emp = emp[0]
-            
-            if not isinstance(emp, dict):
-                continue
-            
-            exit_date = emp.get("exitDate")
-            # exitDate is None, empty string, or False means active
-            # Any other value (date string) means inactive (previous employee)
-            if exit_date is None or exit_date == "" or exit_date is False:
-                active_employees_count += 1
-            else:
-                previous_employees_count += 1
-    except Exception as e:
-        # Fallback to database if ERP fails
-        logger.error(f"Error getting employee counts from ERP: {str(e)}, falling back to database")
-        active_employees_count = db.query(Student).filter(Student.is_active == True).count()
-        previous_employees_count = db.query(Student).filter(Student.is_active == False).count()
+    ALL DATA FROM LOCAL DATABASE ONLY - no external API calls.
+    Data is synced via cron job at 12am daily.
+    """
+    # Count active and previous employees from LOCAL DATABASE ONLY
+    # is_active is set during ERP sync based on exitDate
+    active_employees_count = db.query(Student).filter(Student.is_active == True).count()
+    previous_employees_count = db.query(Student).filter(Student.is_active == False).count()
     
     # Count active and archived courses
     active_courses_count = db.query(Course).filter(Course.is_archived == False).count()

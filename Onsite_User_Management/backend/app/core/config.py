@@ -72,6 +72,9 @@ class Settings(BaseSettings):
     ERP_API_KEY: str = ""  # API key for GraphQL authentication
     ERP_API_TOKEN: str = ""  # Bearer token for GraphQL authentication
     
+    # Cron Job Configuration
+    CRON_SECRET_KEY: str = "bs23-cron-2025"  # Secret key for authorizing cron job API calls
+    
     class Config:
         env_file = ".env"
         case_sensitive = True

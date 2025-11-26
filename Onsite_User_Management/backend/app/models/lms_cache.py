@@ -17,6 +17,7 @@ class LMSCourseCache(Base):
     categoryid = Column(Integer)
     categoryname = Column(String)
     visible = Column(Integer, default=1)
+    is_mandatory = Column(Integer, default=0)  # 1 = mandatory, 0 = not mandatory
     cached_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     
     # Index on cached_at for efficient cleanup queries
@@ -36,6 +37,7 @@ class LMSCourseCache(Base):
             "categoryid": self.categoryid,
             "categoryname": self.categoryname or "Unknown",
             "visible": self.visible,
+            "is_mandatory": self.is_mandatory == 1,
         }
 
 

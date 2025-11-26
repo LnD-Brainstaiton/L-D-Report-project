@@ -86,24 +86,28 @@ async def get_student_count(
     db: Session = Depends(get_db)
 ):
     """
-    Get count of employees from ERP (source of truth).
+    Get count of employees from LOCAL DATABASE ONLY.
     
-    By default uses ERP cached data which includes all employees.
-    Employees with exitDate are considered inactive (previous employees).
+    Data is synced via cron job at 12am daily.
+    No external API calls are made.
     """
     from app.services.erp_cache_service import ERPCacheService
-    from app.services.erp_service import ERPService
     from app.core.validation import validate_department
     
-    # Always use ERP as source of truth
+    # Always use LOCAL DATABASE - no API fallback
     if use_erp:
-        # Count from ERP cached data
+        # Count from ERP cached data (local database)
         try:
             cached_employees = await ERPCacheService.get_cached_employees(db)
             if not cached_employees:
-                # If cache is empty, fetch from API
-                cached_employees = await ERPService.fetch_all_employees()
-                await ERPCacheService.cache_employees(db, cached_employees)
+                # If cache is empty, return from students table
+                logger.info("ERP cache empty, using students table")
+                query = db.query(Student)
+                if is_active is not None:
+                    query = query.filter(Student.is_active == is_active)
+                if department:
+                    query = query.filter(Student.department == department)
+                return {"count": query.count()}
             
             # Filter employees based on exitDate (previous employees have exitDate)
             # Use the exact same logic as test_erp_count.py which works correctly
@@ -183,49 +187,58 @@ def get_student(student_id: int, db: Session = Depends(get_db)):
 
 @router.get("/{student_id}/enrollments", response_model=dict)
 def get_student_enrollments(student_id: int, db: Session = Depends(get_db)):
-    """Get all enrollments for a specific student with full course details and overall completion rate."""
+    """Get all enrollments for a specific student with full course details and overall completion rate.
+    
+    Includes both onsite enrollments and online (LMS) courses from the local database.
+    """
     from app.models.enrollment import Enrollment, ApprovalStatus, CompletionStatus
+    from app.models.lms_user import LMSUserCourse
     from app.schemas.enrollment import EnrollmentResponse
     
     student = db.query(Student).filter(Student.id == student_id).first()
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
     
+    # Get onsite enrollments
     enrollments = db.query(Enrollment).filter(Enrollment.student_id == student_id).order_by(Enrollment.created_at.desc()).all()
     
-    # Calculate overall completion rate (same logic as in enrollments API)
+    # Get online (LMS) courses from local database
+    lms_courses = db.query(LMSUserCourse).filter(LMSUserCourse.student_id == student_id).order_by(LMSUserCourse.created_at.desc()).all()
+    
+    # Calculate overall completion rate for onsite courses
     all_student_enrollments = db.query(Enrollment).filter(
         Enrollment.student_id == student_id
     ).all()
     
-    # Filter enrollments to only include those that count toward completion rate:
-    # - COMPLETED or FAILED courses (completion_status) that are APPROVED
-    # - WITHDRAWN courses (approval_status) - these should be included as they have a reason
-    # Exclude: PENDING approvals, NOT_STARTED, IN_PROGRESS, REJECTED
     relevant_enrollments = [
         e for e in all_student_enrollments
         if (
-            # Include withdrawn courses (they have a reason attached, count as not completed)
             (e.approval_status == ApprovalStatus.WITHDRAWN)
-            # OR include completed/failed courses that are approved (not pending/rejected)
             or (
                 e.approval_status == ApprovalStatus.APPROVED
                 and e.completion_status in [CompletionStatus.COMPLETED, CompletionStatus.FAILED]
             )
         )
-        # Exclude rejected enrollments (admin's decision, not student's fault)
         and e.approval_status != ApprovalStatus.REJECTED
     ]
     
-    total_courses = len(relevant_enrollments)
-    # Only COMPLETED courses count as completed (withdrawn and failed count as not completed)
-    completed_courses = sum(1 for e in relevant_enrollments if e.completion_status == CompletionStatus.COMPLETED)
+    onsite_total = len(relevant_enrollments)
+    onsite_completed = sum(1 for e in relevant_enrollments if e.completion_status == CompletionStatus.COMPLETED)
+    
+    # Calculate online completion stats
+    online_total = len(lms_courses)
+    online_completed = sum(1 for c in lms_courses if c.completed)
+    
+    # Combined completion rate
+    total_courses = onsite_total + online_total
+    completed_courses = onsite_completed + online_completed
     
     if total_courses > 0:
         overall_completion_rate = (completed_courses / total_courses) * 100
     else:
         overall_completion_rate = 0.0
     
+    # Build onsite enrollments list
     result_enrollments = []
     for enrollment in enrollments:
         enrollment_dict = EnrollmentResponse.from_orm(enrollment).dict()
@@ -235,7 +248,6 @@ def get_student_enrollments(student_id: int, db: Session = Depends(get_db)):
         enrollment_dict['student_employee_id'] = enrollment.student.employee_id
         enrollment_dict['student_designation'] = enrollment.student.designation
         enrollment_dict['student_experience_years'] = enrollment.student.experience_years
-        # Use stored course info (preserved even if course is deleted)
         enrollment_dict['course_name'] = enrollment.course_name or (enrollment.course.name if enrollment.course else None)
         enrollment_dict['batch_code'] = enrollment.batch_code or (enrollment.course.batch_code if enrollment.course else None)
         enrollment_dict['attendance_percentage'] = enrollment.attendance_percentage
@@ -245,13 +257,52 @@ def get_student_enrollments(student_id: int, db: Session = Depends(get_db)):
         enrollment_dict['course_start_date'] = enrollment.course.start_date.isoformat() if enrollment.course and enrollment.course.start_date else None
         enrollment_dict['course_end_date'] = enrollment.course.end_date.isoformat() if enrollment.course and enrollment.course.end_date else None
         enrollment_dict['completion_date'] = enrollment.completion_date.isoformat() if enrollment.completion_date else None
+        enrollment_dict['course_type'] = 'onsite'
+        enrollment_dict['is_lms_course'] = False
         result_enrollments.append(enrollment_dict)
+    
+    # Build online courses list
+    online_enrollments = []
+    for lms_course in lms_courses:
+        completion_status = "Completed" if lms_course.completed else ("In Progress" if lms_course.progress and lms_course.progress > 0 else "Not Started")
+        
+        online_dict = {
+            'id': f"lms_{lms_course.id}",
+            'course_id': lms_course.lms_course_id,
+            'course_name': lms_course.course_name,
+            'batch_code': lms_course.course_shortname or '',
+            'course_type': 'online',
+            'approval_status': 'Approved',
+            'completion_status': completion_status,
+            'progress': lms_course.progress or 0,
+            'course_start_date': lms_course.start_date.isoformat() if lms_course.start_date else None,
+            'course_end_date': lms_course.end_date.isoformat() if lms_course.end_date else None,
+            'lastaccess': lms_course.last_access.isoformat() if lms_course.last_access else None,
+            'is_lms_course': True,
+            'is_mandatory': lms_course.is_mandatory if hasattr(lms_course, 'is_mandatory') and lms_course.is_mandatory else False,
+            'student_name': student.name,
+            'student_email': student.email,
+            'student_department': student.department,
+            'student_employee_id': student.employee_id,
+        }
+        online_enrollments.append(online_dict)
     
     return {
         'enrollments': result_enrollments,
+        'online_courses': online_enrollments,
         'overall_completion_rate': round(overall_completion_rate, 1),
         'total_courses_assigned': total_courses,
-        'completed_courses': completed_courses
+        'completed_courses': completed_courses,
+        'onsite_stats': {
+            'total': onsite_total,
+            'completed': onsite_completed,
+            'rate': round((onsite_completed / onsite_total * 100) if onsite_total > 0 else 0, 1)
+        },
+        'online_stats': {
+            'total': online_total,
+            'completed': online_completed,
+            'rate': round((online_completed / online_total * 100) if online_total > 0 else 0, 1)
+        }
     }
 
 @router.get("/all/with-courses", response_model=List[dict])
@@ -269,9 +320,11 @@ def get_all_students_with_courses(
     - is_active=True: Active employees (All Employees page)
     - is_active=False: Previous employees (Previous Employees page)
     
+    Includes both onsite courses (from enrollments) and online courses (from LMS sync).
     No external API calls are made - uses only locally stored data.
     """
     from app.models.enrollment import Enrollment, CompletionStatus
+    from app.models.lms_user import LMSUserCourse
     from app.core.validation import validate_department
     from sqlalchemy.orm import joinedload
     
@@ -297,15 +350,22 @@ def get_all_students_with_courses(
     
     # Build result for each student
     for student in students:
-        # Get enrollments from database
+        # Get onsite enrollments from database
         enrollments = db.query(Enrollment).options(
             joinedload(Enrollment.course)
         ).filter(
             Enrollment.student_id == student.id
         ).order_by(Enrollment.created_at.desc()).all()
         
-        # Build enrollments list
+        # Get online (LMS) courses from database
+        lms_courses = db.query(LMSUserCourse).filter(
+            LMSUserCourse.student_id == student.id
+        ).order_by(LMSUserCourse.created_at.desc()).all()
+        
+        # Build enrollments list - combine onsite and online
         enrollment_list = []
+        
+        # Add onsite enrollments
         for enrollment in enrollments:
             course_name = enrollment.course_name or (enrollment.course.name if enrollment.course else None)
             batch_code = enrollment.batch_code or (enrollment.course.batch_code if enrollment.course else None)
@@ -329,9 +389,34 @@ def get_all_students_with_courses(
             }
             enrollment_list.append(enrollment_dict)
         
+        # Add online (LMS) courses
+        for lms_course in lms_courses:
+            completion_status = "COMPLETED" if lms_course.completed else ("IN_PROGRESS" if lms_course.progress and lms_course.progress > 0 else "NOT_STARTED")
+            
+            enrollment_dict = {
+                'id': f"lms_{lms_course.id}",
+                'course_name': lms_course.course_name,
+                'batch_code': lms_course.course_shortname,
+                'course_type': 'online',
+                'approval_status': 'APPROVED',  # LMS courses are auto-approved
+                'completion_status': completion_status,
+                'progress': lms_course.progress,
+                'score': None,
+                'attendance_percentage': None,
+                'total_attendance': None,
+                'present': None,
+                'attendance_status': None,
+                'course_start_date': lms_course.start_date.isoformat() if lms_course.start_date else None,
+                'course_end_date': lms_course.end_date.isoformat() if lms_course.end_date else None,
+                'created_at': lms_course.created_at.isoformat() if lms_course.created_at else None,
+            }
+            enrollment_list.append(enrollment_dict)
+        
         # Calculate totals
         total_courses = len(enrollment_list)
-        completed_courses = len([e for e in enrollments if e.completion_status == CompletionStatus.COMPLETED])
+        completed_onsite = len([e for e in enrollments if e.completion_status == CompletionStatus.COMPLETED])
+        completed_online = len([c for c in lms_courses if c.completed])
+        completed_courses = completed_onsite + completed_online
         
         # Build student dict
         student_dict = {
@@ -1223,4 +1308,375 @@ async def sync_employees_from_lms(db: Session = Depends(get_db)):
         db.rollback()
         logger.error(f"Error syncing from LMS: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error syncing from LMS: {str(e)}")
+
+
+@router.post("/sync-lms-enrollments")
+async def sync_lms_course_enrollments(db: Session = Depends(get_db)):
+    """
+    Sync LMS course enrollments to update users' online course history.
+    
+    This endpoint:
+    1. Fetches all courses from LMS
+    2. For each course, fetches enrolled users
+    3. Updates students' online course history based on enrollments
+    4. Only processes users with 'BS' in their username (employee_id)
+    """
+    from app.services.lms_service import LMSService
+    from app.models.lms_user import LMSUserCourse
+    
+    stats = {
+        "courses_fetched": 0,
+        "enrollments_processed": 0,
+        "students_updated": 0,
+        "skipped_non_bs": 0,
+        "errors": []
+    }
+    
+    try:
+        # Fetch all courses from LMS
+        logger.info("Fetching all courses from LMS...")
+        courses = await LMSService.fetch_lms_courses()
+        stats["courses_fetched"] = len(courses)
+        logger.info(f"Found {len(courses)} courses in LMS")
+        
+        # Get all students from database with BS in employee_id for quick lookup
+        bs_students = db.query(Student).filter(
+            Student.employee_id.ilike('BS%')
+        ).all()
+        student_map = {s.employee_id.upper(): s for s in bs_students}
+        logger.info(f"Found {len(student_map)} BS students in database")
+        
+        # Track which students have been updated with courses
+        students_with_courses = set()
+        
+        # Process each course
+        for course in courses:
+            course_id = course.get("id")
+            course_name = course.get("fullname") or course.get("displayname") or course.get("shortname", "Unknown")
+            course_shortname = course.get("shortname", "")
+            
+            if not course_id:
+                continue
+            
+            try:
+                # Fetch enrolled users for this course
+                enrolled_users = await LMSService.fetch_course_enrollments(course_id)
+                
+                for user in enrolled_users:
+                    username = user.get("username", "").upper()
+                    
+                    # Only process BS users
+                    if not username.startswith("BS"):
+                        stats["skipped_non_bs"] += 1
+                        continue
+                    
+                    stats["enrollments_processed"] += 1
+                    
+                    # Check if this user exists in our database
+                    student = student_map.get(username)
+                    if student:
+                        students_with_courses.add(student.id)
+                        
+                        # Check if this course enrollment already exists
+                        existing_enrollment = db.query(LMSUserCourse).filter(
+                            LMSUserCourse.student_id == student.id,
+                            LMSUserCourse.lms_course_id == str(course_id)
+                        ).first()
+                        
+                        if not existing_enrollment:
+                            # Create new LMS course enrollment record
+                            lms_enrollment = LMSUserCourse(
+                                student_id=student.id,
+                                employee_id=username,
+                                lms_course_id=str(course_id),
+                                course_name=course_name,
+                                course_shortname=course_shortname,
+                                lms_user_id=str(user.get("id", "")),
+                                progress=0,  # Will be updated separately if needed
+                                completed=False
+                            )
+                            db.add(lms_enrollment)
+                        
+            except Exception as e:
+                error_msg = f"Error processing course {course_id} ({course_name}): {str(e)}"
+                stats["errors"].append(error_msg)
+                logger.warning(error_msg)
+                continue
+        
+        # Update has_online_course flag for students
+        for student_id in students_with_courses:
+            student = db.query(Student).filter(Student.id == student_id).first()
+            if student and not student.has_online_course:
+                student.has_online_course = True
+                stats["students_updated"] += 1
+        
+        db.commit()
+        
+        return {
+            "message": "LMS course enrollments synced successfully",
+            "stats": stats
+        }
+        
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error syncing LMS enrollments: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Error syncing LMS enrollments: {str(e)}")
+
+
+@router.delete("/cleanup-non-bs")
+async def cleanup_non_bs_employees(db: Session = Depends(get_db)):
+    """
+    Remove all employees that don't have 'BS' in their employee_id.
+    
+    This removes staff accounts, numeric IDs, and other non-employee records
+    from both active and previous employees.
+    """
+    stats = {
+        "total_before": 0,
+        "deleted": 0,
+        "remaining": 0,
+        "deleted_ids": []
+    }
+    
+    try:
+        # Count total students before cleanup
+        stats["total_before"] = db.query(Student).count()
+        
+        # Find all students WITHOUT 'BS' in their employee_id (case-insensitive)
+        non_bs_students = db.query(Student).filter(
+            ~Student.employee_id.ilike('%BS%')
+        ).all()
+        
+        # Delete non-BS students
+        for student in non_bs_students:
+            stats["deleted_ids"].append({
+                "id": student.id,
+                "employee_id": student.employee_id,
+                "name": student.name
+            })
+            db.delete(student)
+            stats["deleted"] += 1
+        
+        db.commit()
+        
+        # Count remaining students
+        stats["remaining"] = db.query(Student).count()
+        
+        # Limit deleted_ids in response to first 50
+        if len(stats["deleted_ids"]) > 50:
+            stats["deleted_ids"] = stats["deleted_ids"][:50]
+            stats["deleted_ids_truncated"] = True
+        
+        return {
+            "message": f"Cleanup completed. Removed {stats['deleted']} non-BS employees.",
+            "stats": stats
+        }
+        
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error cleaning up non-BS employees: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error cleaning up non-BS employees: {str(e)}")
+
+
+@router.post("/cron/daily-sync")
+async def daily_sync_cron_job(
+    secret_key: str = Query(..., description="Secret key to authorize cron job"),
+    db: Session = Depends(get_db)
+):
+    """
+    CRON JOB ENDPOINT - Daily sync at 12am.
+    
+    This is the ONLY endpoint that makes external API calls.
+    All other endpoints read from local database ONLY.
+    
+    This endpoint:
+    1. Syncs all employees from ERP
+    2. Syncs all courses from LMS
+    3. Syncs all LMS enrollments
+    4. Updates has_online_course flags
+    5. Cleans up non-BS employees
+    
+    Call this from cron job at 12am daily:
+    curl -X POST "http://localhost:8000/api/v1/students/cron/daily-sync?secret_key=YOUR_SECRET"
+    """
+    from app.core.config import settings
+    from app.services.erp_service import ERPService
+    from app.services.erp_cache_service import ERPCacheService
+    from app.services.lms_service import LMSService
+    from app.services.lms_cache_service import LMSCacheService
+    from app.models.lms_user import LMSUserCourse
+    from app.models.lms_cache import LMSCourseCache
+    
+    # Verify secret key (simple security for cron job)
+    expected_key = getattr(settings, 'CRON_SECRET_KEY', 'bs23-cron-2025')
+    if secret_key != expected_key:
+        raise HTTPException(status_code=403, detail="Invalid secret key")
+    
+    stats = {
+        "erp_employees_synced": 0,
+        "lms_users_synced": 0,
+        "lms_courses_synced": 0,
+        "lms_enrollments_synced": 0,
+        "students_updated": 0,
+        "non_bs_removed": 0,
+        "errors": [],
+        "started_at": datetime.utcnow().isoformat(),
+    }
+    
+    try:
+        # 1. Sync ERP Employees
+        logger.info("CRON: Starting ERP employee sync...")
+        try:
+            erp_employees = await ERPService.fetch_all_employees()
+            await ERPCacheService.cache_employees(db, erp_employees)
+            stats["erp_employees_synced"] = len(erp_employees)
+            
+            # Update students table from ERP
+            for emp in erp_employees:
+                if isinstance(emp, list) and len(emp) > 0:
+                    emp = emp[0]
+                if not isinstance(emp, dict):
+                    continue
+                
+                employee_id = emp.get("employeeCode", "")
+                if not employee_id or not employee_id.upper().startswith("BS"):
+                    continue
+                
+                student_data = ERPService.map_erp_employee_to_student(emp)
+                existing_student = db.query(Student).filter(
+                    Student.employee_id == employee_id
+                ).first()
+                
+                if existing_student:
+                    # Update existing
+                    for key, value in student_data.items():
+                        if hasattr(existing_student, key) and value is not None:
+                            setattr(existing_student, key, value)
+                else:
+                    # Create new
+                    new_student = Student(**student_data)
+                    db.add(new_student)
+            
+            db.commit()
+            logger.info(f"CRON: ERP sync complete - {stats['erp_employees_synced']} employees")
+        except Exception as e:
+            stats["errors"].append(f"ERP sync error: {str(e)}")
+            logger.error(f"CRON: ERP sync error: {str(e)}")
+        
+        # 2. Sync LMS Users
+        logger.info("CRON: Starting LMS users sync...")
+        try:
+            lms_users = await LMSService.fetch_all_users()
+            await LMSCacheService.cache_users(db, lms_users)
+            stats["lms_users_synced"] = len(lms_users)
+            logger.info(f"CRON: LMS users sync complete - {stats['lms_users_synced']} users")
+        except Exception as e:
+            stats["errors"].append(f"LMS users sync error: {str(e)}")
+            logger.error(f"CRON: LMS users sync error: {str(e)}")
+        
+        # 3. Sync LMS Courses
+        logger.info("CRON: Starting LMS courses sync...")
+        try:
+            lms_courses = await LMSService.fetch_lms_courses()
+            category_map = await LMSService.fetch_course_categories()
+            await LMSCacheService.cache_courses(db, lms_courses, category_map)
+            stats["lms_courses_synced"] = len(lms_courses)
+            logger.info(f"CRON: LMS courses sync complete - {stats['lms_courses_synced']} courses")
+        except Exception as e:
+            stats["errors"].append(f"LMS courses sync error: {str(e)}")
+            logger.error(f"CRON: LMS courses sync error: {str(e)}")
+        
+        # 4. Sync LMS Enrollments
+        logger.info("CRON: Starting LMS enrollments sync...")
+        try:
+            cached_courses = db.query(LMSCourseCache).all()
+            students_with_courses = set()
+            
+            for course in cached_courses:
+                try:
+                    enrolled_users = await LMSService.fetch_course_enrollments(course.id)
+                    
+                    for user in enrolled_users:
+                        username = user.get("username", "")
+                        if not username or not username.upper().startswith("BS"):
+                            continue
+                        
+                        student = db.query(Student).filter(Student.employee_id == username).first()
+                        if not student:
+                            continue
+                        
+                        students_with_courses.add(student.id)
+                        
+                        # Check if enrollment exists
+                        existing = db.query(LMSUserCourse).filter(
+                            LMSUserCourse.student_id == student.id,
+                            LMSUserCourse.lms_course_id == str(course.id)
+                        ).first()
+                        
+                        if existing:
+                            existing.course_name = course.fullname
+                            existing.course_shortname = course.shortname
+                            existing.category_name = course.categoryname
+                            existing.start_date = datetime.fromtimestamp(course.startdate) if course.startdate else None
+                            existing.end_date = datetime.fromtimestamp(course.enddate) if course.enddate else None
+                        else:
+                            new_enrollment = LMSUserCourse(
+                                student_id=student.id,
+                                employee_id=username,
+                                lms_course_id=str(course.id),
+                                course_name=course.fullname,
+                                course_shortname=course.shortname,
+                                category_name=course.categoryname,
+                                start_date=datetime.fromtimestamp(course.startdate) if course.startdate else None,
+                                end_date=datetime.fromtimestamp(course.enddate) if course.enddate else None,
+                            )
+                            db.add(new_enrollment)
+                        
+                        stats["lms_enrollments_synced"] += 1
+                except Exception as e:
+                    stats["errors"].append(f"Course {course.id} enrollment error: {str(e)}")
+            
+            # Update has_online_course flag
+            for student_id in students_with_courses:
+                student = db.query(Student).filter(Student.id == student_id).first()
+                if student and not student.has_online_course:
+                    student.has_online_course = True
+                    stats["students_updated"] += 1
+            
+            db.commit()
+            logger.info(f"CRON: LMS enrollments sync complete - {stats['lms_enrollments_synced']} enrollments")
+        except Exception as e:
+            stats["errors"].append(f"LMS enrollments sync error: {str(e)}")
+            logger.error(f"CRON: LMS enrollments sync error: {str(e)}")
+        
+        # 5. Cleanup non-BS employees
+        logger.info("CRON: Cleaning up non-BS employees...")
+        try:
+            non_bs_students = db.query(Student).filter(
+                ~Student.employee_id.ilike('%BS%')
+            ).all()
+            
+            for student in non_bs_students:
+                db.delete(student)
+                stats["non_bs_removed"] += 1
+            
+            db.commit()
+            logger.info(f"CRON: Cleanup complete - removed {stats['non_bs_removed']} non-BS employees")
+        except Exception as e:
+            stats["errors"].append(f"Cleanup error: {str(e)}")
+            logger.error(f"CRON: Cleanup error: {str(e)}")
+        
+        stats["completed_at"] = datetime.utcnow().isoformat()
+        
+        return {
+            "message": "Daily sync completed",
+            "stats": stats
+        }
+        
+    except Exception as e:
+        db.rollback()
+        logger.error(f"CRON: Fatal error in daily sync: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Daily sync failed: {str(e)}")
 

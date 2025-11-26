@@ -152,25 +152,28 @@ class LMSService:
     @staticmethod
     async def fetch_lms_courses() -> List[Dict[str, Any]]:
         """
-        Fetch all courses from Moodle LMS using core_course_get_courses.
+        Fetch all courses from Moodle LMS using core_course_get_courses_by_field.
+        This returns detailed course info including custom fields (like is_mandatory).
         
         Returns:
-            List of course dictionaries from Moodle API
+            List of course dictionaries from Moodle API with custom fields
         """
         if not settings.LMS_TOKEN:
             raise ValueError("LMS_TOKEN is not configured. Please set it in .env file")
         
         url = settings.LMS_BASE_URL
         
-        # Fetch all courses (empty options[ids] returns all courses except front page)
+        # Use core_course_get_courses_by_field with empty field to get all courses with full details
+        # This includes customfields which contains is_mandatory
         params = {
             "wstoken": settings.LMS_TOKEN,
-            "wsfunction": "core_course_get_courses",
+            "wsfunction": "core_course_get_courses_by_field",
             "moodlewsrestformat": settings.LMS_REST_FORMAT,
+            # Empty field returns all courses with full details including customfields
         }
         
         try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
+            async with httpx.AsyncClient(timeout=120.0) as client:
                 response = await client.post(url, params=params)
                 response.raise_for_status()
                 
@@ -181,13 +184,13 @@ class LMSService:
                     error_msg = data.get("message", "Unknown error from LMS API")
                     raise Exception(f"LMS API error: {error_msg}")
                 
-                # The response is a list of courses (not wrapped in a "courses" key)
-                courses = data if isinstance(data, list) else []
+                # The response has a "courses" key
+                courses = data.get("courses", []) if isinstance(data, dict) else (data if isinstance(data, list) else [])
                 
                 # Filter out the front page course (id=1 typically)
                 courses = [c for c in courses if c.get("id", 0) != 1]
                 
-                logger.info(f"Fetched {len(courses)} courses from LMS API")
+                logger.info(f"Fetched {len(courses)} courses with custom fields from LMS API")
                 return courses
                 
         except httpx.HTTPError as e:

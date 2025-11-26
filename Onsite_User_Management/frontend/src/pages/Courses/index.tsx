@@ -23,7 +23,7 @@ import {
   Autocomplete,
   TextField,
 } from '@mui/material';
-import { Add, Delete, Edit, Search } from '@mui/icons-material';
+import { Add, Delete, Edit, Search, Star, StarBorder } from '@mui/icons-material';
 import AssignInternalMentorDialog from '../../components/AssignInternalMentorDialog';
 import AddExternalMentorDialog from '../../components/AddExternalMentorDialog';
 import { formatDateForDisplay } from '../../utils/dateUtils';
@@ -53,6 +53,7 @@ function Courses({ courseType = 'onsite', status = 'all' }: CoursesProps): React
   const [selectedQuarter, setSelectedQuarter] = useState<string>('');
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [mandatoryFilter, setMandatoryFilter] = useState<string>(''); // 'mandatory', 'optional', or '' for all
   const [formData, setFormData] = useState<CourseFormData>({
     name: '',
     batch_code: '',
@@ -94,7 +95,8 @@ function Courses({ courseType = 'onsite', status = 'all' }: CoursesProps): React
     selectedQuarter,
     selectedYear,
     '',
-    selectedCategory
+    selectedCategory,
+    mandatoryFilter
   );
 
   const handleOpen = (): void => {
@@ -456,7 +458,33 @@ function Courses({ courseType = 'onsite', status = 'all' }: CoursesProps): React
                     ))}
                   </TextField>
                 )}
-                {(timePeriod !== 'all' || searchQuery || selectedCategory) && (
+                {courseType === 'online' && (
+                  <TextField
+                    select
+                    label="Mandatory Status"
+                    value={mandatoryFilter}
+                    onChange={(e) => setMandatoryFilter(e.target.value)}
+                    size="small"
+                    sx={{ minWidth: 160 }}
+                  >
+                    <MenuItem value="">
+                      <em>All Courses</em>
+                    </MenuItem>
+                    <MenuItem value="mandatory">
+                      <Box display="flex" alignItems="center" gap={1}>
+                        <Star sx={{ fontSize: 16, color: '#f59e0b' }} />
+                        Mandatory
+                      </Box>
+                    </MenuItem>
+                    <MenuItem value="optional">
+                      <Box display="flex" alignItems="center" gap={1}>
+                        <StarBorder sx={{ fontSize: 16, color: '#94a3b8' }} />
+                        Optional
+                      </Box>
+                    </MenuItem>
+                  </TextField>
+                )}
+                {(timePeriod !== 'all' || searchQuery || selectedCategory || mandatoryFilter) && (
                   <Button
                     variant="text"
                     size="small"
@@ -468,6 +496,7 @@ function Courses({ courseType = 'onsite', status = 'all' }: CoursesProps): React
                       setSearchQuery('');
                       setSelectedSearchCourse(null);
                       setSelectedCategory('');
+                      setMandatoryFilter('');
                     }}
                     sx={{ color: '#64748b', fontWeight: 500 }}
                   >
@@ -492,12 +521,15 @@ function Courses({ courseType = 'onsite', status = 'all' }: CoursesProps): React
               <Table>
                 <TableHead>
                   <TableRow sx={{ background: 'linear-gradient(135deg, rgba(30, 64, 175, 0.05) 0%, rgba(5, 150, 105, 0.05) 100%)' }}>
-                    <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem', width: courseType === 'online' ? '25%' : '20%' }}>Course Name</TableCell>
-                    <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem', width: courseType === 'online' ? '15%' : '12%' }}>Batch Code</TableCell>
-                    <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem', width: courseType === 'online' ? '12%' : '12%' }}>Start Date</TableCell>
-                    <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem', width: courseType === 'online' ? '12%' : '12%' }}>End Date</TableCell>
+                    <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem', width: courseType === 'online' ? '22%' : '20%' }}>Course Name</TableCell>
+                    <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem', width: courseType === 'online' ? '12%' : '12%' }}>Batch Code</TableCell>
                     {courseType === 'online' && (
-                      <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem', width: '15%' }}>Category</TableCell>
+                      <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem', width: '10%' }} align="center">Type</TableCell>
+                    )}
+                    <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem', width: courseType === 'online' ? '11%' : '12%' }}>Start Date</TableCell>
+                    <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem', width: courseType === 'online' ? '11%' : '12%' }}>End Date</TableCell>
+                    {courseType === 'online' && (
+                      <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem', width: '14%' }}>Category</TableCell>
                     )}
                     {courseType === 'online' && (
                       <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem', width: '10%' }} align="right">Total Assigned</TableCell>
@@ -514,7 +546,7 @@ function Courses({ courseType = 'onsite', status = 'all' }: CoursesProps): React
                 <TableBody>
                   {filteredCourses.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={courseType === 'online' ? 6 : 8} align="center" sx={{ py: 6 }}>
+                      <TableCell colSpan={courseType === 'online' ? 7 : 8} align="center" sx={{ py: 6 }}>
                         <Typography color="text.secondary" sx={{ fontSize: '0.95rem' }}>
                           No courses found
                         </Typography>
@@ -542,6 +574,35 @@ function Courses({ courseType = 'onsite', status = 'all' }: CoursesProps): React
                           {course.name || course.fullname}
                         </TableCell>
                         <TableCell sx={{ color: '#475569' }}>{course.batch_code || '-'}</TableCell>
+                        {courseType === 'online' && (
+                          <TableCell align="center">
+                            {course.is_mandatory ? (
+                              <Chip
+                                icon={<Star sx={{ fontSize: 14 }} />}
+                                label="Mandatory"
+                                size="small"
+                                sx={{
+                                  background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
+                                  color: '#92400e',
+                                  fontWeight: 600,
+                                  fontSize: '0.75rem',
+                                  '& .MuiChip-icon': { color: '#f59e0b' },
+                                }}
+                              />
+                            ) : (
+                              <Chip
+                                label="Optional"
+                                size="small"
+                                sx={{
+                                  background: '#f1f5f9',
+                                  color: '#64748b',
+                                  fontWeight: 500,
+                                  fontSize: '0.75rem',
+                                }}
+                              />
+                            )}
+                          </TableCell>
+                        )}
                         <TableCell sx={{ color: '#64748b' }}>
                           {course.startdate 
                             ? new Date(course.startdate * 1000).toLocaleDateString('en-US', {

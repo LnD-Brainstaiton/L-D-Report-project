@@ -7,6 +7,7 @@ export { getDateRange } from '../../../utils/dateRangeUtils';
 
 interface CourseWithCategory extends Course {
   categoryname?: string;
+  is_mandatory?: boolean;
 }
 
 export const useFilteredCourses = (
@@ -20,7 +21,8 @@ export const useFilteredCourses = (
   selectedQuarter: string,
   selectedYear: number,
   selectedDepartment: string,
-  selectedCategory: string
+  selectedCategory: string,
+  mandatoryFilter: string = '' // 'mandatory', 'optional', or '' for all
 ): CourseWithCategory[] => {
   return useMemo(() => {
     let filtered = [...allCourses];
@@ -39,6 +41,25 @@ export const useFilteredCourses = (
 
     if (selectedCategory && courseType === 'online') {
       filtered = filtered.filter((course) => course.categoryname === selectedCategory);
+    }
+
+    // Filter by mandatory status for online courses
+    if (mandatoryFilter && courseType === 'online') {
+      if (mandatoryFilter === 'mandatory') {
+        filtered = filtered.filter((course) => course.is_mandatory === true);
+      } else if (mandatoryFilter === 'optional') {
+        filtered = filtered.filter((course) => course.is_mandatory !== true);
+      }
+    }
+
+    // Sort mandatory courses first for online courses
+    if (courseType === 'online') {
+      filtered.sort((a, b) => {
+        // Mandatory courses first
+        if (a.is_mandatory && !b.is_mandatory) return -1;
+        if (!a.is_mandatory && b.is_mandatory) return 1;
+        return 0;
+      });
     }
 
     if (status !== 'all' && courseType === 'onsite') {
@@ -97,6 +118,7 @@ export const useFilteredCourses = (
     selectedQuarter,
     selectedYear,
     selectedCategory,
+    mandatoryFilter,
   ]);
 };
 

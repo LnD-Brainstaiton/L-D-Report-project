@@ -79,6 +79,35 @@ class LMSCacheService:
             
             # Cache courses
             for course in courses:
+                # Check if course is mandatory - from LMS custom fields
+                # LMS uses customfields with shortname "is_mandatory" (primary) or "mandatory_status" (fallback)
+                # Value can be "Mandatory" or "Optional"
+                is_mandatory = 0
+                is_mandatory_found = False
+                custom_fields = course.get("customfields", [])
+                
+                # First, look for the primary "is_mandatory" field
+                for field in custom_fields:
+                    shortname = field.get("shortname", "").lower()
+                    value = field.get("value", "") or ""
+                    
+                    if shortname == "is_mandatory":
+                        is_mandatory_found = True
+                        if str(value).lower() == "mandatory":
+                            is_mandatory = 1
+                        break
+                
+                # If "is_mandatory" field not found, check "mandatory_status" as fallback
+                if not is_mandatory_found:
+                    for field in custom_fields:
+                        shortname = field.get("shortname", "").lower()
+                        value = field.get("value", "") or ""
+                        
+                        if shortname == "mandatory_status":
+                            if str(value).lower() == "mandatory":
+                                is_mandatory = 1
+                            break
+                
                 course_cache = LMSCourseCache(
                     id=course.get("id"),
                     fullname=course.get("fullname", ""),
@@ -89,6 +118,7 @@ class LMSCacheService:
                     categoryid=course.get("categoryid"),
                     categoryname=category_map.get(course.get("categoryid"), "Unknown"),
                     visible=course.get("visible", 1),
+                    is_mandatory=is_mandatory,
                     cached_at=now
                 )
                 db.merge(course_cache)

@@ -1,11 +1,14 @@
 from fastapi import APIRouter, Depends
-from app.api import auth, enrollments, courses, students, imports, completions, mentors, lms
+from app.api import auth, enrollments, courses, students, imports, completions, mentors, lms, cron
 from app.core.auth import get_current_admin
 
 api_router = APIRouter()
 
 # Public routes
 api_router.include_router(auth.router, prefix="/auth", tags=["authentication"])
+
+# Cron job routes (protected by secret key, no JWT auth)
+api_router.include_router(cron.router, prefix="/cron", tags=["cron"])
 
 # Protected routes (require admin authentication)
 api_router.include_router(enrollments.router, prefix="/enrollments", tags=["enrollments"], dependencies=[Depends(get_current_admin)])

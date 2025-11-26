@@ -3,6 +3,10 @@ import { coursesAPI, lmsAPI } from '../../../services/api';
 import { getCourseStatus } from '../../../utils/courseUtils';
 import type { Course, AlertMessage, CourseType } from '../../../types';
 
+// NOTE: All data is fetched from local database only.
+// LMS/ERP data is synced via cron job at 12am daily.
+// The lmsAPI calls hit our backend which reads from local cache only.
+
 interface CourseWithLMS extends Course {
   startdate?: number;
   enddate?: number;
@@ -10,6 +14,7 @@ interface CourseWithLMS extends Course {
   categoryid?: number;
   visible?: boolean;
   is_lms_course?: boolean;
+  is_mandatory?: boolean;
   fullname?: string;
 }
 
@@ -43,7 +48,8 @@ export const useCoursesData = (courseType: CourseType, status: string): UseCours
 
       if (courseType === 'online') {
         try {
-          const lmsResponse = await lmsAPI.getCourses();
+          // Fetch courses with enrollment counts in ONE request (from local database)
+          const lmsResponse = await lmsAPI.getCourses(true); // include_enrollment_counts=true
           const lmsCourses = (lmsResponse.data as { courses?: any[] }).courses || [];
 
           allCoursesData = lmsCourses.map((course: any) => ({
@@ -60,10 +66,11 @@ export const useCoursesData = (courseType: CourseType, status: string): UseCours
             categoryid: course.categoryid,
             course_type: 'online' as const,
             seat_limit: 0,
-            current_enrolled: 0,
+            current_enrolled: course.enrollment_count || 0, // From local database
             status: 'ongoing' as const,
             visible: course.visible === 1,
             is_lms_course: true,
+            is_mandatory: course.is_mandatory || false,
           }));
 
           const filteredByType = allCoursesData.filter((course) => {
@@ -78,36 +85,14 @@ export const useCoursesData = (courseType: CourseType, status: string): UseCours
 
           setCourses(filtered);
 
-          const fetchEnrollmentCounts = async () => {
-            try {
-              const batchSize = 3;
-              for (let i = 0; i < allCoursesData.length; i += batchSize) {
-                const batch = allCoursesData.slice(i, i + batchSize);
-                await Promise.all(
-                  batch.map(async (course) => {
-                    try {
-                      const enrollmentsResponse = await lmsAPI.getCourseEnrollments(course.id);
-                      const count = ((enrollmentsResponse.data as { enrollments?: any[] }).enrollments || []).length;
-                      setAllCourses((prev) => prev.map((c) => (c.id === course.id ? { ...c, current_enrolled: count } : c)));
-                      setCourses((prev) => prev.map((c) => (c.id === course.id ? { ...c, current_enrolled: count } : c)));
-                    } catch (err) {
-                      console.error(`Error fetching enrollments for course ${course.id}:`, err);
-                    }
-                  })
-                );
-              }
-            } catch (err) {
-              console.error('Error in fetchEnrollmentCounts:', err);
-            }
-          };
-
-          fetchEnrollmentCounts().catch(console.error);
+          // Enrollment counts are already included from the single API call above
+          // No need for separate batch API calls
 
           const uniqueCategories = [...new Set(allCoursesData.map((c) => c.categoryname).filter(Boolean) as string[])].sort();
           setCategories(uniqueCategories);
         } catch (lmsError) {
           console.error('Error fetching LMS courses:', lmsError);
-          setMessage({ type: 'error', text: 'Error fetching online courses from LMS' });
+          setMessage({ type: 'error', text: 'Error fetching online courses' });
           setLoading(false);
           return;
         }

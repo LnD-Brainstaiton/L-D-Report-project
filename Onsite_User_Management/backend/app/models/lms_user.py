@@ -1,8 +1,59 @@
 """LMS User model - stores all users from the LMS (Moodle) system."""
 
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, JSON, BigInteger, Index
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, JSON, BigInteger, Index, ForeignKey, Float
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.db.base import Base
+
+
+class LMSUserCourse(Base):
+    """Model for storing LMS course enrollments for students."""
+    
+    __tablename__ = "lms_user_courses"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    
+    # Link to student
+    student_id = Column(Integer, ForeignKey("students.id", ondelete="CASCADE"), nullable=False, index=True)
+    employee_id = Column(String, index=True, nullable=False)  # e.g., BS0733
+    
+    # LMS identifiers
+    lms_user_id = Column(String, nullable=True)  # LMS user id
+    lms_course_id = Column(String, nullable=False, index=True)  # LMS course id
+    
+    # Course info
+    course_name = Column(String, nullable=False)
+    course_shortname = Column(String, nullable=True)
+    category_name = Column(String, nullable=True)
+    is_mandatory = Column(Boolean, default=False, nullable=False)  # Mandatory course flag
+    
+    # Progress tracking
+    progress = Column(Float, default=0, nullable=True)  # 0-100
+    completed = Column(Boolean, default=False, nullable=False)
+    completion_date = Column(DateTime, nullable=True)
+    
+    # Course dates
+    start_date = Column(DateTime, nullable=True)
+    end_date = Column(DateTime, nullable=True)
+    last_access = Column(DateTime, nullable=True)
+    
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    # Relationship
+    student = relationship("Student", backref="lms_courses")
+    
+    __table_args__ = (
+        Index('idx_lms_user_course_student', 'student_id'),
+        Index('idx_lms_user_course_employee', 'employee_id'),
+        Index('idx_lms_user_course_course', 'lms_course_id'),
+        # Unique constraint: one enrollment per student per course
+        Index('idx_lms_user_course_unique', 'student_id', 'lms_course_id', unique=True),
+    )
+    
+    def __repr__(self):
+        return f"<LMSUserCourse(student={self.employee_id}, course={self.course_name})>"
 
 
 class LMSUser(Base):

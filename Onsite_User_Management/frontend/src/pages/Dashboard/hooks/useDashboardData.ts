@@ -5,6 +5,9 @@ import { getDateRange } from '../utils/dateHelpers';
 import { convertSchedulesToEvents } from '../utils/calendarHelpers';
 import type { Course, CourseType, TimePeriod } from '../../../types';
 
+// NOTE: All data is fetched from local database only.
+// LMS/ERP data is synced via cron job at 12am daily.
+
 interface CourseWithTimestamps extends Course {
   startdate?: number;
   enddate?: number;
@@ -116,6 +119,7 @@ export const useDashboardData = (
             status: 'ongoing' as const,
             visible: course.visible === 1,
             is_lms_course: true,
+            is_mandatory: course.is_mandatory || false,
           }));
         } catch (lmsError) {
           console.error('Error fetching LMS courses:', lmsError);

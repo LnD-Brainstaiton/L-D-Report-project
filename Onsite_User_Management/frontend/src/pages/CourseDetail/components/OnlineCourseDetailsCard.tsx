@@ -7,7 +7,9 @@ import {
   Chip,
   Theme,
   alpha,
+  Box,
 } from '@mui/material';
+import { Star } from '@mui/icons-material';
 import { Course } from '../../../types';
 
 interface OnlineCourseDetailsCardProps {
@@ -25,9 +27,24 @@ function OnlineCourseDetailsCard({ course, theme }: OnlineCourseDetailsCardProps
       }}
     >
       <CardContent>
-        <Typography variant="h6" sx={{ fontWeight: 700, mb: 2, color: theme.palette.info.main }}>
-          Online Course Details
-        </Typography>
+        <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
+          <Typography variant="h6" sx={{ fontWeight: 700, color: theme.palette.info.main }}>
+            Online Course Details
+          </Typography>
+          {course.is_mandatory && (
+            <Chip
+              icon={<Star sx={{ fontSize: 16 }} />}
+              label="Mandatory Course"
+              size="small"
+              sx={{
+                background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
+                color: '#92400e',
+                fontWeight: 600,
+                '& .MuiChip-icon': { color: '#f59e0b' },
+              }}
+            />
+          )}
+        </Box>
         <Grid container spacing={2}>
           <Grid item xs={12} sm={6}>
             <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600, mb: 0.5 }}>
@@ -47,6 +64,22 @@ function OnlineCourseDetailsCard({ course, theme }: OnlineCourseDetailsCardProps
               sx={{
                 background: 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)',
                 color: '#1e40af',
+                fontWeight: 600,
+              }}
+            />
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600, mb: 0.5 }}>
+              Course Type
+            </Typography>
+            <Chip
+              label={course.is_mandatory ? 'Mandatory' : 'Optional'}
+              size="small"
+              sx={{
+                background: course.is_mandatory 
+                  ? 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)'
+                  : '#f1f5f9',
+                color: course.is_mandatory ? '#92400e' : '#64748b',
                 fontWeight: 600,
               }}
             />
