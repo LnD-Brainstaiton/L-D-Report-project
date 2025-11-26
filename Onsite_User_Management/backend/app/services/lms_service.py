@@ -393,7 +393,7 @@ class LMSService:
             "wsfunction": "core_user_get_users_by_field",
             "moodlewsrestformat": settings.LMS_REST_FORMAT,
             "field": "username",
-            "values[0]": username,
+            "values[0]": username.lower(),  # LMS usernames are lowercase
         }
         
         try:

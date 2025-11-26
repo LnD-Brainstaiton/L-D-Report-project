@@ -351,9 +351,9 @@ const Users: React.FC = () => {
                           
                           return (
                             <Box display="flex" gap={0.5} justifyContent="center" flexWrap="wrap">
-                              <Chip label={`Ons-${onsiteCount}`} size="small" sx={{ background: 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)', color: '#1e40af', fontWeight: 600, fontSize: '0.7rem', height: 22 }} />
+                              <Chip label={`Onsite-${onsiteCount}`} size="small" sx={{ background: 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)', color: '#1e40af', fontWeight: 600, fontSize: '0.7rem', height: 22 }} />
                               <Chip label={`LMS-${onlineCount}`} size="small" sx={{ background: 'linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%)', color: '#047857', fontWeight: 600, fontSize: '0.7rem', height: 22 }} />
-                              <Chip label={`Ext-${externalCount}`} size="small" sx={{ background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)', color: '#92400e', fontWeight: 600, fontSize: '0.7rem', height: 22 }} />
+                              <Chip label={`External-${externalCount}`} size="small" sx={{ background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)', color: '#92400e', fontWeight: 600, fontSize: '0.7rem', height: 22 }} />
                             </Box>
                           );
                         })()}

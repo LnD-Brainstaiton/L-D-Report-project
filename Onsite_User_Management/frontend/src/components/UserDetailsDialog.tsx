@@ -388,8 +388,8 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> = ({
             <Typography variant="body1" gutterBottom>{enrollment.student_employee_id || 'N/A'}</Typography>
           </Grid>
 
-          {/* Right Column */}
-          {sbuHead && (
+          {/* Right Column - Hide SBU Head if they are the SBU Head themselves */}
+          {sbuHead && sbuHead.employee_id?.toUpperCase() !== enrollment.student_employee_id?.toUpperCase() && (
             <Grid item xs={12} sm={6}>
               <Typography variant="body2" color="text.secondary">SBU Head</Typography>
               <Typography variant="body1" gutterBottom>
@@ -410,7 +410,7 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> = ({
               </Typography>
             </Grid>
           )}
-          {!sbuHead && (
+          {(!sbuHead || sbuHead.employee_id?.toUpperCase() === enrollment.student_employee_id?.toUpperCase()) && (
             <Grid item xs={12} sm={6}>
               <Typography variant="body2" color="text.secondary">SBU Head</Typography>
               <Typography variant="body1" gutterBottom color="text.secondary">N/A</Typography>
