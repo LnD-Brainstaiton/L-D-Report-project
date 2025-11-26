@@ -45,13 +45,14 @@ export const useEnrollments = (
           
           return {
             id: user.id,
-            student_id: user.id,
+            student_id: user.student_id,  // Use the actual student database ID
             course_id: parseInt(courseId!),
             approval_status: 'approved' as ApprovalStatus,
             student_name: user.fullname,
             student_email: user.email,
             student_employee_id: user.employee_id || user.username,
             student_department: user.department || 'Unknown',
+            student_designation: user.designation || '',
             progress: progress,
             completion_status: completionStatus,
             date_assigned: user.firstaccess || (course as any).startdate || null,

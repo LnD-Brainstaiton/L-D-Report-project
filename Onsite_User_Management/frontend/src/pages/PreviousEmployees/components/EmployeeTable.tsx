@@ -28,11 +28,22 @@ interface EmployeeTableProps {
 }
 
 const EmployeeTable: React.FC<EmployeeTableProps> = ({ users: rawUsers, onRestore, onViewDetails }) => {
-  // Deduplicate by employee_id (case-insensitive)
+  // Deduplicate by employee_id (case-insensitive), prefer record with more completed courses
   const users = rawUsers.reduce((acc: StudentWithEnrollments[], user) => {
     const normalizedId = user.employee_id?.toLowerCase();
-    if (!acc.some(u => u.employee_id?.toLowerCase() === normalizedId)) {
+    const existingIndex = acc.findIndex(u => u.employee_id?.toLowerCase() === normalizedId);
+    
+    if (existingIndex === -1) {
       acc.push(user);
+    } else {
+      // Compare and keep the better record (more completed courses)
+      const existing = acc[existingIndex];
+      const existingCompleted = (existing as any).completed_courses || 0;
+      const currentCompleted = (user as any).completed_courses || 0;
+      
+      if (currentCompleted > existingCompleted) {
+        acc[existingIndex] = user;
+      }
     }
     return acc;
   }, []);

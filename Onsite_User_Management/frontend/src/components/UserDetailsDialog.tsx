@@ -63,6 +63,15 @@ interface CompletionStats {
   total: number;
 }
 
+interface SbuHead {
+  id: number;
+  employee_id: string;
+  name: string;
+  email: string;
+  department: string;
+  designation: string;
+}
+
 interface UserDetailsDialogProps {
   open: boolean;
   onClose: () => void;
@@ -86,12 +95,55 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> = ({
   const [studentEnrollments, setStudentEnrollments] = useState<EnrollmentWithDetails[]>([]);
   const [onlineCourses, setOnlineCourses] = useState<OnlineCourseEnrollment[]>([]);
   const [loadingEnrollments, setLoadingEnrollments] = useState(false);
+  const [sbuHead, setSbuHead] = useState<SbuHead | null>(null);
+  const [viewingSbuHead, setViewingSbuHead] = useState(false);
+  const [sbuHeadEnrollment, setSbuHeadEnrollment] = useState<EnrollmentWithDetails | null>(null);
 
   const [completionStats, setCompletionStats] = useState<Record<CourseType, CompletionStats>>({
     onsite: { rate: 0, completed: 0, total: 0 },
     online: { rate: 0, completed: 0, total: 0 },
     external: { rate: 0, completed: 0, total: 0 },
   });
+
+  const fetchSbuHead = async () => {
+    if (!enrollment?.student_department) return;
+    
+    try {
+      const response = await studentsAPI.getSbuHead(
+        enrollment.student_department,
+        enrollment.student_employee_id || undefined
+      );
+      if (response.data) {
+        setSbuHead(response.data);
+      } else {
+        setSbuHead(null);
+      }
+    } catch (error) {
+      console.error('Error fetching SBU head:', error);
+      setSbuHead(null);
+    }
+  };
+
+  const handleViewSbuHead = () => {
+    if (!sbuHead) return;
+    
+    // Create a mock enrollment for the SBU head to open their profile
+    const sbuHeadEnroll: EnrollmentWithDetails = {
+      id: 0,
+      student_id: sbuHead.id,
+      student_name: sbuHead.name,
+      student_email: sbuHead.email,
+      student_department: sbuHead.department,
+      student_employee_id: sbuHead.employee_id,
+      student_designation: sbuHead.designation,
+      course_id: 0,
+      approval_status: 'Approved',
+      eligibility_status: 'Eligible',
+    };
+    
+    setSbuHeadEnrollment(sbuHeadEnroll);
+    setViewingSbuHead(true);
+  };
 
   const fetchStudentEnrollments = async () => {
     if (!enrollment?.student_id) return;
@@ -119,18 +171,37 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> = ({
         batch_code: course.batch_code || '',
         course_type: 'online',
         completion_status: course.completion_status,
-        progress: course.progress || 0,
+        progress: course.progress ?? 0,
         course_end_date: course.course_end_date,
         date_assigned: course.course_start_date,
         lastaccess: course.lastaccess,
         is_lms_course: true,
-        is_mandatory: course.is_mandatory || false,
+        is_mandatory: course.is_mandatory === true || course.is_mandatory === 1,
       }));
-      // Sort mandatory courses first
+      
+      // Sort courses by priority:
+      // 1. Completed + Mandatory
+      // 2. Completed + Not Mandatory
+      // 3. Mandatory (not completed, not failed)
+      // 4. In Progress
+      // 5. Failed
+      // 6. Not Started
       mappedOnlineCourses.sort((a, b) => {
-        if (a.is_mandatory && !b.is_mandatory) return -1;
-        if (!a.is_mandatory && b.is_mandatory) return 1;
-        return 0;
+        const getPriority = (course: OnlineCourseEnrollment): number => {
+          const isCompleted = course.completion_status === 'Completed';
+          const isFailed = course.completion_status === 'Failed';
+          const isInProgress = course.completion_status === 'In Progress';
+          const isMandatory = course.is_mandatory;
+          
+          if (isCompleted && isMandatory) return 0;
+          if (isCompleted && !isMandatory) return 1;
+          if (isMandatory && !isCompleted && !isFailed) return 2;
+          if (isInProgress) return 3;
+          if (isFailed) return 4;
+          return 5; // Not Started
+        };
+        
+        return getPriority(a) - getPriority(b);
       });
       setOnlineCourses(mappedOnlineCourses);
 
@@ -190,8 +261,10 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> = ({
   useEffect(() => {
     if (open && enrollment?.student_id) {
       fetchStudentEnrollments();
+      fetchSbuHead();
     } else {
       setStudentEnrollments([]);
+      setSbuHead(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, enrollment?.student_id]);
@@ -261,6 +334,28 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> = ({
             <Typography variant="body2" color="text.secondary">Designation</Typography>
             <Typography variant="body1" gutterBottom>{enrollment.student_designation || 'N/A'}</Typography>
           </Grid>
+
+          {sbuHead && (
+            <Grid item xs={12} sm={6}>
+              <Typography variant="body2" color="text.secondary">SBU Head</Typography>
+              <Typography variant="body1" gutterBottom>
+                <Chip
+                  label={`${sbuHead.name} (${sbuHead.employee_id.toUpperCase()})`}
+                  size="small"
+                  onClick={handleViewSbuHead}
+                  sx={{
+                    cursor: 'pointer',
+                    background: 'linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%)',
+                    color: '#3730a3',
+                    fontWeight: 600,
+                    '&:hover': {
+                      background: 'linear-gradient(135deg, #c7d2fe 0%, #a5b4fc 100%)',
+                    },
+                  }}
+                />
+              </Typography>
+            </Grid>
+          )}
 
           <Grid item xs={12} sm={6}>
             <Typography variant="body2" color="text.secondary">Total Experience</Typography>
@@ -441,7 +536,7 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> = ({
                                 </Box>
                               )}
 
-                              {enroll.is_lms_course && enroll.progress !== null && (
+                              {enroll.is_lms_course && (
                                 <Box>
                                   <Typography variant="caption" color="text.secondary" display="block">Progress</Typography>
                                   <Typography
@@ -449,11 +544,11 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> = ({
                                     sx={{
                                       fontWeight: 600,
                                       mt: 0.5,
-                                      color: enroll.progress >= 100 ? theme.palette.success.main :
-                                             enroll.progress >= 50 ? theme.palette.warning.main : theme.palette.error.main
+                                      color: (enroll.progress || 0) >= 100 ? theme.palette.success.main :
+                                             (enroll.progress || 0) >= 50 ? theme.palette.warning.main : theme.palette.error.main
                                     }}
                                   >
-                                    {enroll.progress.toFixed(1)}%
+                                    {(enroll.progress || 0).toFixed(1)}%
                                   </Typography>
                                 </Box>
                               )}
@@ -494,6 +589,18 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> = ({
           <Button color="primary" variant="contained" onClick={() => { onReapprove(enrollment.id); onClose(); }}>Reapprove</Button>
         )}
       </DialogActions>
+
+      {/* Recursive dialog for viewing SBU Head profile */}
+      {viewingSbuHead && sbuHeadEnrollment && (
+        <UserDetailsDialog
+          open={viewingSbuHead}
+          onClose={() => {
+            setViewingSbuHead(false);
+            setSbuHeadEnrollment(null);
+          }}
+          enrollment={sbuHeadEnrollment}
+        />
+      )}
     </Dialog>
   );
 };

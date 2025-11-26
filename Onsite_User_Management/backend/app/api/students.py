@@ -177,6 +177,68 @@ async def get_student_count(
         "source": "database"
     }
 
+@router.get("/sbu-head/{department}")
+def get_sbu_head(department: str, employee_id: Optional[str] = Query(None), db: Session = Depends(get_db)):
+    """Get the SBU head for a given department.
+    
+    Searches for employees with designation containing 'SBU Head' or 'Head of {department}'.
+    Returns the first matching active employee.
+    
+    Returns null if:
+    - Department is CXO (they're at the top of hierarchy)
+    - The requesting employee is themselves an SBU Head
+    """
+    from sqlalchemy import or_
+    
+    if not department:
+        return None
+    
+    # CXO department has no SBU head - they're at the top
+    if department.upper() == 'CXO':
+        return None
+    
+    # Check if the requesting employee is an SBU head themselves
+    if employee_id:
+        requesting_employee = db.query(Student).filter(
+            Student.employee_id.ilike(employee_id)
+        ).first()
+        if requesting_employee and requesting_employee.designation:
+            designation_lower = requesting_employee.designation.lower()
+            if 'sbu head' in designation_lower or 'head of' in designation_lower or 'ceo' in designation_lower or 'cto' in designation_lower or 'coo' in designation_lower or 'director' in designation_lower:
+                return None
+    
+    # Search for SBU Head or Head of {department} in the same department
+    head = db.query(Student).filter(
+        Student.is_active == True,
+        Student.department == department,
+        or_(
+            Student.designation.ilike('%sbu head%'),
+            Student.designation.ilike(f'%head of {department}%'),
+            Student.designation.ilike(f'%head of%'),
+            Student.designation.ilike('%director%'),
+        )
+    ).first()
+    
+    # If no head found in same department, try to find SBU Head with same department
+    if not head:
+        head = db.query(Student).filter(
+            Student.is_active == True,
+            Student.designation.ilike('%sbu head%')
+        ).first()
+    
+    if head:
+        return {
+            "id": head.id,
+            "employee_id": head.employee_id,
+            "name": head.name,
+            "email": head.email,
+            "department": head.department,
+            "designation": head.designation
+        }
+    
+    return None
+
+
 @router.get("/{student_id}", response_model=StudentResponse)
 def get_student(student_id: int, db: Session = Depends(get_db)):
     """Get a specific student by ID."""

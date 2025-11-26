@@ -284,6 +284,17 @@ export const studentsAPI = {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
   },
+  getSbuHead: (department: string, employeeId?: string): Promise<AxiosResponse<{
+    id: number;
+    employee_id: string;
+    name: string;
+    email: string;
+    department: string;
+    designation: string;
+  } | null>> =>
+    api.get(`/students/sbu-head/${encodeURIComponent(department)}`, {
+      params: employeeId ? { employee_id: employeeId } : undefined
+    }),
 };
 
 // ============================================================================

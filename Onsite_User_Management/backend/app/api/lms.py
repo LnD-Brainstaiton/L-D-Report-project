@@ -99,14 +99,17 @@ async def get_lms_course_enrollments(course_id: int, db: Session = Depends(get_d
             
             user_data = {
                 "id": enrollment.id,
+                "student_id": enrollment.student_id,  # Our internal student database ID for fetching details
                 "username": enrollment.employee_id,
                 "employee_id": enrollment.employee_id,
                 "fullname": student.name if student else "",
                 "email": student.email if student else "",
                 "department": student.department if student else "",
+                "designation": student.designation if student else "",
                 "progress": enrollment.progress or 0,
                 "completed": enrollment.completed,
-                "lastaccess": enrollment.last_access.isoformat() if enrollment.last_access else None,
+                "firstaccess": int(enrollment.start_date.timestamp()) if enrollment.start_date else None,
+                "lastaccess": int(enrollment.last_access.timestamp()) if enrollment.last_access else None,
             }
             result.append(user_data)
         
