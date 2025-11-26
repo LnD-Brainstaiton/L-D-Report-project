@@ -27,7 +27,6 @@ import {
 } from '@mui/material';
 import {
   PersonAdd,
-  UploadFile,
   PersonRemove,
   Search,
   Description,
@@ -35,14 +34,11 @@ import {
 } from '@mui/icons-material';
 import UserDetailsDialog from '../../components/UserDetailsDialog';
 import CreateStudentDialog from './components/CreateStudentDialog';
-import ImportDialog from './components/ImportDialog';
 import { useUsersData } from './hooks/useUsersData';
 import { useFilteredUsers } from './utils/userFilters';
 import {
   handleCreateStudent,
   handleRemoveEmployee,
-  handleImportExcel,
-  handleImportCSV,
   handleGenerateOverallReport,
 } from './utils/userHandlers';
 import type { Student } from '../../types';
@@ -61,13 +57,6 @@ interface NewStudent {
   experience_years: number;
   career_start_date: Date | null;
   bs_joining_date: Date | null;
-}
-
-interface ImportResults {
-  total: number;
-  created: number;
-  updated: number;
-  errors?: Array<{ error?: string } | string>;
 }
 
 const Users: React.FC = () => {
@@ -90,11 +79,6 @@ const Users: React.FC = () => {
     career_start_date: null,
     bs_joining_date: null,
   });
-  const [importDialogOpen, setImportDialogOpen] = useState(false);
-  const [importFile, setImportFile] = useState<File | null>(null);
-  const [importLoading, setImportLoading] = useState(false);
-  const [importResults, setImportResults] = useState<ImportResults | null>(null);
-  const [showPreview, setShowPreview] = useState(false);
   const [filterMentorStatus, setFilterMentorStatus] = useState('');
   const [filterDesignation, setFilterDesignation] = useState('');
 
@@ -162,28 +146,6 @@ const Users: React.FC = () => {
     await handleRemoveEmployee(selectedUserToRemove, setMessage, setRemoveDialogOpen, setSelectedUserToRemove as any, fetchUsers);
   };
 
-  const handleImportExcelClick = async () => {
-    await handleImportExcel(importFile, setMessage, setImportLoading, setImportResults, setImportFile, fetchUsers);
-  };
-
-  const handleImportCSVClick = async () => {
-    await handleImportCSV(importFile, setMessage, setImportLoading, setImportResults, setImportFile, fetchUsers);
-  };
-
-  const handleCloseImport = () => {
-    setImportDialogOpen(false);
-    setImportFile(null);
-    setImportResults(null);
-  };
-
-  const previewData = [
-    { employee_id: 'EMP101', name: 'Cameron Williams', email: 'cameron.williams101@company.com', department: 'Support', designation: 'Coordinator', career_start_date: '11-01-2021', bs_join_date: '12-02-2022' },
-    { employee_id: 'EMP102', name: 'Morgan Williams', email: 'morgan.williams102@company.com', department: 'Marketing', designation: 'Engineer', career_start_date: '12-01-2022', bs_join_date: '12-02-2023' },
-    { employee_id: 'EMP103', name: 'Morgan Moore', email: 'morgan.moore103@company.com', department: 'Finance', designation: 'Coordinator', career_start_date: '11-01-2018', bs_join_date: '13-08-2019' },
-    { employee_id: 'EMP104', name: 'Casey Miller', email: 'casey.miller104@company.com', department: 'Marketing', designation: 'Coordinator', career_start_date: '11-01-2019', bs_join_date: '13-08-2020' },
-    { employee_id: 'EMP105', name: 'Alex Jones', email: 'alex.jones105@company.com', department: 'HR', designation: 'Manager', career_start_date: '15-03-2020', bs_join_date: '20-05-2021' },
-  ];
-
   return (
     <Box sx={{ minHeight: '100vh', background: `linear-gradient(135deg, ${alpha('#1e40af', 0.03)} 0%, ${alpha('#059669', 0.03)} 100%)` }}>
       <Box sx={{ mb: 4, pt: 2 }}>
@@ -210,14 +172,6 @@ const Users: React.FC = () => {
               sx={{ borderRadius: '8px', textTransform: 'none', fontWeight: 600, color: '#1e40af', borderColor: '#1e40af', '&:hover': { background: alpha('#1e40af', 0.05) } }}
             >
               Generate Report
-            </Button>
-            <Button
-              variant="outlined"
-              startIcon={<UploadFile />}
-              onClick={() => setImportDialogOpen(true)}
-              sx={{ borderRadius: '8px', textTransform: 'none', fontWeight: 600, color: '#1e40af', borderColor: '#1e40af', '&:hover': { background: alpha('#1e40af', 0.05) } }}
-            >
-              Import
             </Button>
             <Button
               variant="contained"
@@ -424,7 +378,6 @@ const Users: React.FC = () => {
       </Dialog>
 
       <CreateStudentDialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} newStudent={newStudent} setNewStudent={setNewStudent} departments={departments} onCreate={handleCreate} />
-      <ImportDialog open={importDialogOpen} onClose={handleCloseImport} importFile={importFile} setImportFile={setImportFile} importLoading={importLoading} importResults={importResults} showPreview={showPreview} setShowPreview={setShowPreview} previewData={previewData} onImportExcel={handleImportExcelClick} onImportCSV={handleImportCSVClick} />
       <UserDetailsDialog open={userDetailsOpen} onClose={() => setUserDetailsOpen(false)} enrollment={selectedUser} />
     </Box>
   );

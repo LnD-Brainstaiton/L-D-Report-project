@@ -303,7 +303,7 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> = ({
         <Grid container spacing={2} sx={{ mt: 1 }}>
           <Grid item xs={12}>
             <Typography variant="h6" gutterBottom>
-              {enrollment.is_previous_employee ? 'Employee Information' : 'Student Information'}
+              {enrollment.is_previous_employee ? 'Employee Information' : 'Employee Information'}
             </Typography>
             <Divider sx={{ mb: 2 }} />
           </Grid>

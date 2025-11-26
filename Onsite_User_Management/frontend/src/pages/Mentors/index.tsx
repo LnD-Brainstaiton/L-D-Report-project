@@ -13,7 +13,7 @@ import {
   Autocomplete,
 } from '@mui/material';
 import { Add, Search } from '@mui/icons-material';
-import { mentorsAPI } from '../../services/api';
+import { mentorsAPI, studentsAPI, coursesAPI } from '../../services/api';
 import MentorDetailsDialog from '../../components/MentorDetailsDialog';
 import AssignInternalMentorDialog from '../../components/AssignInternalMentorDialog';
 import AddExternalMentorDialog from '../../components/AddExternalMentorDialog';
@@ -75,9 +75,19 @@ const Mentors: React.FC = () => {
     }
   };
 
-  const handleAssignInternalMentor = async () => {
+  const handleAssignInternalMentor = async (assignment: { mentor_id: number; course_id?: number; hours_taught: number; amount_paid: number }) => {
     try {
-      setMessage({ type: 'success', text: 'Internal mentor created successfully' });
+      // If a course is selected, assign the mentor to the course
+      if (assignment.course_id) {
+        await coursesAPI.assignMentor(assignment.course_id, {
+          mentor_id: assignment.mentor_id,
+          hours_taught: assignment.hours_taught,
+          amount_paid: assignment.amount_paid,
+        });
+        setMessage({ type: 'success', text: 'Internal mentor created and assigned to course successfully' });
+      } else {
+        setMessage({ type: 'success', text: 'Internal mentor created successfully' });
+      }
       setAddInternalMentorDialogOpen(false);
       fetchMentors();
     } catch (error) {
@@ -101,6 +111,33 @@ const Mentors: React.FC = () => {
       const errorMessage = axiosError.response?.data?.detail || axiosError.message || 'Error creating external mentor';
       setMessage({ type: 'error', text: errorMessage });
       throw error;
+    }
+  };
+
+  const handleRemoveMentor = async (mentor: Mentor) => {
+    const confirmMessage = mentor.is_internal
+      ? `Are you sure you want to remove ${mentor.name} as a mentor? This will remove their mentor status.`
+      : `Are you sure you want to delete ${mentor.name}?`;
+
+    if (window.confirm(confirmMessage)) {
+      try {
+        if (mentor.is_internal && mentor.student_id) {
+          // For internal mentors, use the remove mentor tag endpoint
+          await studentsAPI.removeMentorTag(mentor.student_id);
+          setMessage({ type: 'success', text: 'Mentor status removed successfully' });
+        } else {
+          // For external mentors, delete the mentor record
+          await mentorsAPI.delete(mentor.id);
+          setMessage({ type: 'success', text: 'Mentor deleted successfully' });
+        }
+        fetchMentors();
+      } catch (error) {
+        const axiosError = error as AxiosError<{ detail?: string }>;
+        setMessage({
+          type: 'error',
+          text: axiosError.response?.data?.detail || 'Error removing mentor',
+        });
+      }
     }
   };
 
@@ -281,7 +318,7 @@ const Mentors: React.FC = () => {
           mentors={filteredMentors}
           onViewDetails={handleViewDetails}
           onViewStats={handleViewStats}
-          onDelete={deleteMentor}
+          onRemove={handleRemoveMentor}
         />
       )}
 
@@ -308,6 +345,7 @@ const Mentors: React.FC = () => {
         onClose={() => setAddInternalMentorDialogOpen(false)}
         onAssign={handleAssignInternalMentor}
         isDraft={false}
+        showCourseSelection={true}
       />
 
       <AddExternalMentorDialog

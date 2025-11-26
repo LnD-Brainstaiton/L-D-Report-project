@@ -11,19 +11,20 @@ import {
   Chip,
   IconButton,
   Box,
+  Button,
   alpha,
 } from '@mui/material';
-import { Visibility, Delete } from '@mui/icons-material';
+import { Visibility, PersonRemove } from '@mui/icons-material';
 import type { Mentor } from '../../../types';
 
 interface MentorsTableProps {
   mentors: Mentor[];
   onViewDetails: (mentor: Mentor) => void;
   onViewStats: (mentorId: number) => void;
-  onDelete: (mentorId: number, mentorName: string) => void;
+  onRemove: (mentor: Mentor) => void;
 }
 
-const MentorsTable: React.FC<MentorsTableProps> = ({ mentors, onViewDetails, onViewStats, onDelete }) => {
+const MentorsTable: React.FC<MentorsTableProps> = ({ mentors, onViewDetails, onViewStats, onRemove }) => {
   return (
     <Card
       sx={{
@@ -48,7 +49,7 @@ const MentorsTable: React.FC<MentorsTableProps> = ({ mentors, onViewDetails, onV
               <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>Email</TableCell>
               <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>Department</TableCell>
               <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>Course History</TableCell>
-              <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>Actions</TableCell>
+              <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }} align="center">Remove</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -153,19 +154,24 @@ const MentorsTable: React.FC<MentorsTableProps> = ({ mentors, onViewDetails, onV
                       />
                     )}
                   </TableCell>
-                  <TableCell>
-                    <Box display="flex" gap={0.5} justifyContent="center">
-                      {!mentor.is_internal && (
-                        <IconButton
-                          size="small"
-                          onClick={() => onDelete(mentor.id, mentor.name)}
-                          title="Delete Mentor"
-                          sx={{ color: '#dc2626' }}
-                        >
-                          <Delete fontSize="small" />
-                        </IconButton>
-                      )}
-                    </Box>
+                  <TableCell align="center">
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      color="error"
+                      startIcon={<PersonRemove sx={{ fontSize: '1rem' }} />}
+                      onClick={() => onRemove(mentor)}
+                      sx={{
+                        textTransform: 'none',
+                        fontWeight: 600,
+                        fontSize: '0.75rem',
+                        py: 0.5,
+                        px: 1.5,
+                        borderRadius: '6px',
+                      }}
+                    >
+                      Remove
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))

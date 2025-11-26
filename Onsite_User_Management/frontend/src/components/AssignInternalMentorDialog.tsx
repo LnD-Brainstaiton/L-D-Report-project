@@ -10,12 +10,14 @@ import {
   InputAdornment,
   CircularProgress,
   Typography,
+  Box,
 } from '@mui/material';
-import { studentsAPI, mentorsAPI } from '../services/api';
-import type { Student, Mentor } from '../types';
+import { studentsAPI, mentorsAPI, coursesAPI } from '../services/api';
+import type { Student, Mentor, Course } from '../types';
 
 interface MentorAssignment {
   mentor_id: number;
+  course_id?: number;
   hours_taught: number;
   amount_paid: number;
 }
@@ -25,6 +27,7 @@ interface AssignInternalMentorDialogProps {
   onClose: () => void;
   onAssign: (assignment: MentorAssignment) => Promise<void>;
   isDraft?: boolean;
+  showCourseSelection?: boolean; // Show course dropdown (for Mentors page), hide when inside a course
 }
 
 const AssignInternalMentorDialog: React.FC<AssignInternalMentorDialogProps> = ({
@@ -32,11 +35,15 @@ const AssignInternalMentorDialog: React.FC<AssignInternalMentorDialogProps> = ({
   onClose,
   onAssign,
   isDraft = false,
+  showCourseSelection = false,
 }) => {
   const [employees, setEmployees] = useState<Student[]>([]);
   const [loadingEmployees, setLoadingEmployees] = useState(false);
   const [existingMentors, setExistingMentors] = useState<Mentor[]>([]);
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [loadingCourses, setLoadingCourses] = useState(false);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
+  const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null);
   const [mentorHours, setMentorHours] = useState('');
   const [mentorAmount, setMentorAmount] = useState('');
   const [loading, setLoading] = useState(false);
@@ -45,11 +52,15 @@ const AssignInternalMentorDialog: React.FC<AssignInternalMentorDialogProps> = ({
     if (open) {
       fetchEmployees();
       fetchExistingMentors();
+      if (showCourseSelection) {
+        fetchCourses();
+      }
       setSelectedEmployeeId('');
+      setSelectedCourseId(null);
       setMentorHours('');
       setMentorAmount('');
     }
-  }, [open]);
+  }, [open, showCourseSelection]);
 
   const fetchEmployees = async () => {
     setLoadingEmployees(true);
@@ -69,6 +80,23 @@ const AssignInternalMentorDialog: React.FC<AssignInternalMentorDialogProps> = ({
       setExistingMentors(response.data || []);
     } catch (error) {
       console.error('Error fetching existing mentors:', error);
+    }
+  };
+
+  const fetchCourses = async () => {
+    setLoadingCourses(true);
+    try {
+      const response = await coursesAPI.getAll();
+      // Filter to only show Planning/Draft and Ongoing onsite courses (case-insensitive)
+      const onsiteCourses = (response.data || []).filter((course: Course) => {
+        const status = (course.status || '').toLowerCase();
+        return status === 'planning' || status === 'ongoing' || status === 'draft';
+      });
+      setCourses(onsiteCourses);
+    } catch (error) {
+      console.error('Error fetching courses:', error);
+    } finally {
+      setLoadingCourses(false);
     }
   };
 
@@ -94,11 +122,13 @@ const AssignInternalMentorDialog: React.FC<AssignInternalMentorDialogProps> = ({
 
       await onAssign({
         mentor_id: mentorId,
+        course_id: selectedCourseId || undefined,
         hours_taught: parseFloat(mentorHours),
         amount_paid: parseFloat(mentorAmount),
       });
 
       setSelectedEmployeeId('');
+      setSelectedCourseId(null);
       setMentorHours('');
       setMentorAmount('');
       onClose();
@@ -112,6 +142,7 @@ const AssignInternalMentorDialog: React.FC<AssignInternalMentorDialogProps> = ({
 
   const handleClose = () => {
     setSelectedEmployeeId('');
+    setSelectedCourseId(null);
     setMentorHours('');
     setMentorAmount('');
     onClose();
@@ -132,6 +163,35 @@ const AssignInternalMentorDialog: React.FC<AssignInternalMentorDialogProps> = ({
           loading={loadingEmployees}
           renderInput={(params) => <TextField {...params} label="Select Employee" sx={{ mt: 2 }} />}
         />
+        {showCourseSelection && (
+          <Autocomplete
+            options={courses}
+            getOptionLabel={(option) => `${option.name} (${option.batch_code}) - ${option.status}`}
+            value={courses.find((c) => c.id === selectedCourseId) || null}
+            onChange={(_, newValue) => setSelectedCourseId(newValue?.id || null)}
+            loading={loadingCourses}
+            renderInput={(params) => (
+              <TextField 
+                {...params} 
+                label="Select Course (Optional)" 
+                sx={{ mt: 2 }}
+                helperText="Onsite courses in Draft or Ongoing status"
+              />
+            )}
+            renderOption={(props, option) => (
+              <Box component="li" {...props} key={option.id}>
+                <Box>
+                  <Typography variant="body2" fontWeight={600}>
+                    {option.name}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {option.batch_code} • {option.status}
+                  </Typography>
+                </Box>
+              </Box>
+            )}
+          />
+        )}
         <TextField
           label="Hours Taught"
           type="number"
