@@ -374,15 +374,24 @@ const Users: React.FC = () => {
                         />
                       </TableCell>
                       <TableCell align="center">
-                        {user.enrollments && user.enrollments.length > 0 ? (
-                          <Chip 
-                            label={`${user.enrollments.length} courses`} 
-                            size="small" 
-                            sx={{ background: 'linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%)', color: '#047857', fontWeight: 600 }} 
-                          />
-                        ) : (
-                          <Chip label="No History" size="small" sx={{ background: alpha('#fbbf24', 0.1), color: '#92400e', fontWeight: 500, border: `1px solid ${alpha('#fbbf24', 0.3)}` }} />
-                        )}
+                        {(() => {
+                          const enrollments = user.enrollments || [];
+                          const onsiteCount = enrollments.filter((e: any) => e.course_type === 'onsite').length;
+                          const onlineCount = enrollments.filter((e: any) => e.course_type === 'online').length;
+                          const externalCount = enrollments.filter((e: any) => e.course_type === 'external').length;
+                          
+                          if (enrollments.length === 0) {
+                            return <Chip label="No History" size="small" sx={{ background: alpha('#fbbf24', 0.1), color: '#92400e', fontWeight: 500, border: `1px solid ${alpha('#fbbf24', 0.3)}` }} />;
+                          }
+                          
+                          return (
+                            <Box display="flex" gap={0.5} justifyContent="center" flexWrap="wrap">
+                              <Chip label={`Ons-${onsiteCount}`} size="small" sx={{ background: 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)', color: '#1e40af', fontWeight: 600, fontSize: '0.7rem', height: 22 }} />
+                              <Chip label={`LMS-${onlineCount}`} size="small" sx={{ background: 'linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%)', color: '#047857', fontWeight: 600, fontSize: '0.7rem', height: 22 }} />
+                              <Chip label={`Ext-${externalCount}`} size="small" sx={{ background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)', color: '#92400e', fontWeight: 600, fontSize: '0.7rem', height: 22 }} />
+                            </Box>
+                          );
+                        })()}
                       </TableCell>
                       <TableCell align="center">
                         <IconButton size="small" title="Remove" onClick={() => handleRemove(user)}>
