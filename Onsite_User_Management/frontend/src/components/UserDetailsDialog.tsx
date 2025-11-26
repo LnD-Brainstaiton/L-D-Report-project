@@ -553,6 +553,15 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> = ({
                                 </Box>
                               )}
 
+                              {enroll.is_lms_course && enroll.lastaccess && (
+                                <Box>
+                                  <Typography variant="caption" color="text.secondary" display="block">Last Access</Typography>
+                                  <Typography variant="body2" sx={{ mt: 0.5 }}>
+                                    {formatDateForDisplay(enroll.lastaccess)}
+                                  </Typography>
+                                </Box>
+                              )}
+
                               {enroll.course_end_date && (
                                 <Box>
                                   <Typography variant="caption" color="text.secondary" display="block">End Date</Typography>
