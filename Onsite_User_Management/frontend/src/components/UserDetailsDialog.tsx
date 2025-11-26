@@ -30,6 +30,8 @@ interface EnrollmentWithDetails extends Enrollment {
   student_career_start_date?: string | null;
   student_bs_joining_date?: string | null;
   student_total_experience?: number | null; // From ERP
+  student_exit_date?: string | null; // Leaving date for previous employees
+  is_previous_employee?: boolean; // Flag to indicate this is a previous employee
   batch_code?: string;
   completion_status?: string;
   attendance_percentage?: number;
@@ -210,14 +212,25 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> = ({
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth>
-      <DialogTitle sx={{ fontWeight: 600, fontSize: '1.25rem' }}>
+      <DialogTitle sx={{ fontWeight: 600, fontSize: '1.25rem', display: 'flex', alignItems: 'center', gap: 2 }}>
         Complete User Profile - {enrollment.student_name}
+        {enrollment.is_previous_employee && (
+          <Chip 
+            label="Previous Employee" 
+            size="small" 
+            sx={{ 
+              background: 'linear-gradient(135deg, #fee2e2 0%, #fecaca 100%)',
+              color: '#991b1b',
+              fontWeight: 600,
+            }} 
+          />
+        )}
       </DialogTitle>
       <DialogContent>
         <Grid container spacing={2} sx={{ mt: 1 }}>
           <Grid item xs={12}>
             <Typography variant="h6" gutterBottom>
-              Student Information
+              {enrollment.is_previous_employee ? 'Employee Information' : 'Student Information'}
             </Typography>
             <Divider sx={{ mb: 2 }} />
           </Grid>
@@ -274,6 +287,17 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> = ({
             <Grid item xs={12} sm={6}>
               <Typography variant="body2" color="text.secondary">BS Joining Date</Typography>
               <Typography variant="body1" gutterBottom>{formatDateForDisplay(enrollment.student_bs_joining_date)}</Typography>
+            </Grid>
+          )}
+
+          {enrollment.is_previous_employee && enrollment.student_exit_date && (
+            <Grid item xs={12} sm={6}>
+              <Typography variant="body2" color="text.secondary" sx={{ color: '#b91c1c', fontWeight: 600 }}>
+                Leaving Date
+              </Typography>
+              <Typography variant="body1" gutterBottom sx={{ color: '#991b1b', fontWeight: 500 }}>
+                {formatDateForDisplay(enrollment.student_exit_date)}
+              </Typography>
             </Grid>
           )}
 

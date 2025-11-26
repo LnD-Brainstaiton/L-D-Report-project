@@ -54,6 +54,7 @@ class Student(Base):
     # Additional computed fields
     has_online_course = Column(Boolean, default=False, nullable=False, index=True)  # Set by matching with LMS data
     bs_experience = Column(Float, nullable=True)  # Calculated from joiningDate (bs_joining_date)
+    is_mentor = Column(Boolean, default=False, nullable=False, index=True)  # Whether student is tagged as a mentor
     
     # Relationships
     enrollments = relationship("Enrollment", back_populates="student", cascade="all, delete-orphan")

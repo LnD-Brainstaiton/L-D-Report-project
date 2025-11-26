@@ -427,6 +427,8 @@ def get_all_students_with_courses(
             "department": student.department,
             "designation": student.designation,
             "is_active": student.is_active,
+            "is_mentor": student.is_mentor,
+            "exit_date": student.exit_date.isoformat() if student.exit_date else None,
             "career_start_date": student.career_start_date.isoformat() if student.career_start_date else None,
             "bs_joining_date": student.bs_joining_date.isoformat() if student.bs_joining_date else None,
             "total_experience": student.total_experience,
@@ -761,6 +763,10 @@ def tag_student_as_mentor(student_id: int, db: Session = Depends(get_db)):
     # Check if mentor already exists for this student
     existing_mentor = db.query(Mentor).filter(Mentor.student_id == student_id).first()
     if existing_mentor:
+        # Make sure student.is_mentor is set
+        if not student.is_mentor:
+            student.is_mentor = True
+            db.commit()
         return MentorResponse.from_orm(existing_mentor)
     
     # Create mentor record with student data
@@ -773,6 +779,10 @@ def tag_student_as_mentor(student_id: int, db: Session = Depends(get_db)):
         designation=student.designation
     )
     db.add(db_mentor)
+    
+    # Update student.is_mentor flag
+    student.is_mentor = True
+    
     db.commit()
     db.refresh(db_mentor)
     return MentorResponse.from_orm(db_mentor)
@@ -786,7 +796,10 @@ def remove_mentor_tag(student_id: int, db: Session = Depends(get_db)):
     
     mentor = db.query(Mentor).filter(Mentor.student_id == student_id).first()
     if not mentor:
-        # Already not a mentor, return success
+        # Already not a mentor, update flag and return success
+        if student.is_mentor:
+            student.is_mentor = False
+            db.commit()
         return None
     
     if not mentor.is_internal:
@@ -805,6 +818,10 @@ def remove_mentor_tag(student_id: int, db: Session = Depends(get_db)):
         )
     
     db.delete(mentor)
+    
+    # Update student.is_mentor flag
+    student.is_mentor = False
+    
     db.commit()
     return None
 

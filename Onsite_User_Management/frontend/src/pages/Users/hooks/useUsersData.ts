@@ -16,6 +16,7 @@ interface UseUsersDataReturn {
   mentorStatuses: Record<number, boolean>;
   updatingMentorStatus: Record<number, boolean>;
   departments: string[];
+  designations: string[];
   message: AlertMessage | null;
   setMessage: React.Dispatch<React.SetStateAction<AlertMessage | null>>;
   setAllUsers: React.Dispatch<React.SetStateAction<StudentWithEnrollments[]>>;
@@ -30,11 +31,11 @@ export const useUsersData = (selectedDepartment: string, filterNeverTaken: strin
   const [mentorStatuses, setMentorStatuses] = useState<Record<number, boolean>>({});
   const [updatingMentorStatus, setUpdatingMentorStatus] = useState<Record<number, boolean>>({});
   const [departments, setDepartments] = useState<string[]>([]);
+  const [designations, setDesignations] = useState<string[]>([]);
   const [message, setMessage] = useState<AlertMessage | null>(null);
 
   useEffect(() => {
     fetchUsers();
-    fetchMentorStatuses();
     fetchDepartments();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDepartment, filterNeverTaken]);
@@ -45,22 +46,6 @@ export const useUsersData = (selectedDepartment: string, filterNeverTaken: strin
       setDepartments((response.data as { departments?: string[] }).departments || []);
     } catch (error) {
       console.error('Error fetching departments:', error);
-    }
-  };
-
-  const fetchMentorStatuses = async () => {
-    try {
-      const response = await studentsAPI.getAll({ is_active: true });
-      const users = (response.data as StudentWithEnrollments[]) || [];
-      const statusMap: Record<number, boolean> = {};
-      users.forEach((user) => {
-        if (user.is_mentor) {
-          statusMap[user.id] = true;
-        }
-      });
-      setMentorStatuses(statusMap);
-    } catch (error) {
-      console.error('Error fetching mentor statuses:', error);
     }
   };
 
@@ -77,6 +62,23 @@ export const useUsersData = (selectedDepartment: string, filterNeverTaken: strin
         const numB = parseInt(b.employee_id.replace(/\D/g, '')) || 0;
         return numA - numB;
       });
+
+      // Build mentor statuses from response
+      const statusMap: Record<number, boolean> = {};
+      fetchedUsers.forEach((user) => {
+        if (user.is_mentor) {
+          statusMap[user.id] = true;
+        }
+      });
+      setMentorStatuses(statusMap);
+
+      // Extract unique designations
+      const uniqueDesignations = [...new Set(
+        fetchedUsers
+          .map((user) => user.designation)
+          .filter((d): d is string => !!d && d.trim() !== '')
+      )].sort();
+      setDesignations(uniqueDesignations);
 
       setAllUsers(fetchedUsers);
       setEmployeeCount(fetchedUsers.length);
@@ -104,7 +106,8 @@ export const useUsersData = (selectedDepartment: string, filterNeverTaken: strin
         setMentorStatuses((prev) => ({ ...prev, [userId]: true }));
         setMessage({ type: 'success', text: 'User tagged as mentor successfully' });
       }
-      await fetchMentorStatuses();
+      // Refresh users to get updated is_mentor from server
+      await fetchUsers();
     } catch (error) {
       const axiosError = error as AxiosError<{ detail?: string }>;
       setMessage({ type: 'error', text: axiosError.response?.data?.detail || 'Error updating mentor tag' });
@@ -120,6 +123,7 @@ export const useUsersData = (selectedDepartment: string, filterNeverTaken: strin
     mentorStatuses,
     updatingMentorStatus,
     departments,
+    designations,
     message,
     setMessage,
     setAllUsers,

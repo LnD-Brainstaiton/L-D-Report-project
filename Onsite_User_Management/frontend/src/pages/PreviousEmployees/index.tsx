@@ -37,7 +37,6 @@ const PreviousEmployees: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSearchUser, setSelectedSearchUser] = useState<StudentWithEnrollments | null>(null);
 
-  const [expandedUser, setExpandedUser] = useState<number | null>(null);
   const [restoreDialogOpen, setRestoreDialogOpen] = useState(false);
   const [selectedUserToRestore, setSelectedUserToRestore] = useState<StudentWithEnrollments | null>(null);
   const [userDetailsOpen, setUserDetailsOpen] = useState(false);
@@ -55,10 +54,6 @@ const PreviousEmployees: React.FC = () => {
   useEffect(() => {
     setEmployeeCount(users.length);
   }, [users]);
-
-  const handleToggleExpand = (userId: number) => {
-    setExpandedUser(expandedUser === userId ? null : userId);
-  };
 
   const handleRestoreEmployee = (user: StudentWithEnrollments) => {
     setSelectedUserToRestore(user);
@@ -79,6 +74,26 @@ const PreviousEmployees: React.FC = () => {
     setFilterNeverTaken('');
     setSearchQuery('');
     setSelectedSearchUser(null);
+  };
+
+  const handleViewDetails = (user: StudentWithEnrollments) => {
+    // Create an enrollment-like object for UserDetailsDialog
+    const enrollmentData = {
+      id: user.id,
+      student_id: user.id,
+      student_name: user.name,
+      student_email: user.email,
+      student_department: user.department,
+      student_employee_id: user.employee_id,
+      student_designation: user.designation,
+      student_career_start_date: user.career_start_date,
+      student_bs_joining_date: user.bs_joining_date,
+      student_total_experience: user.total_experience,
+      student_exit_date: user.exit_date, // Leaving date for previous employees
+      is_previous_employee: true, // Flag to indicate this is a previous employee
+    };
+    setSelectedUser(enrollmentData);
+    setUserDetailsOpen(true);
   };
 
   if (loading) {
@@ -181,13 +196,13 @@ const PreviousEmployees: React.FC = () => {
             />
             <TextField
               select
-              label="Department"
+              label="SBU"
               value={selectedDepartment}
               onChange={(e) => setSelectedDepartment(e.target.value)}
               sx={{ minWidth: 140 }}
               size="small"
             >
-              <MenuItem value="">All Departments</MenuItem>
+              <MenuItem value="">All SBUs</MenuItem>
               {departments.map((dept) => (
                 <MenuItem key={dept} value={dept}>
                   {dept}
@@ -216,9 +231,8 @@ const PreviousEmployees: React.FC = () => {
 
       <EmployeeTable
         users={users as any}
-        expandedUser={expandedUser}
-        onToggleExpand={handleToggleExpand}
         onRestore={handleRestoreEmployee as any}
+        onViewDetails={handleViewDetails as any}
       />
 
       <Dialog

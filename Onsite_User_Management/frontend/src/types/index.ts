@@ -39,6 +39,8 @@ export interface Student extends BaseEntity {
   experience_years?: number;
   career_start_date?: string | null;
   bs_joining_date?: string | null;
+  exit_date?: string | null; // Leaving date for previous employees
+  total_experience?: number | null; // From ERP
   is_active: boolean;
   is_mentor?: boolean;
   never_taken_course?: boolean;

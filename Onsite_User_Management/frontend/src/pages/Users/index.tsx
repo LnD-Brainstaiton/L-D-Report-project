@@ -15,7 +15,6 @@ import {
   TextField,
   MenuItem,
   IconButton,
-  Collapse,
   alpha,
   Button,
   Alert,
@@ -27,11 +26,8 @@ import {
   DialogActions,
 } from '@mui/material';
 import {
-  ExpandMore,
-  ExpandLess,
   PersonAdd,
   UploadFile,
-  Visibility,
   PersonRemove,
   Search,
   Description,
@@ -40,7 +36,6 @@ import {
 import UserDetailsDialog from '../../components/UserDetailsDialog';
 import CreateStudentDialog from './components/CreateStudentDialog';
 import ImportDialog from './components/ImportDialog';
-import CourseHistoryCard from './components/CourseHistoryCard';
 import { useUsersData } from './hooks/useUsersData';
 import { useFilteredUsers } from './utils/userFilters';
 import {
@@ -76,8 +71,6 @@ interface ImportResults {
 }
 
 const Users: React.FC = () => {
-  // Course history expand state - no auto-expand, user must click
-  const [expandedUser, setExpandedUser] = useState<number | null>(null);
   const [selectedDepartment, setSelectedDepartment] = useState('');
   const [filterNeverTaken, setFilterNeverTaken] = useState('');
   const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
@@ -103,11 +96,12 @@ const Users: React.FC = () => {
   const [importResults, setImportResults] = useState<ImportResults | null>(null);
   const [showPreview, setShowPreview] = useState(false);
   const [filterMentorStatus, setFilterMentorStatus] = useState('');
+  const [filterDesignation, setFilterDesignation] = useState('');
 
-  const { allUsers, loading, mentorStatuses, updatingMentorStatus, departments, message, setMessage, fetchUsers, toggleMentorStatus } =
+  const { allUsers, loading, mentorStatuses, updatingMentorStatus, departments, designations, message, setMessage, fetchUsers, toggleMentorStatus } =
     useUsersData(selectedDepartment, filterNeverTaken);
 
-  const users = useFilteredUsers(
+  const filteredUsers = useFilteredUsers(
     allUsers as StudentWithEnrollments[],
     searchQuery,
     selectedSearchUser,
@@ -116,9 +110,16 @@ const Users: React.FC = () => {
     mentorStatuses
   );
 
-  const handleToggleExpand = (userId: number) => {
-    setExpandedUser(expandedUser === userId ? null : userId);
-  };
+  // Apply designation filter and deduplicate by employee_id (case-insensitive)
+  const users = filteredUsers
+    .filter((user) => !filterDesignation || user.designation === filterDesignation)
+    .reduce((acc: StudentWithEnrollments[], user) => {
+      const normalizedId = user.employee_id?.toLowerCase();
+      if (!acc.some(u => u.employee_id?.toLowerCase() === normalizedId)) {
+        acc.push(user);
+      }
+      return acc;
+    }, []);
 
   const handleViewDetails = (user: StudentWithEnrollments) => {
     const mockEnrollment = {
@@ -170,13 +171,6 @@ const Users: React.FC = () => {
     { employee_id: 'EMP104', name: 'Casey Miller', email: 'casey.miller104@company.com', department: 'Marketing', designation: 'Coordinator', career_start_date: '11-01-2019', bs_join_date: '13-08-2020' },
     { employee_id: 'EMP105', name: 'Alex Jones', email: 'alex.jones105@company.com', department: 'HR', designation: 'Manager', career_start_date: '15-03-2020', bs_join_date: '20-05-2021' },
   ];
-
-  const getStatusPriority = (status: string): number => {
-    if (status === 'Completed') return 1;
-    if (status === 'Failed') return 2;
-    if (status === 'In Progress') return 3;
-    return 4;
-  };
 
   return (
     <Box sx={{ minHeight: '100vh', background: `linear-gradient(135deg, ${alpha('#1e40af', 0.03)} 0%, ${alpha('#059669', 0.03)} 100%)` }}>
@@ -278,21 +272,25 @@ const Users: React.FC = () => {
               clearOnBlur={false}
               blurOnSelect={true}
             />
-            <TextField select label="Department" value={selectedDepartment} onChange={(e) => setSelectedDepartment(e.target.value)} sx={{ minWidth: 140 }} size="small">
-              <MenuItem value="">All Departments</MenuItem>
+            <TextField select label="SBU" value={selectedDepartment} onChange={(e) => setSelectedDepartment(e.target.value)} sx={{ minWidth: 140 }} size="small">
+              <MenuItem value="">All SBUs</MenuItem>
               {departments.map((dept) => (<MenuItem key={dept} value={dept}>{dept}</MenuItem>))}
             </TextField>
             <TextField select label="Course History" value={filterNeverTaken} onChange={(e) => setFilterNeverTaken(e.target.value)} sx={{ minWidth: 160 }} size="small">
               <MenuItem value="">All Employees</MenuItem>
               <MenuItem value="yes">No Course History</MenuItem>
             </TextField>
+            <TextField select label="Designation" value={filterDesignation} onChange={(e) => setFilterDesignation(e.target.value)} sx={{ minWidth: 180 }} size="small">
+              <MenuItem value="">All Designations</MenuItem>
+              {designations.map((desig) => (<MenuItem key={desig} value={desig}>{desig}</MenuItem>))}
+            </TextField>
             <TextField select label="Mentor" value={filterMentorStatus} onChange={(e) => setFilterMentorStatus(e.target.value)} sx={{ minWidth: 140 }} size="small">
               <MenuItem value="">All</MenuItem>
               <MenuItem value="mentor">Mentors</MenuItem>
               <MenuItem value="not_mentor">Non-Mentors</MenuItem>
             </TextField>
-            {(selectedDepartment || filterNeverTaken || filterMentorStatus || searchQuery) && (
-              <Button variant="text" size="small" onClick={() => { setSelectedDepartment(''); setFilterNeverTaken(''); setFilterMentorStatus(''); setSearchQuery(''); setSelectedSearchUser(null); }} sx={{ color: '#64748b', fontWeight: 500 }}>
+            {(selectedDepartment || filterNeverTaken || filterMentorStatus || filterDesignation || searchQuery) && (
+              <Button variant="text" size="small" onClick={() => { setSelectedDepartment(''); setFilterNeverTaken(''); setFilterMentorStatus(''); setFilterDesignation(''); setSearchQuery(''); setSelectedSearchUser(null); }} sx={{ color: '#64748b', fontWeight: 500 }}>
                 Clear
               </Button>
             )}
@@ -307,16 +305,17 @@ const Users: React.FC = () => {
       ) : (
         <Card sx={{ borderRadius: '12px', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.08)', border: '1px solid rgba(30, 64, 175, 0.1)', overflow: 'hidden', background: '#ffffff' }}>
           <TableContainer>
-            <Table>
+            <Table sx={{ tableLayout: 'fixed' }}>
               <TableHead>
                 <TableRow sx={{ background: 'linear-gradient(135deg, rgba(30, 64, 175, 0.05) 0%, rgba(5, 150, 105, 0.05) 100%)' }}>
-                  <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>ID</TableCell>
-                  <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>Name</TableCell>
-                  <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>Email</TableCell>
-                  <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>Department</TableCell>
-                  <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>Mentor</TableCell>
-                  <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }} align="center">Course History</TableCell>
-                  <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }} align="center">Actions</TableCell>
+                  <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem', width: 80 }}>ID</TableCell>
+                  <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem', width: 150 }}>Name</TableCell>
+                  <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem', width: 200 }}>Email</TableCell>
+                  <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem', width: 100 }}>SBU</TableCell>
+                  <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem', width: 180 }}>Designation</TableCell>
+                  <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem', width: 80 }}>Mentor</TableCell>
+                  <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem', width: 120 }} align="center">Course History</TableCell>
+                  <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem', width: 80 }} align="center">Actions</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -324,12 +323,33 @@ const Users: React.FC = () => {
                   <React.Fragment key={user.id}>
                     <TableRow sx={{ borderBottom: '1px solid rgba(30, 64, 175, 0.08)', '&:hover': { background: 'linear-gradient(90deg, rgba(30, 64, 175, 0.03) 0%, rgba(5, 150, 105, 0.03) 100%)' }, backgroundColor: user.never_taken_course ? alpha('#f59e0b', 0.03) : 'transparent' }}>
                       <TableCell>
-                        <Typography sx={{ color: '#1e40af', fontWeight: 600, cursor: 'pointer' }} onClick={() => handleViewDetails(user)}>{user.employee_id}</Typography>
+                        <Typography 
+                          component="span"
+                          onClick={() => handleViewDetails(user)}
+                          sx={{ 
+                            color: '#1e40af', 
+                            fontWeight: 600, 
+                            cursor: 'pointer',
+                            '&:hover': {
+                              textDecoration: 'underline',
+                              color: '#1e3a8a',
+                            },
+                          }}
+                        >
+                          {user.employee_id?.toUpperCase()}
+                        </Typography>
                       </TableCell>
-                      <TableCell sx={{ fontWeight: 500, color: '#1e3a8a' }}>{user.name}</TableCell>
-                      <TableCell sx={{ color: '#64748b' }}>{user.email}</TableCell>
+                      <TableCell sx={{ fontWeight: 500, color: '#1e3a8a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.name}</TableCell>
+                      <TableCell sx={{ color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={user.email}>{user.email}</TableCell>
                       <TableCell>
                         <Chip label={user.department} size="small" sx={{ background: 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)', color: '#1e40af', fontWeight: 600 }} />
+                      </TableCell>
+                      <TableCell>
+                        {user.designation ? (
+                          <Chip label={user.designation} size="small" sx={{ background: 'linear-gradient(135deg, #ede9fe 0%, #ddd6fe 100%)', color: '#6d28d9', fontWeight: 600 }} />
+                        ) : (
+                          <Chip label="N/A" size="small" sx={{ background: '#f1f5f9', color: '#94a3b8', fontWeight: 500 }} />
+                        )}
                       </TableCell>
                       <TableCell>
                         <Chip
@@ -343,51 +363,19 @@ const Users: React.FC = () => {
                       </TableCell>
                       <TableCell align="center">
                         {user.enrollments && user.enrollments.length > 0 ? (
-                          <IconButton 
+                          <Chip 
+                            label={`${user.enrollments.length} courses`} 
                             size="small" 
-                            onClick={() => handleToggleExpand(user.id)} 
-                            title={expandedUser === user.id ? "Hide Course History" : "View Course History"} 
-                            sx={{ color: '#1e40af' }}
-                          >
-                            {expandedUser === user.id ? <ExpandLess fontSize="small" /> : <ExpandMore fontSize="small" />}
-                          </IconButton>
+                            sx={{ background: 'linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%)', color: '#047857', fontWeight: 600 }} 
+                          />
                         ) : (
-                          <Chip label="No Course History" size="small" sx={{ background: alpha('#fbbf24', 0.1), color: '#92400e', fontWeight: 500, border: `1px solid ${alpha('#fbbf24', 0.3)}` }} />
+                          <Chip label="No History" size="small" sx={{ background: alpha('#fbbf24', 0.1), color: '#92400e', fontWeight: 500, border: `1px solid ${alpha('#fbbf24', 0.3)}` }} />
                         )}
                       </TableCell>
                       <TableCell align="center">
-                        <Box display="flex" justifyContent="center" gap={0.5}>
-                          <IconButton size="small" title="View Details" onClick={() => handleViewDetails(user)}>
-                            <Visibility sx={{ fontSize: '1.1rem', color: '#1e40af' }} />
-                          </IconButton>
-                          <IconButton size="small" title="Remove" onClick={() => handleRemove(user)}>
-                            <PersonRemove sx={{ fontSize: '1.1rem', color: '#ef4444' }} />
-                          </IconButton>
-                        </Box>
-                      </TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell style={{ paddingBottom: 0, paddingTop: 0 }} colSpan={8}>
-                        <Collapse in={expandedUser === user.id} timeout="auto" unmountOnExit>
-                          <Box sx={{ margin: 2 }}>
-                            <Typography variant="h6" gutterBottom sx={{ mb: 2 }}>Course History</Typography>
-                            {user.enrollments && user.enrollments.length > 0 ? (
-                              <Box display="flex" flexDirection="column" gap={2}>
-                                {user.enrollments
-                                  .slice()
-                                  .sort((a: any, b: any) => {
-                                    const priorityA = getStatusPriority(a.completion_status);
-                                    const priorityB = getStatusPriority(b.completion_status);
-                                    if (priorityA !== priorityB) return priorityA - priorityB;
-                                    return (a.course_name || '').localeCompare(b.course_name || '');
-                                  })
-                                  .map((enrollment: any) => (<CourseHistoryCard key={enrollment.id} enrollment={enrollment} />))}
-                              </Box>
-                            ) : (
-                              <Typography variant="body2" color="text.secondary">No courses taken yet</Typography>
-                            )}
-                          </Box>
-                        </Collapse>
+                        <IconButton size="small" title="Remove" onClick={() => handleRemove(user)}>
+                          <PersonRemove sx={{ fontSize: '1.1rem', color: '#ef4444' }} />
+                        </IconButton>
                       </TableCell>
                     </TableRow>
                   </React.Fragment>
