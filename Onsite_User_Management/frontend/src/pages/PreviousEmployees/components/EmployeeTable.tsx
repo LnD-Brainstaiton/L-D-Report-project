@@ -158,54 +158,89 @@ const EmployeeTable: React.FC<EmployeeTableProps> = ({ users, expandedUser, onTo
                         </Typography>
                         {user.enrollments && user.enrollments.length > 0 ? (
                           <Box display="flex" flexDirection="column" gap={2}>
-                            {user.enrollments.map((enrollment) => (
-                              <Card
-                                key={enrollment.id}
-                                sx={{
-                                  p: 2,
-                                  backgroundColor: alpha(theme.palette.primary.main, 0.02),
-                                  border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
-                                }}
-                              >
-                                <Box display="flex" justifyContent="space-between" alignItems="start">
-                                  <Box>
-                                    <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                                      {enrollment.course?.name || 'Unknown Course'}
-                                    </Typography>
-                                    <Typography variant="body2" color="text.secondary">
-                                      Batch: {enrollment.course?.batch_code || 'N/A'}
-                                    </Typography>
-                                    {enrollment.course_start_date && (
-                                      <Typography variant="body2" color="text.secondary">
-                                        Start Date: {formatDateForDisplay(enrollment.course_start_date)}
-                                      </Typography>
-                                    )}
-                                    {enrollment.course_end_date && (
-                                      <Typography variant="body2" color="text.secondary">
-                                        Completion Date: {formatDateForDisplay(enrollment.course_end_date)}
-                                      </Typography>
-                                    )}
-                                  </Box>
-                                  <Box display="flex" flexDirection="column" alignItems="flex-end" gap={1}>
-                                    <Chip
-                                      label={enrollment.status || 'Enrolled'}
-                                      color={getStatusColor(enrollment.status)}
-                                      size="small"
-                                    />
-                                    {enrollment.completion_rate !== null && enrollment.completion_rate !== undefined && (
-                                      <Typography variant="body2" color="text.secondary">
-                                        Completion: {enrollment.completion_rate}%
-                                      </Typography>
-                                    )}
-                                    {enrollment.score !== null && enrollment.score !== undefined && (
-                                      <Typography variant="body2" color="text.secondary">
-                                        Score: {enrollment.score}
-                                      </Typography>
-                                    )}
-                                  </Box>
-                                </Box>
-                              </Card>
-                            ))}
+                            {user.enrollments
+                              .slice()
+                              .sort((a: any, b: any) => {
+                                // Sort by completion status priority, then by course name
+                                const statusPriority = (status: string) => {
+                                  if (status === 'COMPLETED' || status === 'Completed') return 1;
+                                  if (status === 'IN_PROGRESS' || status === 'In Progress') return 2;
+                                  if (status === 'NOT_STARTED' || status === 'Not Started') return 3;
+                                  return 4;
+                                };
+                                const priorityA = statusPriority(a.completion_status || a.status || '');
+                                const priorityB = statusPriority(b.completion_status || b.status || '');
+                                if (priorityA !== priorityB) return priorityA - priorityB;
+                                return (a.course_name || a.course?.name || '').localeCompare(b.course_name || b.course?.name || '');
+                              })
+                              .map((enrollment: any) => {
+                                const courseName = enrollment.course_name || enrollment.course?.name || 'Unknown Course';
+                                const batchCode = enrollment.batch_code || enrollment.course?.batch_code || 'N/A';
+                                const courseType = enrollment.course_type || 'onsite';
+                                const completionStatus = enrollment.completion_status || enrollment.status || 'Unknown';
+                                
+                                return (
+                                  <Card
+                                    key={enrollment.id || enrollment.course?.id}
+                                    sx={{
+                                      p: 2,
+                                      backgroundColor: alpha(theme.palette.primary.main, 0.02),
+                                      border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
+                                    }}
+                                  >
+                                    <Box display="flex" justifyContent="space-between" alignItems="start">
+                                      <Box>
+                                        <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                                          {courseName}
+                                        </Typography>
+                                        <Typography variant="body2" color="text.secondary">
+                                          Batch: {batchCode}
+                                        </Typography>
+                                        {courseType && (
+                                          <Chip 
+                                            label={courseType.toUpperCase()} 
+                                            size="small" 
+                                            sx={{ 
+                                              mt: 0.5, 
+                                              fontSize: '0.7rem', 
+                                              height: '20px',
+                                              backgroundColor: courseType === 'online' ? alpha(theme.palette.info.main, 0.1) : alpha(theme.palette.primary.main, 0.1),
+                                              color: courseType === 'online' ? theme.palette.info.main : theme.palette.primary.main,
+                                            }} 
+                                          />
+                                        )}
+                                        {enrollment.course_start_date && (
+                                          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                                            Start Date: {formatDateForDisplay(enrollment.course_start_date)}
+                                          </Typography>
+                                        )}
+                                        {enrollment.course_end_date && (
+                                          <Typography variant="body2" color="text.secondary">
+                                            Completion Date: {formatDateForDisplay(enrollment.course_end_date)}
+                                          </Typography>
+                                        )}
+                                      </Box>
+                                      <Box display="flex" flexDirection="column" alignItems="flex-end" gap={1}>
+                                        <Chip
+                                          label={completionStatus}
+                                          color={getStatusColor(completionStatus)}
+                                          size="small"
+                                        />
+                                        {courseType === 'online' && enrollment.progress !== null && enrollment.progress !== undefined && (
+                                          <Typography variant="body2" color="text.secondary">
+                                            Progress: {enrollment.progress.toFixed(1)}%
+                                          </Typography>
+                                        )}
+                                        {enrollment.score !== null && enrollment.score !== undefined && (
+                                          <Typography variant="body2" color="text.secondary">
+                                            Score: {enrollment.score}
+                                          </Typography>
+                                        )}
+                                      </Box>
+                                    </Box>
+                                  </Card>
+                                );
+                              })}
                           </Box>
                         ) : (
                           <Typography variant="body2" color="text.secondary">

@@ -27,6 +27,7 @@ import type { Enrollment, CourseType } from '../types';
 interface EnrollmentWithDetails extends Enrollment {
   student_career_start_date?: string | null;
   student_bs_joining_date?: string | null;
+  student_total_experience?: number | null; // From ERP
   batch_code?: string;
   completion_status?: string;
   attendance_percentage?: number;
@@ -269,7 +270,11 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> = ({
 
           <Grid item xs={12} sm={6}>
             <Typography variant="body2" color="text.secondary">Total Experience</Typography>
-            <Typography variant="body1" gutterBottom>{formatExperience(enrollment.student_career_start_date)}</Typography>
+            <Typography variant="body1" gutterBottom>
+              {enrollment.student_total_experience 
+                ? `${enrollment.student_total_experience} years` 
+                : formatExperience(enrollment.student_career_start_date)}
+            </Typography>
           </Grid>
 
           <Grid item xs={12} sm={6}>

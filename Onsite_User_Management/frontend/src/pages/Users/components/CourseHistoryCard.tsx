@@ -3,11 +3,13 @@ import { Card, CardContent, Box, Typography, Chip, useTheme, alpha } from '@mui/
 import { formatDateForDisplay } from '../../../utils/dateUtils';
 
 interface EnrollmentData {
-  id: number;
+  id: number | string;
   course_name: string;
   batch_code: string;
+  course_type?: string; // 'onsite', 'online', 'external'
   completion_status: string;
   approval_status: string;
+  progress?: number; // For online courses
   score?: number | null;
   attendance_percentage?: number | null;
   attendance_status?: string | null;
@@ -15,6 +17,7 @@ interface EnrollmentData {
   total_attendance?: number | null;
   course_start_date?: string | null;
   course_end_date?: string | null;
+  lastaccess?: string | null; // For online courses
 }
 
 interface CourseHistoryCardProps {
@@ -23,9 +26,13 @@ interface CourseHistoryCardProps {
 
 const CourseHistoryCard: React.FC<CourseHistoryCardProps> = ({ enrollment }) => {
   const theme = useTheme();
-  const isCompleted = enrollment.completion_status === 'Completed';
-  const isFailed = enrollment.completion_status === 'Failed';
-  const isInProgress = enrollment.completion_status === 'In Progress';
+  // Handle both onsite and online course statuses
+  const completionStatus = enrollment.completion_status?.toUpperCase() || '';
+  const isCompleted = completionStatus === 'COMPLETED' || (enrollment.course_type === 'online' && (enrollment.progress || 0) >= 100);
+  const isFailed = completionStatus === 'FAILED';
+  const isInProgress = completionStatus === 'IN_PROGRESS' || (enrollment.course_type === 'online' && (enrollment.progress || 0) > 0 && (enrollment.progress || 0) < 100);
+  const isNotStarted = completionStatus === 'NOT_STARTED' || (enrollment.course_type === 'online' && (enrollment.progress || 0) === 0);
+  
   const statusColor: 'success' | 'error' | 'warning' | 'default' = isCompleted
     ? 'success'
     : isFailed
@@ -33,6 +40,10 @@ const CourseHistoryCard: React.FC<CourseHistoryCardProps> = ({ enrollment }) => 
       : isInProgress
         ? 'warning'
         : 'default';
+  
+  const displayStatus = enrollment.course_type === 'online' 
+    ? (isCompleted ? 'Completed' : isInProgress ? 'In Progress' : 'Not Started')
+    : enrollment.completion_status || 'Unknown';
 
   const getApprovalColor = (status: string): 'success' | 'warning' | 'error' | 'default' => {
     if (status === 'Approved') return 'success';
@@ -71,8 +82,21 @@ const CourseHistoryCard: React.FC<CourseHistoryCardProps> = ({ enrollment }) => 
             <Typography variant="body2" color="text.secondary">
               Batch: {enrollment.batch_code}
             </Typography>
+            {enrollment.course_type && (
+              <Chip 
+                label={enrollment.course_type.toUpperCase()} 
+                size="small" 
+                sx={{ 
+                  mt: 0.5, 
+                  fontSize: '0.7rem', 
+                  height: '20px',
+                  backgroundColor: enrollment.course_type === 'online' ? alpha(theme.palette.info.main, 0.1) : alpha(theme.palette.primary.main, 0.1),
+                  color: enrollment.course_type === 'online' ? theme.palette.info.main : theme.palette.primary.main,
+                }} 
+              />
+            )}
           </Box>
-          <Chip label={enrollment.completion_status} color={statusColor} size="small" sx={{ fontWeight: 600 }} />
+          <Chip label={displayStatus} color={statusColor} size="small" sx={{ fontWeight: 600 }} />
         </Box>
 
         <Box display="flex" gap={3} mt={2} flexWrap="wrap">
@@ -87,6 +111,17 @@ const CourseHistoryCard: React.FC<CourseHistoryCardProps> = ({ enrollment }) => 
               sx={{ mt: 0.5 }}
             />
           </Box>
+
+          {enrollment.course_type === 'online' && enrollment.progress !== null && enrollment.progress !== undefined && (
+            <Box>
+              <Typography variant="caption" color="text.secondary" display="block">
+                Progress
+              </Typography>
+              <Typography variant="body2" sx={{ fontWeight: 500, mt: 0.5 }}>
+                {enrollment.progress.toFixed(1)}%
+              </Typography>
+            </Box>
+          )}
 
           {enrollment.score !== null && enrollment.score !== undefined && (
             <Box>

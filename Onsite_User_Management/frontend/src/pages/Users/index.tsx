@@ -76,6 +76,7 @@ interface ImportResults {
 }
 
 const Users: React.FC = () => {
+  // Expand course history by default if user has courses
   const [expandedUser, setExpandedUser] = useState<number | null>(null);
   const [selectedDepartment, setSelectedDepartment] = useState('');
   const [filterNeverTaken, setFilterNeverTaken] = useState('');
@@ -114,6 +115,16 @@ const Users: React.FC = () => {
     filterMentorStatus,
     mentorStatuses
   );
+
+  // Auto-expand course history for users with courses
+  useEffect(() => {
+    if (users.length > 0 && expandedUser === null) {
+      const firstUserWithCourses = users.find((u: StudentWithEnrollments) => u.enrollments && u.enrollments.length > 0);
+      if (firstUserWithCourses) {
+        setExpandedUser(firstUserWithCourses.id);
+      }
+    }
+  }, [users, expandedUser]);
 
   const handleToggleExpand = (userId: number) => {
     setExpandedUser(expandedUser === userId ? null : userId);
@@ -329,8 +340,13 @@ const Users: React.FC = () => {
                       </TableCell>
                       <TableCell align="center">
                         {user.enrollments && user.enrollments.length > 0 ? (
-                          <IconButton size="small" onClick={() => handleToggleExpand(user.id)} title="View Course History" sx={{ color: '#1e40af' }}>
-                            <Visibility fontSize="small" />
+                          <IconButton 
+                            size="small" 
+                            onClick={() => handleToggleExpand(user.id)} 
+                            title={expandedUser === user.id ? "Hide Course History" : "View Course History"} 
+                            sx={{ color: '#1e40af' }}
+                          >
+                            {expandedUser === user.id ? <ExpandLess fontSize="small" /> : <ExpandMore fontSize="small" />}
                           </IconButton>
                         ) : (
                           <Chip label="No Course History" size="small" sx={{ background: alpha('#fbbf24', 0.1), color: '#92400e', fontWeight: 500, border: `1px solid ${alpha('#fbbf24', 0.3)}` }} />

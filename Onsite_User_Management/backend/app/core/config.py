@@ -64,9 +64,27 @@ class Settings(BaseSettings):
     LMS_TOKEN: str = ""  # Moodle web service token
     LMS_REST_FORMAT: str = "json"
     
+    # ERP (GraphQL) Configuration (Optional - for employee data)
+    # Support both naming conventions: BS_ERP_* (existing) and ERP_* (new)
+    BS_ERP_GRAPHQL_URL: str = ""  # GraphQL endpoint URL (alternative: ERP_GRAPHQL_URL)
+    BS_ERP_API_KEY: str = ""  # API key for GraphQL authentication (alternative: ERP_API_KEY)
+    ERP_GRAPHQL_URL: str = ""  # GraphQL endpoint URL
+    ERP_API_KEY: str = ""  # API key for GraphQL authentication
+    ERP_API_TOKEN: str = ""  # Bearer token for GraphQL authentication
+    
     class Config:
         env_file = ".env"
         case_sensitive = True
+    
+    @property
+    def erp_graphql_url(self) -> str:
+        """Get ERP GraphQL URL from either BS_ERP_GRAPHQL_URL or ERP_GRAPHQL_URL."""
+        return self.BS_ERP_GRAPHQL_URL or self.ERP_GRAPHQL_URL
+    
+    @property
+    def erp_api_key(self) -> str:
+        """Get ERP API key from either BS_ERP_API_KEY or ERP_API_KEY."""
+        return self.BS_ERP_API_KEY or self.ERP_API_KEY
 
 # Initialize settings
 try:

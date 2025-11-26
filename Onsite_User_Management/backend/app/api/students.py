@@ -79,16 +79,85 @@ def get_departments(
     return {"departments": departments}
 
 @router.get("/count")
-def get_student_count(
+async def get_student_count(
     is_active: Optional[bool] = Query(True, description="Filter by active status"),
     department: Optional[str] = Query(None),
+    use_erp: bool = Query(True, description="Use ERP cached data for count (default: True)"),
     db: Session = Depends(get_db)
 ):
-    """Get count of students."""
+    """
+    Get count of employees from ERP (source of truth).
+    
+    By default uses ERP cached data which includes all employees.
+    Employees with exitDate are considered inactive (previous employees).
+    """
+    from app.services.erp_cache_service import ERPCacheService
+    from app.services.erp_service import ERPService
     from app.core.validation import validate_department
     
+    # Always use ERP as source of truth
+    if use_erp:
+        # Count from ERP cached data
+        try:
+            cached_employees = await ERPCacheService.get_cached_employees(db)
+            if not cached_employees:
+                # If cache is empty, fetch from API
+                cached_employees = await ERPService.fetch_all_employees()
+                await ERPCacheService.cache_employees(db, cached_employees)
+            
+            # Filter employees based on exitDate (previous employees have exitDate)
+            # Use the exact same logic as test_erp_count.py which works correctly
+            filtered_employees = []
+            for emp in cached_employees:
+                # Handle nested list structure - employees are wrapped in lists
+                if isinstance(emp, list) and len(emp) > 0:
+                    emp = emp[0]
+                
+                if not isinstance(emp, dict):
+                    continue
+                
+                # Check if employee has exitDate - if yes, they are inactive
+                exit_date = emp.get("exitDate")
+                # exitDate is None, empty string, or False means active
+                # Any other value (date string) means inactive
+                emp_is_active = exit_date is None or exit_date == "" or exit_date is False
+                
+                # Match the requested is_active filter
+                if is_active is None or emp_is_active == is_active:
+                    # Filter by department if specified (and not None/empty)
+                    if department and department.strip():
+                        try:
+                            validated_department = validate_department(department)
+                            emp_dept = emp.get("department", {})
+                            if isinstance(emp_dept, dict):
+                                emp_dept_name = emp_dept.get("name", "")
+                            else:
+                                emp_dept_name = str(emp_dept)
+                            
+                            if emp_dept_name != validated_department:
+                                continue
+                        except (ValueError, AttributeError):
+                            continue
+                    
+                    filtered_employees.append(emp)
+            
+            count = len(filtered_employees)
+            return {
+                "count": count,
+                "is_active": is_active,
+                "source": "erp_cache",
+                "total_in_erp": len(cached_employees)
+            }
+        except Exception as e:
+            logger.error(f"Error counting from ERP: {str(e)}, falling back to database")
+            import traceback
+            logger.error(traceback.format_exc())
+            # Fall through to database count
+    
+    # Count from local database
     query = db.query(Student)
-    query = query.filter(Student.is_active == is_active)
+    if is_active is not None:
+        query = query.filter(Student.is_active == is_active)
     
     if department:
         try:
@@ -98,7 +167,11 @@ def get_student_count(
             raise HTTPException(status_code=400, detail=str(e))
     
     count = query.count()
-    return {"count": count, "is_active": is_active}
+    return {
+        "count": count,
+        "is_active": is_active,
+        "source": "database"
+    }
 
 @router.get("/{student_id}", response_model=StudentResponse)
 def get_student(student_id: int, db: Session = Depends(get_db)):
@@ -186,43 +259,54 @@ def get_all_students_with_courses(
     department: Optional[str] = Query(None),
     is_active: Optional[bool] = Query(True, description="Filter by active status"),
     skip: int = Query(0, ge=0),
-    limit: int = Query(1000, ge=1, le=10000),
+    limit: int = Query(10000, ge=1, le=10000),
     db: Session = Depends(get_db)
 ):
-    """Get all students with their complete course history and attendance data."""
+    """
+    Get all students with their complete course history and attendance data.
+    
+    Queries directly from the local database (synced from ERP).
+    - is_active=True: Active employees (All Employees page)
+    - is_active=False: Previous employees (Previous Employees page)
+    
+    No external API calls are made - uses only locally stored data.
+    """
     from app.models.enrollment import Enrollment, CompletionStatus
+    from app.core.validation import validate_department
     from sqlalchemy.orm import joinedload
     
-    from app.core.validation import validate_department
+    result = []
     
+    # Query students directly from database
     query = db.query(Student)
     
-    # Filter by active status
-    query = query.filter(Student.is_active == is_active)
+    # Filter by is_active field
+    if is_active is not None:
+        query = query.filter(Student.is_active == is_active)
     
-    if department:
+    # Filter by department if specified
+    if department and department.strip():
         try:
             validated_department = validate_department(department)
             query = query.filter(Student.department == validated_department)
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e))
+        except (ValueError, AttributeError):
+            pass
     
-    # Sort by employee_id (ascending) - EMP001, EMP002, EMP003, etc.
+    # Get students with pagination, sorted by employee_id
     students = query.order_by(Student.employee_id.asc()).offset(skip).limit(limit).all()
     
-    result = []
+    # Build result for each student
     for student in students:
-        enrollments = db.query(Enrollment).options(joinedload(Enrollment.course)).filter(Enrollment.student_id == student.id).order_by(Enrollment.created_at.desc()).all()
+        # Get enrollments from database
+        enrollments = db.query(Enrollment).options(
+            joinedload(Enrollment.course)
+        ).filter(
+            Enrollment.student_id == student.id
+        ).order_by(Enrollment.created_at.desc()).all()
         
-        student_dict = StudentResponse.from_orm(student).dict()
-        student_dict['enrollments'] = []
-        student_dict['total_courses'] = len(enrollments)
-        student_dict['completed_courses'] = len([e for e in enrollments if e.completion_status == CompletionStatus.COMPLETED])
-        student_dict['never_taken_course'] = len(enrollments) == 0
-        
+        # Build enrollments list
+        enrollment_list = []
         for enrollment in enrollments:
-            # Use stored course info if available, otherwise fall back to course relationship
-            # This preserves history even when course is deleted
             course_name = enrollment.course_name or (enrollment.course.name if enrollment.course else None)
             batch_code = enrollment.batch_code or (enrollment.course.batch_code if enrollment.course else None)
             
@@ -230,6 +314,7 @@ def get_all_students_with_courses(
                 'id': enrollment.id,
                 'course_name': course_name,
                 'batch_code': batch_code,
+                'course_type': 'onsite',
                 'approval_status': enrollment.approval_status.value if enrollment.approval_status else None,
                 'completion_status': enrollment.completion_status.value if enrollment.completion_status else None,
                 'eligibility_status': enrollment.eligibility_status.value if enrollment.eligibility_status else None,
@@ -242,7 +327,29 @@ def get_all_students_with_courses(
                 'course_end_date': enrollment.course.end_date.isoformat() if enrollment.course and enrollment.course.end_date else None,
                 'created_at': enrollment.created_at.isoformat() if enrollment.created_at else None,
             }
-            student_dict['enrollments'].append(enrollment_dict)
+            enrollment_list.append(enrollment_dict)
+        
+        # Calculate totals
+        total_courses = len(enrollment_list)
+        completed_courses = len([e for e in enrollments if e.completion_status == CompletionStatus.COMPLETED])
+        
+        # Build student dict
+        student_dict = {
+            "id": student.id,
+            "employee_id": student.employee_id,
+            "name": student.name,
+            "email": student.email,
+            "department": student.department,
+            "designation": student.designation,
+            "is_active": student.is_active,
+            "career_start_date": student.career_start_date.isoformat() if student.career_start_date else None,
+            "bs_joining_date": student.bs_joining_date.isoformat() if student.bs_joining_date else None,
+            "total_experience": student.total_experience,
+            "enrollments": enrollment_list,
+            "total_courses": total_courses,
+            "completed_courses": completed_courses,
+            "never_taken_course": total_courses == 0,
+        }
         
         result.append(student_dict)
     
@@ -616,29 +723,381 @@ def remove_mentor_tag(student_id: int, db: Session = Depends(get_db)):
     db.commit()
     return None
 
+@router.post("/sync-from-erp")
+async def sync_employees_from_erp(db: Session = Depends(get_db)):
+    """
+    Sync employees from ERP GraphQL API to local database.
+    
+    Fetches all employees from ERP (uses cache if available) and updates/creates student records.
+    This is the primary source for employee data. Employee details come from ERP.
+    Mapping:
+    - employee_id = employeeId from ERP (e.g., "BS1981")
+    - name = name from ERP
+    - email = workEmail from ERP
+    - department = department.name from ERP
+    - is_active = active from ERP
+    - career_start_date = careerStartDate from ERP
+    - bs_joining_date = joiningDate from ERP
+    """
+    from app.services.erp_service import ERPService
+    from app.services.erp_cache_service import ERPCacheService
+    from app.core.validation import validate_department
+    from datetime import datetime
+    
+    try:
+        # Try to get from cache first
+        cached_employees = await ERPCacheService.get_cached_employees(db)
+        
+        if cached_employees:
+            logger.info("Using cached ERP employees data for sync")
+            erp_employees = cached_employees
+        else:
+            # Fetch from API if cache miss or expired
+            logger.info("Cache miss or expired, fetching employees from ERP API")
+            erp_employees = await ERPService.fetch_all_employees()
+            # Cache the results
+            await ERPCacheService.cache_employees(db, erp_employees)
+        
+        stats = {
+            "total_fetched": len(erp_employees),
+            "created": 0,
+            "updated": 0,
+            "skipped": 0,
+            "errors": []
+        }
+        
+        for employee in erp_employees:
+            try:
+                # Handle nested list structure if present
+                if isinstance(employee, list) and len(employee) > 0:
+                    employee = employee[0]
+                
+                # Extract data directly from ERP (not from mapped student_data)
+                employee_id = employee.get("employeeId")
+                name = employee.get("name")
+                work_email = employee.get("workEmail")
+                
+                if not employee_id or not name or not work_email:
+                    stats["skipped"] += 1
+                    continue
+                
+                email = work_email
+                
+                # Extract department from ERP
+                dept_obj = employee.get("department", {})
+                department_name = dept_obj.get("name", "") if dept_obj else ""
+                if not department_name:
+                    department_name = "Other"
+                
+                # Validate department
+                try:
+                    department = validate_department(department_name)
+                except ValueError:
+                    department = "Other"
+                
+                # Extract dates directly from ERP
+                joining_date_str = employee.get("joiningDate")  # This is bs_joining_date
+                career_start_date_str = employee.get("careerStartDate")
+                exit_date_str = employee.get("exitDate")  # Direct from ERP - determines is_active
+                date_of_birth_str = employee.get("dateOfBirth")
+                resignation_date_str = employee.get("resignationDate")
+                
+                # Parse dates
+                bs_joining_date = None
+                career_start_date = None
+                exit_date = None
+                date_of_birth = None
+                resignation_date = None
+                
+                if joining_date_str:
+                    try:
+                        bs_joining_date = datetime.strptime(joining_date_str, "%Y-%m-%d").date()
+                    except (ValueError, TypeError):
+                        pass
+                if career_start_date_str:
+                    try:
+                        career_start_date = datetime.strptime(career_start_date_str, "%Y-%m-%d").date()
+                    except (ValueError, TypeError):
+                        pass
+                if exit_date_str:  # Direct from ERP
+                    try:
+                        exit_date = datetime.strptime(exit_date_str, "%Y-%m-%d").date()
+                    except (ValueError, TypeError):
+                        pass
+                if date_of_birth_str:
+                    try:
+                        date_of_birth = datetime.strptime(date_of_birth_str, "%Y-%m-%d").date()
+                    except (ValueError, TypeError):
+                        pass
+                if resignation_date_str:
+                    try:
+                        resignation_date = datetime.strptime(resignation_date_str, "%Y-%m-%d").date()
+                    except (ValueError, TypeError):
+                        pass
+                
+                # Determine is_active based on exitDate from ERP:
+                # - If exitDate exists, employee is inactive (previous employee)
+                # - Otherwise, employee is active
+                is_active = exit_date is None
+                
+                # Calculate BS experience from joiningDate (direct from ERP)
+                bs_experience = None
+                if bs_joining_date:
+                    try:
+                        from datetime import date
+                        today = date.today()
+                        delta = today - bs_joining_date
+                        bs_experience = round(delta.days / 365.25, 2)  # Years with decimal precision
+                    except Exception:
+                        pass
+                
+                # Extract job position/designation
+                job_pos_obj = employee.get("jobPosition", {})
+                designation = job_pos_obj.get("name", "") if job_pos_obj else ""
+                
+                # Check if student exists by employee_id or email
+                existing_student = db.query(Student).filter(
+                    (Student.employee_id == employee_id.upper()) | (Student.email == email)
+                ).first()
+                
+                # Extract all other ERP fields
+                erp_id = employee.get("id")
+                active = employee.get("active", True)
+                is_onsite = employee.get("isOnsite", False)
+                total_experience = employee.get("totalExperience")
+                
+                # Extract nested objects
+                job_type_obj = employee.get("jobType", {})
+                job_role_obj = employee.get("jobRole", {})
+                sbu_obj = employee.get("sbu", {})
+                user_obj = employee.get("user", {})
+                
+                # Extract nested objects
+                dept_obj = employee.get("department", {})
+                job_pos_obj = employee.get("jobPosition", {})
+                job_type_obj = employee.get("jobType", {})
+                job_role_obj = employee.get("jobRole", {})
+                sbu_obj = employee.get("sbu", {})
+                user_obj = employee.get("user", {})
+                
+                if existing_student:
+                    # Update existing student with all ERP data
+                    existing_student.name = name
+                    existing_student.email = email
+                    existing_student.department = department
+                    existing_student.is_active = is_active  # Based on exitDate from ERP
+                    if designation:
+                        existing_student.designation = designation
+                    if career_start_date:
+                        existing_student.career_start_date = career_start_date
+                    if bs_joining_date:
+                        existing_student.bs_joining_date = bs_joining_date
+                    
+                    # Update all ERP fields
+                    if erp_id:
+                        existing_student.erp_id = str(erp_id)
+                    if work_email:
+                        existing_student.work_email = work_email
+                    existing_student.active = active
+                    existing_student.is_onsite = is_onsite
+                    if total_experience is not None:
+                        existing_student.total_experience = float(total_experience)
+                    if date_of_birth:
+                        existing_student.date_of_birth = date_of_birth
+                    if resignation_date:
+                        existing_student.resignation_date = resignation_date
+                    if exit_date:
+                        existing_student.exit_date = exit_date
+                    
+                    # Update nested object fields
+                    if dept_obj:
+                        existing_student.department_id = str(dept_obj.get("id", "")) if dept_obj.get("id") else None
+                    if job_pos_obj:
+                        existing_student.job_position_id = str(job_pos_obj.get("id", "")) if job_pos_obj.get("id") else None
+                        existing_student.job_position_name = job_pos_obj.get("name")
+                    if job_type_obj:
+                        existing_student.job_type_id = str(job_type_obj.get("id", "")) if job_type_obj.get("id") else None
+                        existing_student.job_type_name = job_type_obj.get("name")
+                    if job_role_obj:
+                        existing_student.job_role_id = str(job_role_obj.get("id", "")) if job_role_obj.get("id") else None
+                    if sbu_obj:
+                        existing_student.sbu_name = sbu_obj.get("name")
+                    if user_obj:
+                        existing_student.user_id = str(user_obj.get("id", "")) if user_obj.get("id") else None
+                        existing_student.user_name = user_obj.get("name")
+                        existing_student.user_email = user_obj.get("email")
+                    
+                    # Store full ERP data as JSON
+                    existing_student.erp_data = employee
+                    
+                    # Update computed fields
+                    existing_student.is_active = is_active  # Based on exitDate
+                    if bs_experience is not None:
+                        existing_student.bs_experience = bs_experience
+                    
+                    # Update employee_id if it changed (shouldn't happen, but handle it)
+                    if existing_student.employee_id != employee_id:
+                        # Check if new employee_id already exists
+                        conflict = db.query(Student).filter(
+                            Student.employee_id == employee_id,
+                            Student.id != existing_student.id
+                        ).first()
+                        if not conflict:
+                            existing_student.employee_id = employee_id
+                    
+                    stats["updated"] += 1
+                else:
+                    # Create new student with all ERP data
+                    new_student = Student(
+                        employee_id=employee_id,
+                        name=name,
+                        email=email,
+                        department=department,
+                        designation=designation,
+                        career_start_date=career_start_date,
+                        bs_joining_date=bs_joining_date,
+                        # ERP fields
+                        erp_id=str(erp_id) if erp_id else None,
+                        work_email=work_email,
+                        active=active,
+                        is_onsite=is_onsite,
+                        total_experience=float(total_experience) if total_experience is not None else None,
+                        date_of_birth=date_of_birth,
+                        resignation_date=resignation_date,
+                        exit_date=exit_date,
+                        department_id=str(dept_obj.get("id", "")) if dept_obj and dept_obj.get("id") else None,
+                        job_position_id=str(job_pos_obj.get("id", "")) if job_pos_obj and job_pos_obj.get("id") else None,
+                        job_position_name=job_pos_obj.get("name") if job_pos_obj else None,
+                        job_type_id=str(job_type_obj.get("id", "")) if job_type_obj and job_type_obj.get("id") else None,
+                        job_type_name=job_type_obj.get("name") if job_type_obj else None,
+                        job_role_id=str(job_role_obj.get("id", "")) if job_role_obj and job_role_obj.get("id") else None,
+                        sbu_name=sbu_obj.get("name") if sbu_obj else None,
+                        user_id=str(user_obj.get("id", "")) if user_obj and user_obj.get("id") else None,
+                        user_name=user_obj.get("name") if user_obj else None,
+                        user_email=user_obj.get("email") if user_obj else None,
+                        erp_data=employee,  # Store full ERP data
+                        # Computed fields
+                        is_active=is_active,  # Based on exitDate: if exitDate exists, is_active = False
+                        bs_experience=bs_experience,  # Calculated from joiningDate
+                        has_online_course=False,  # Will be updated by LMS matching
+                    )
+                    db.add(new_student)
+                    stats["created"] += 1
+                
+            except Exception as e:
+                # Handle nested list structure for error message
+                emp_id = "unknown"
+                if isinstance(employee, dict):
+                    emp_id = employee.get('employeeId', employee.get('id', 'unknown'))
+                elif isinstance(employee, list) and len(employee) > 0 and isinstance(employee[0], dict):
+                    emp_id = employee[0].get('employeeId', employee[0].get('id', 'unknown'))
+                error_msg = f"Error processing employee {emp_id}: {str(e)}"
+                stats["errors"].append(error_msg)
+                logger.error(error_msg)
+                continue
+        
+        # Commit all changes
+        db.commit()
+        
+        # Update has_online_course by matching with LMS
+        try:
+            logger.info("Updating has_online_course field by matching with LMS...")
+            from app.services.lms_cache_service import LMSCacheService
+            from app.services.lms_service import LMSService
+            
+            # Get all LMS users
+            cached_lms_users = await LMSCacheService.get_cached_users(db)
+            if not cached_lms_users:
+                cached_lms_users = await LMSService.fetch_all_users()
+                await LMSCacheService.cache_users(db, cached_lms_users)
+            
+            # Create map of LMS username (employeeId) -> LMS user
+            lms_user_map = {}
+            for lms_user in cached_lms_users:
+                username = lms_user.get("username", "").upper()
+                if username:
+                    lms_user_map[username] = lms_user
+            
+            # Update has_online_course for all students
+            all_students = db.query(Student).all()
+            updated_count = 0
+            for student in all_students:
+                employee_id = student.employee_id.upper()
+                has_online = False
+                
+                # Check if employee exists in LMS
+                if employee_id in lms_user_map:
+                    try:
+                        # Check if they have courses in LMS cache
+                        cached_courses = await LMSCacheService.get_cached_user_courses(db, employee_id)
+                        if cached_courses and len(cached_courses) > 0:
+                            has_online = True
+                        else:
+                            # Try fetching from API
+                            courses = await LMSService.fetch_user_courses(employee_id, db)
+                            if courses and len(courses) > 0:
+                                has_online = True
+                                # Cache the courses
+                                await LMSCacheService.cache_user_courses(db, employee_id, courses)
+                    except Exception as e:
+                        logger.warning(f"Error checking LMS courses for {employee_id}: {str(e)}")
+                
+                # Update has_online_course if changed
+                if student.has_online_course != has_online:
+                    student.has_online_course = has_online
+                    updated_count += 1
+            
+            db.commit()
+            logger.info(f"Updated has_online_course for {updated_count} students")
+        except Exception as e:
+            logger.error(f"Error updating has_online_course: {str(e)}")
+            # Don't fail the whole sync if LMS matching fails
+        
+        return {
+            "message": "Sync from ERP completed",
+            "stats": stats
+        }
+        
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error syncing from ERP: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error syncing from ERP: {str(e)}")
+
 @router.post("/sync-from-lms")
 async def sync_employees_from_lms(db: Session = Depends(get_db)):
     """
     Sync employees from LMS API to local database.
     
-    Fetches all users from Moodle LMS (uses cache if available) and updates/creates student records.
-    Mapping:
-    - employee_id = username (e.g., "bs1981")
-    - name = fullname from real_info (or fullname field)
-    - email = email
-    - department = department (from API)
-    - is_active = determined by suspended status (suspended=0 means active)
+    NOTE: This endpoint is kept for backward compatibility and course matching.
+    Employee data should primarily come from ERP via /sync-from-erp.
+    LMS is used to match employees and track course enrollments.
     """
     from app.services.lms_service import LMSService
     from app.services.lms_cache_service import LMSCacheService
+    from app.services.erp_service import ERPService
+    from app.services.erp_cache_service import ERPCacheService
     from app.core.validation import validate_department
     
     try:
-        # Try to get from cache first
+        # Fetch ERP employees to match against
+        cached_erp_employees = await ERPCacheService.get_cached_employees(db)
+        if not cached_erp_employees:
+            logger.info("ERP cache miss, fetching employees from ERP API")
+            cached_erp_employees = await ERPService.fetch_all_employees()
+            await ERPCacheService.cache_employees(db, cached_erp_employees)
+        
+        # Create a map of employeeId -> ERP employee for matching
+        erp_employee_map = {}
+        for emp in cached_erp_employees:
+            emp_id = emp.get("employeeId")
+            if emp_id:
+                erp_employee_map[emp_id.upper()] = emp
+        
+        # Try to get LMS users from cache first
         cached_users = await LMSCacheService.get_cached_users(db)
         
         if cached_users:
-            logger.info("Using cached users data for sync")
+            logger.info("Using cached LMS users data for sync")
             lms_users = cached_users
         else:
             # Fetch from API if cache miss or expired
@@ -649,6 +1108,7 @@ async def sync_employees_from_lms(db: Session = Depends(get_db)):
         
         stats = {
             "total_fetched": len(lms_users),
+            "matched_with_erp": 0,
             "created": 0,
             "updated": 0,
             "skipped": 0,
@@ -667,11 +1127,49 @@ async def sync_employees_from_lms(db: Session = Depends(get_db)):
                 employee_id = student_data["employee_id"]
                 email = student_data["email"]
                 
+                # Try to match with ERP employee by employeeId
+                erp_employee = erp_employee_map.get(employee_id.upper())
+                
+                # If matched with ERP, use ERP data; otherwise use LMS data
+                if erp_employee:
+                    # Use ERP data as source of truth
+                    erp_student_data = ERPService.map_erp_employee_to_student(erp_employee)
+                    if erp_student_data:
+                        student_data = erp_student_data
+                        stats["matched_with_erp"] += 1
+                
                 # Validate department
                 try:
                     department = validate_department(student_data.get("department", "Other"))
                 except ValueError:
                     department = "Other"  # Default if validation fails
+                
+                # Parse dates if provided
+                career_start_date = None
+                bs_joining_date = None
+                exit_date = None
+                if student_data.get("career_start_date"):
+                    try:
+                        career_start_date = datetime.strptime(student_data["career_start_date"], "%Y-%m-%d").date()
+                    except (ValueError, TypeError):
+                        pass
+                if student_data.get("bs_joining_date"):
+                    try:
+                        bs_joining_date = datetime.strptime(student_data["bs_joining_date"], "%Y-%m-%d").date()
+                    except (ValueError, TypeError):
+                        pass
+                if student_data.get("exit_date"):
+                    try:
+                        exit_date = datetime.strptime(student_data["exit_date"], "%Y-%m-%d").date()
+                    except (ValueError, TypeError):
+                        pass
+                
+                # Determine if employee is active:
+                # - If exitDate is present, they are a previous employee (is_active = False)
+                # - Otherwise use the active field from ERP or LMS
+                is_active = student_data.get("is_active", True)
+                if exit_date is not None:
+                    is_active = False  # Has exit date means they left
                 
                 # Check if student exists by employee_id or email
                 existing_student = db.query(Student).filter(
@@ -683,19 +1181,13 @@ async def sync_employees_from_lms(db: Session = Depends(get_db)):
                     existing_student.name = student_data["name"]
                     existing_student.email = email
                     existing_student.department = department
-                    existing_student.is_active = student_data.get("is_active", True)
+                    existing_student.is_active = is_active  # Use calculated is_active
                     if student_data.get("designation"):
                         existing_student.designation = student_data["designation"]
-                    
-                    # Update employee_id if it changed (shouldn't happen, but handle it)
-                    if existing_student.employee_id != employee_id:
-                        # Check if new employee_id already exists
-                        conflict = db.query(Student).filter(
-                            Student.employee_id == employee_id,
-                            Student.id != existing_student.id
-                        ).first()
-                        if not conflict:
-                            existing_student.employee_id = employee_id
+                    if career_start_date:
+                        existing_student.career_start_date = career_start_date
+                    if bs_joining_date:
+                        existing_student.bs_joining_date = bs_joining_date
                     
                     stats["updated"] += 1
                 else:
@@ -705,8 +1197,10 @@ async def sync_employees_from_lms(db: Session = Depends(get_db)):
                         name=student_data["name"],
                         email=email,
                         department=department,
-                        is_active=student_data.get("is_active", True),
+                        is_active=is_active,  # Use calculated is_active
                         designation=student_data.get("designation"),
+                        career_start_date=career_start_date,
+                        bs_joining_date=bs_joining_date,
                     )
                     db.add(new_student)
                     stats["created"] += 1
@@ -721,7 +1215,7 @@ async def sync_employees_from_lms(db: Session = Depends(get_db)):
         db.commit()
         
         return {
-            "message": "Sync completed",
+            "message": "Sync from LMS completed (matched with ERP where available)",
             "stats": stats
         }
         

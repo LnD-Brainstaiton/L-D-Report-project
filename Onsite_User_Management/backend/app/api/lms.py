@@ -242,3 +242,66 @@ async def get_lms_user_courses(username: str, db: Session = Depends(get_db)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch user courses from LMS: {str(e)}")
 
+@router.get("/test-connections")
+async def test_api_connections(
+    db: Session = Depends(get_db),
+    current_admin: Dict[str, Any] = Depends(get_current_admin)
+):
+    """
+    Test connections to both LMS and ERP APIs.
+    
+    Returns status of both API connections and configuration.
+    """
+    from app.services.erp_service import ERPService
+    from app.core.config import settings
+    
+    results = {
+        "lms": {},
+        "erp": {}
+    }
+    
+    # Test LMS connection
+    try:
+        if not settings.LMS_TOKEN or not settings.LMS_BASE_URL:
+            results["lms"] = {
+                "connected": False,
+                "configured": False,
+                "error": "LMS_TOKEN or LMS_BASE_URL is not configured"
+            }
+        else:
+            try:
+                users = await LMSService.fetch_all_users()
+                results["lms"] = {
+                    "connected": True,
+                    "configured": True,
+                    "url": settings.LMS_BASE_URL,
+                    "users_count": len(users),
+                    "message": "Successfully connected to LMS API"
+                }
+            except Exception as e:
+                results["lms"] = {
+                    "connected": False,
+                    "configured": True,
+                    "url": settings.LMS_BASE_URL,
+                    "error": str(e)
+                }
+    except Exception as e:
+        results["lms"] = {
+            "connected": False,
+            "configured": False,
+            "error": str(e)
+        }
+    
+    # Test ERP connection
+    try:
+        erp_result = await ERPService.test_connection()
+        results["erp"] = erp_result
+    except Exception as e:
+        results["erp"] = {
+            "connected": False,
+            "configured": False,
+            "error": str(e)
+        }
+    
+    return results
+
