@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   Typography,
@@ -76,7 +76,7 @@ interface ImportResults {
 }
 
 const Users: React.FC = () => {
-  // Expand course history by default if user has courses
+  // Course history expand state - no auto-expand, user must click
   const [expandedUser, setExpandedUser] = useState<number | null>(null);
   const [selectedDepartment, setSelectedDepartment] = useState('');
   const [filterNeverTaken, setFilterNeverTaken] = useState('');
@@ -115,16 +115,6 @@ const Users: React.FC = () => {
     filterMentorStatus,
     mentorStatuses
   );
-
-  // Auto-expand course history for users with courses
-  useEffect(() => {
-    if (users.length > 0 && expandedUser === null) {
-      const firstUserWithCourses = users.find((u: StudentWithEnrollments) => u.enrollments && u.enrollments.length > 0);
-      if (firstUserWithCourses) {
-        setExpandedUser(firstUserWithCourses.id);
-      }
-    }
-  }, [users, expandedUser]);
 
   const handleToggleExpand = (userId: number) => {
     setExpandedUser(expandedUser === userId ? null : userId);

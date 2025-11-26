@@ -279,7 +279,7 @@ def get_student_enrollments(student_id: int, db: Session = Depends(get_db)):
             'course_end_date': lms_course.end_date.isoformat() if lms_course.end_date else None,
             'lastaccess': lms_course.last_access.isoformat() if lms_course.last_access else None,
             'is_lms_course': True,
-            'is_mandatory': lms_course.is_mandatory if hasattr(lms_course, 'is_mandatory') and lms_course.is_mandatory else False,
+            'is_mandatory': lms_course.is_mandatory == 1 if hasattr(lms_course, 'is_mandatory') and lms_course.is_mandatory is not None else False,
             'student_name': student.name,
             'student_email': student.email,
             'student_department': student.department,

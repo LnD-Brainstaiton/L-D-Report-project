@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Box,
   Card,
@@ -7,7 +7,16 @@ import {
   CircularProgress,
   Theme,
   alpha,
+  TextField,
+  InputAdornment,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Chip,
+  Stack,
 } from '@mui/material';
+import { Search, FilterList, Clear } from '@mui/icons-material';
 import OnlineEnrollmentTable from './OnlineEnrollmentTable';
 import EnrollmentTable from './EnrollmentTable';
 import { filterOnlineEnrollments, filterOnsiteEnrollments } from '../utils/enrollmentFilters';
@@ -38,6 +47,52 @@ function EnrollmentSections({
   onEditAttendance,
   theme,
 }: EnrollmentSectionsProps): React.ReactElement {
+  // Search and filter state
+  const [employeeSearch, setEmployeeSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'completed' | 'in_progress' | 'not_started'>('all');
+
+  // Filter enrollments based on search and status
+  const filteredEnrollments = useMemo(() => {
+    let filtered = [...enrollments];
+    
+    // Apply employee search filter
+    if (employeeSearch.trim()) {
+      const searchLower = employeeSearch.toLowerCase().trim();
+      filtered = filtered.filter((enrollment) => {
+        const name = enrollment.student_name?.toLowerCase() || '';
+        const email = enrollment.student_email?.toLowerCase() || '';
+        const employeeId = enrollment.student_employee_id?.toLowerCase() || '';
+        return name.includes(searchLower) || email.includes(searchLower) || employeeId.includes(searchLower);
+      });
+    }
+    
+    return filtered;
+  }, [enrollments, employeeSearch]);
+
+  // Apply status filter for online courses
+  const getFilteredOnlineEnrollments = useMemo(() => {
+    if (!isOnlineCourse) return { completed: [], inProgress: [], notStarted: [] };
+    
+    const { completed, inProgress, notStarted } = filterOnlineEnrollments(filteredEnrollments);
+    
+    if (statusFilter === 'completed') {
+      return { completed, inProgress: [], notStarted: [] };
+    } else if (statusFilter === 'in_progress') {
+      return { completed: [], inProgress, notStarted: [] };
+    } else if (statusFilter === 'not_started') {
+      return { completed: [], inProgress: [], notStarted };
+    }
+    
+    return { completed, inProgress, notStarted };
+  }, [filteredEnrollments, isOnlineCourse, statusFilter]);
+
+  const clearFilters = () => {
+    setEmployeeSearch('');
+    setStatusFilter('all');
+  };
+
+  const hasActiveFilters = employeeSearch.trim() || statusFilter !== 'all';
+
   if (loadingEnrollments) {
     return (
       <Box display="flex" justifyContent="center" p={3}>
@@ -47,10 +102,94 @@ function EnrollmentSections({
   }
 
   if (isOnlineCourse) {
-    const { completed, inProgress, notStarted } = filterOnlineEnrollments(enrollments);
+    const { completed, inProgress, notStarted } = getFilteredOnlineEnrollments;
 
     return (
       <>
+        {/* Search and Filter Section */}
+        <Card sx={{ mb: 3, p: 2 }}>
+          <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+            <FilterList /> Search & Filter Enrollments
+          </Typography>
+          <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems="center">
+            {/* Employee Search */}
+            <TextField
+              fullWidth
+              size="small"
+              placeholder="Search by name, email, or employee ID..."
+              value={employeeSearch}
+              onChange={(e) => setEmployeeSearch(e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <Search sx={{ color: 'text.secondary' }} />
+                  </InputAdornment>
+                ),
+              }}
+              sx={{
+                maxWidth: { md: 400 },
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: 2,
+                }
+              }}
+            />
+            
+            {/* Status Filter */}
+            <FormControl size="small" sx={{ minWidth: 200 }}>
+              <InputLabel>Completion Status</InputLabel>
+              <Select
+                value={statusFilter}
+                label="Completion Status"
+                onChange={(e) => setStatusFilter(e.target.value as any)}
+                sx={{ borderRadius: 2 }}
+              >
+                <MenuItem value="all">All Status</MenuItem>
+                <MenuItem value="completed">
+                  <Box display="flex" alignItems="center" gap={1}>
+                    <Chip size="small" label="Completed" color="success" sx={{ height: 20 }} />
+                  </Box>
+                </MenuItem>
+                <MenuItem value="in_progress">
+                  <Box display="flex" alignItems="center" gap={1}>
+                    <Chip size="small" label="In Progress" color="warning" sx={{ height: 20 }} />
+                  </Box>
+                </MenuItem>
+                <MenuItem value="not_started">
+                  <Box display="flex" alignItems="center" gap={1}>
+                    <Chip size="small" label="Not Started" sx={{ height: 20, bgcolor: 'grey.300' }} />
+                  </Box>
+                </MenuItem>
+              </Select>
+            </FormControl>
+            
+            {/* Clear Filters Button */}
+            {hasActiveFilters && (
+              <Chip
+                label="Clear Filters"
+                onDelete={clearFilters}
+                deleteIcon={<Clear />}
+                color="primary"
+                variant="outlined"
+                sx={{ cursor: 'pointer' }}
+              />
+            )}
+          </Stack>
+          
+          {/* Results Summary */}
+          <Box mt={2} display="flex" gap={2} flexWrap="wrap">
+            <Typography variant="body2" color="text.secondary">
+              Showing: {completed.length + inProgress.length + notStarted.length} of {enrollments.length} enrollments
+            </Typography>
+            {hasActiveFilters && (
+              <Typography variant="body2" color="primary.main" sx={{ fontWeight: 500 }}>
+                {employeeSearch && `Search: "${employeeSearch}"`}
+                {employeeSearch && statusFilter !== 'all' && ' • '}
+                {statusFilter !== 'all' && `Status: ${statusFilter.replace('_', ' ')}`}
+              </Typography>
+            )}
+          </Box>
+        </Card>
+
         {/* Completed Students */}
         {completed.length > 0 && (
           <Card sx={{ 
@@ -108,11 +247,13 @@ function EnrollmentSections({
           </Card>
         )}
 
-        {enrollments.length === 0 && (
+        {completed.length === 0 && inProgress.length === 0 && notStarted.length === 0 && (
           <Card>
             <CardContent>
               <Typography variant="body2" color="text.secondary" align="center" py={3}>
-                No students enrolled in this online course yet.
+                {hasActiveFilters 
+                  ? 'No students match your search criteria. Try adjusting the filters.'
+                  : 'No students enrolled in this online course yet.'}
               </Typography>
             </CardContent>
           </Card>
@@ -121,11 +262,65 @@ function EnrollmentSections({
     );
   }
 
-  // Onsite course enrollments
-  const { approved, eligiblePending, notEligible, rejected, withdrawn } = filterOnsiteEnrollments(enrollments);
+  // Onsite course enrollments - apply employee search filter
+  const { approved, eligiblePending, notEligible, rejected, withdrawn } = filterOnsiteEnrollments(filteredEnrollments);
 
   return (
     <>
+      {/* Search Section for Onsite Courses */}
+      <Card sx={{ mb: 3, p: 2 }}>
+        <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+          <FilterList /> Search Enrollments
+        </Typography>
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems="center">
+          {/* Employee Search */}
+          <TextField
+            fullWidth
+            size="small"
+            placeholder="Search by name, email, or employee ID..."
+            value={employeeSearch}
+            onChange={(e) => setEmployeeSearch(e.target.value)}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <Search sx={{ color: 'text.secondary' }} />
+                </InputAdornment>
+              ),
+            }}
+            sx={{
+              maxWidth: { md: 400 },
+              '& .MuiOutlinedInput-root': {
+                borderRadius: 2,
+              }
+            }}
+          />
+          
+          {/* Clear Filters Button */}
+          {employeeSearch.trim() && (
+            <Chip
+              label="Clear Search"
+              onDelete={() => setEmployeeSearch('')}
+              deleteIcon={<Clear />}
+              color="primary"
+              variant="outlined"
+              sx={{ cursor: 'pointer' }}
+            />
+          )}
+        </Stack>
+        
+        {/* Results Summary */}
+        {employeeSearch.trim() && (
+          <Box mt={2}>
+            <Typography variant="body2" color="text.secondary">
+              Showing: {approved.length + eligiblePending.length + notEligible.length + rejected.length + withdrawn.length} of {enrollments.length} enrollments
+            </Typography>
+            <Typography variant="body2" color="primary.main" sx={{ fontWeight: 500 }}>
+              Search: "{employeeSearch}"
+            </Typography>
+          </Box>
+        )}
+      </Card>
+
       {/* Approved/Enrolled Students */}
       {approved.length > 0 && (
         <Card sx={{ 
@@ -237,11 +432,13 @@ function EnrollmentSections({
         </Card>
       )}
 
-      {enrollments.length === 0 && (
+      {approved.length === 0 && eligiblePending.length === 0 && notEligible.length === 0 && rejected.length === 0 && withdrawn.length === 0 && (
         <Card>
           <CardContent>
             <Typography variant="body2" color="text.secondary" align="center" py={3}>
-              No enrollments yet. Use "Import Enrollments" or "Manual Enrollment" to add students.
+              {employeeSearch.trim() 
+                ? 'No students match your search criteria. Try adjusting the search.'
+                : 'No enrollments yet. Use "Import Enrollments" or "Manual Enrollment" to add students.'}
             </Typography>
           </CardContent>
         </Card>

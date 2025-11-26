@@ -25,7 +25,7 @@ class LMSUserCourse(Base):
     course_name = Column(String, nullable=False)
     course_shortname = Column(String, nullable=True)
     category_name = Column(String, nullable=True)
-    is_mandatory = Column(Boolean, default=False, nullable=False)  # Mandatory course flag
+    is_mandatory = Column(Integer, default=0, nullable=False)  # 1 = mandatory, 0 = not mandatory
     
     # Progress tracking
     progress = Column(Float, default=0, nullable=True)  # 0-100

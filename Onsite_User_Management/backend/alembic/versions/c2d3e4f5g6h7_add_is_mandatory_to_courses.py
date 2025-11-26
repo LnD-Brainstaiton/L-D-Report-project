@@ -17,15 +17,15 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # Add is_mandatory column to lms_course_cache
+    # Add is_mandatory column to lms_course_cache (Integer: 0=optional, 1=mandatory)
     op.add_column('lms_course_cache', sa.Column('is_mandatory', sa.Integer(), nullable=True, server_default='0'))
     
-    # Add is_mandatory column to lms_user_courses
-    op.add_column('lms_user_courses', sa.Column('is_mandatory', sa.Boolean(), nullable=True, server_default='false'))
+    # Add is_mandatory column to lms_user_courses (Integer: 0=optional, 1=mandatory)
+    op.add_column('lms_user_courses', sa.Column('is_mandatory', sa.Integer(), nullable=True, server_default='0'))
     
     # Set default values for existing records
     op.execute("UPDATE lms_course_cache SET is_mandatory = 0 WHERE is_mandatory IS NULL")
-    op.execute("UPDATE lms_user_courses SET is_mandatory = false WHERE is_mandatory IS NULL")
+    op.execute("UPDATE lms_user_courses SET is_mandatory = 0 WHERE is_mandatory IS NULL")
 
 
 def downgrade() -> None:

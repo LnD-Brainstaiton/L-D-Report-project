@@ -291,8 +291,8 @@ async def sync_lms_data(
                         LMSUserCourse.lms_course_id == str(course.id)
                     ).first()
                     
-                    # Get is_mandatory from cached course
-                    is_mandatory = course.is_mandatory == 1 if course.is_mandatory is not None else False
+                    # Get is_mandatory from cached course (store as integer: 1 or 0)
+                    is_mandatory = 1 if course.is_mandatory == 1 else 0
                     
                     if existing:
                         # Update
