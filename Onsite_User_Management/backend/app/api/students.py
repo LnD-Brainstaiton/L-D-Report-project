@@ -491,9 +491,15 @@ def get_all_students_with_courses(
             "is_active": student.is_active,
             "is_mentor": student.is_mentor,
             "exit_date": student.exit_date.isoformat() if student.exit_date else None,
+            "exit_reason": student.exit_reason,
             "career_start_date": student.career_start_date.isoformat() if student.career_start_date else None,
             "bs_joining_date": student.bs_joining_date.isoformat() if student.bs_joining_date else None,
             "total_experience": student.total_experience,
+            # SBU Head and Reporting Manager from ERP
+            "sbu_head_employee_id": student.sbu_head_employee_id,
+            "sbu_head_name": student.sbu_head_name,
+            "reporting_manager_employee_id": student.reporting_manager_employee_id,
+            "reporting_manager_name": student.reporting_manager_name,
             "enrollments": enrollment_list,
             "total_courses": total_courses,
             "completed_courses": completed_courses,
@@ -1043,6 +1049,8 @@ async def sync_employees_from_erp(db: Session = Depends(get_db)):
                 job_role_obj = employee.get("jobRole", {})
                 sbu_obj = employee.get("sbu", {})
                 user_obj = employee.get("user", {})
+                sbu_head_obj = employee.get("sbuHead", {})
+                parent_obj = employee.get("parent", {})
                 
                 if existing_student:
                     # Update existing student with all ERP data
@@ -1090,6 +1098,22 @@ async def sync_employees_from_erp(db: Session = Depends(get_db)):
                         existing_student.user_id = str(user_obj.get("id", "")) if user_obj.get("id") else None
                         existing_student.user_name = user_obj.get("name")
                         existing_student.user_email = user_obj.get("email")
+                    
+                    # Update SBU Head from ERP
+                    if sbu_head_obj:
+                        existing_student.sbu_head_employee_id = sbu_head_obj.get("employeeId")
+                        existing_student.sbu_head_name = sbu_head_obj.get("name")
+                    else:
+                        existing_student.sbu_head_employee_id = None
+                        existing_student.sbu_head_name = None
+                    
+                    # Update Reporting Manager (parent) from ERP
+                    if parent_obj:
+                        existing_student.reporting_manager_employee_id = parent_obj.get("employeeId")
+                        existing_student.reporting_manager_name = parent_obj.get("name")
+                    else:
+                        existing_student.reporting_manager_employee_id = None
+                        existing_student.reporting_manager_name = None
                     
                     # Store full ERP data as JSON
                     existing_student.erp_data = employee
@@ -1139,6 +1163,11 @@ async def sync_employees_from_erp(db: Session = Depends(get_db)):
                         user_id=str(user_obj.get("id", "")) if user_obj and user_obj.get("id") else None,
                         user_name=user_obj.get("name") if user_obj else None,
                         user_email=user_obj.get("email") if user_obj else None,
+                        # SBU Head and Reporting Manager from ERP
+                        sbu_head_employee_id=sbu_head_obj.get("employeeId") if sbu_head_obj else None,
+                        sbu_head_name=sbu_head_obj.get("name") if sbu_head_obj else None,
+                        reporting_manager_employee_id=parent_obj.get("employeeId") if parent_obj else None,
+                        reporting_manager_name=parent_obj.get("name") if parent_obj else None,
                         erp_data=employee,  # Store full ERP data
                         # Computed fields
                         is_active=is_active,  # Based on exitDate: if exitDate exists, is_active = False

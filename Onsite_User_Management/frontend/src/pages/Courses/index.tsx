@@ -461,7 +461,7 @@ function Courses({ courseType = 'onsite', status = 'all' }: CoursesProps): React
                 {courseType === 'online' && (
                   <TextField
                     select
-                    label="Mandatory Status"
+                    label="Mandatory"
                     value={mandatoryFilter}
                     onChange={(e) => setMandatoryFilter(e.target.value)}
                     size="small"

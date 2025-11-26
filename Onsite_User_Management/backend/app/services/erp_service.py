@@ -31,6 +31,7 @@ class ERPService:
             raise ValueError("ERP_API_KEY, BS_ERP_API_KEY, or ERP_API_TOKEN is required. Please set it in .env file")
         
         # GraphQL query to fetch all employees with pagination support
+        # Includes sbuHead, parent (reporting manager), and exitReason
         query = """
         query GetAllEmployees($limit: Int, $offset: Int, $includeArchived: Boolean) {
             allEmployees(limit: $limit, offset: $offset, includeArchived: $includeArchived) {
@@ -63,6 +64,18 @@ class ERPService:
                 }
                 sbu {
                     name
+                }
+                sbuHead {
+                    id
+                    name
+                    employeeId
+                    workEmail
+                }
+                parent {
+                    id
+                    name
+                    employeeId
+                    workEmail
                 }
                 user {
                     id
@@ -192,6 +205,16 @@ class ERPService:
         career_start_date = employee.get("careerStartDate")
         bs_joining_date = employee.get("joiningDate")
         
+        # Extract SBU Head info
+        sbu_head_obj = employee.get("sbuHead", {})
+        sbu_head_employee_id = sbu_head_obj.get("employeeId") if sbu_head_obj else None
+        sbu_head_name = sbu_head_obj.get("name") if sbu_head_obj else None
+        
+        # Extract Reporting Manager (parent) info
+        parent_obj = employee.get("parent", {})
+        reporting_manager_employee_id = parent_obj.get("employeeId") if parent_obj else None
+        reporting_manager_name = parent_obj.get("name") if parent_obj else None
+        
         return {
             "employee_id": employee_id,  # Use employeeId from ERP as employee_id
             "name": name,
@@ -210,6 +233,11 @@ class ERPService:
             "erp_id": employee.get("id"),
             "job_type": employee.get("jobType", {}).get("name") if employee.get("jobType") else None,
             "sbu": employee.get("sbu", {}).get("name") if employee.get("sbu") else None,
+            # SBU Head and Reporting Manager from ERP
+            "sbu_head_employee_id": sbu_head_employee_id,
+            "sbu_head_name": sbu_head_name,
+            "reporting_manager_employee_id": reporting_manager_employee_id,
+            "reporting_manager_name": reporting_manager_name,
         }
     
     @staticmethod

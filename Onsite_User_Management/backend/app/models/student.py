@@ -51,6 +51,13 @@ class Student(Base):
     user_email = Column(String, nullable=True)  # user.email from ERP
     erp_data = Column(JSON, nullable=True)  # Store full ERP employee data as JSON for reference
     
+    # SBU Head and Reporting Manager from ERP
+    sbu_head_employee_id = Column(String, nullable=True, index=True)  # sbuHead.employeeId from ERP
+    sbu_head_name = Column(String, nullable=True)  # sbuHead.name from ERP
+    reporting_manager_employee_id = Column(String, nullable=True, index=True)  # parent.employeeId from ERP
+    reporting_manager_name = Column(String, nullable=True)  # parent.name from ERP
+    exit_reason = Column(String, nullable=True)  # exitReason from ERP (why employee left)
+    
     # Additional computed fields
     has_online_course = Column(Boolean, default=False, nullable=False, index=True)  # Set by matching with LMS data
     bs_experience = Column(Float, nullable=True)  # Calculated from joiningDate (bs_joining_date)

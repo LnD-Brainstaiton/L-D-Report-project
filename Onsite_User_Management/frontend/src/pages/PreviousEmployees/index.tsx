@@ -90,7 +90,13 @@ const PreviousEmployees: React.FC = () => {
       student_bs_joining_date: user.bs_joining_date,
       student_total_experience: user.total_experience,
       student_exit_date: user.exit_date, // Leaving date for previous employees
+      student_exit_reason: (user as any).exit_reason, // Why the employee left
       is_previous_employee: true, // Flag to indicate this is a previous employee
+      // SBU Head and Reporting Manager from ERP
+      sbu_head_employee_id: (user as any).sbu_head_employee_id,
+      sbu_head_name: (user as any).sbu_head_name,
+      reporting_manager_employee_id: (user as any).reporting_manager_employee_id,
+      reporting_manager_name: (user as any).reporting_manager_name,
     };
     setSelectedUser(enrollmentData);
     setUserDetailsOpen(true);

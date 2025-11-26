@@ -46,6 +46,11 @@ import type { Student } from '../../types';
 interface StudentWithEnrollments extends Student {
   enrollments?: any[];
   never_taken_course?: boolean;
+  sbu_head_employee_id?: string | null;
+  sbu_head_name?: string | null;
+  reporting_manager_employee_id?: string | null;
+  reporting_manager_name?: string | null;
+  exit_reason?: string | null;
 }
 
 interface NewStudent {
@@ -128,6 +133,12 @@ const Users: React.FC = () => {
       student_experience_years: user.experience_years,
       student_career_start_date: user.career_start_date,
       student_bs_joining_date: user.bs_joining_date,
+      student_total_experience: user.total_experience,
+      // SBU Head and Reporting Manager from ERP
+      sbu_head_employee_id: user.sbu_head_employee_id,
+      sbu_head_name: user.sbu_head_name,
+      reporting_manager_employee_id: user.reporting_manager_employee_id,
+      reporting_manager_name: user.reporting_manager_name,
     };
     setSelectedUser(mockEnrollment);
     setUserDetailsOpen(true);

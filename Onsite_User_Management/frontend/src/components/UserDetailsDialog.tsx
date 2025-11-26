@@ -31,6 +31,7 @@ interface EnrollmentWithDetails extends Enrollment {
   student_bs_joining_date?: string | null;
   student_total_experience?: number | null; // From ERP
   student_exit_date?: string | null; // Leaving date for previous employees
+  student_exit_reason?: string | null; // Why the employee left
   is_previous_employee?: boolean; // Flag to indicate this is a previous employee
   batch_code?: string;
   completion_status?: string;
@@ -40,6 +41,11 @@ interface EnrollmentWithDetails extends Enrollment {
   total_attendance?: number;
   course_type?: string;
   is_lms_course?: boolean;
+  // SBU Head and Reporting Manager from ERP
+  sbu_head_employee_id?: string | null;
+  sbu_head_name?: string | null;
+  reporting_manager_employee_id?: string | null;
+  reporting_manager_name?: string | null;
 }
 
 interface OnlineCourseEnrollment {
@@ -96,8 +102,11 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> = ({
   const [onlineCourses, setOnlineCourses] = useState<OnlineCourseEnrollment[]>([]);
   const [loadingEnrollments, setLoadingEnrollments] = useState(false);
   const [sbuHead, setSbuHead] = useState<SbuHead | null>(null);
+  const [reportingManager, setReportingManager] = useState<{ employee_id: string; name: string } | null>(null);
   const [viewingSbuHead, setViewingSbuHead] = useState(false);
+  const [viewingReportingManager, setViewingReportingManager] = useState(false);
   const [sbuHeadEnrollment, setSbuHeadEnrollment] = useState<EnrollmentWithDetails | null>(null);
+  const [reportingManagerEnrollment, setReportingManagerEnrollment] = useState<EnrollmentWithDetails | null>(null);
 
   const [completionStats, setCompletionStats] = useState<Record<CourseType, CompletionStats>>({
     onsite: { rate: 0, completed: 0, total: 0 },
@@ -105,22 +114,30 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> = ({
     external: { rate: 0, completed: 0, total: 0 },
   });
 
-  const fetchSbuHead = async () => {
-    if (!enrollment?.student_department) return;
-    
-    try {
-      const response = await studentsAPI.getSbuHead(
-        enrollment.student_department,
-        enrollment.student_employee_id || undefined
-      );
-      if (response.data) {
-        setSbuHead(response.data);
-      } else {
-        setSbuHead(null);
-      }
-    } catch (error) {
-      console.error('Error fetching SBU head:', error);
+  // Use SBU Head and Reporting Manager directly from enrollment (fetched from ERP)
+  const loadSbuHeadAndReportingManager = () => {
+    // SBU Head from ERP data
+    if (enrollment?.sbu_head_employee_id && enrollment?.sbu_head_name) {
+      setSbuHead({
+        id: 0,
+        employee_id: enrollment.sbu_head_employee_id,
+        name: enrollment.sbu_head_name,
+        email: '',
+        department: enrollment.student_department || '',
+        designation: 'SBU Head',
+      });
+    } else {
       setSbuHead(null);
+    }
+    
+    // Reporting Manager from ERP data
+    if (enrollment?.reporting_manager_employee_id && enrollment?.reporting_manager_name) {
+      setReportingManager({
+        employee_id: enrollment.reporting_manager_employee_id,
+        name: enrollment.reporting_manager_name,
+      });
+    } else {
+      setReportingManager(null);
     }
   };
 
@@ -143,6 +160,27 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> = ({
     
     setSbuHeadEnrollment(sbuHeadEnroll);
     setViewingSbuHead(true);
+  };
+
+  const handleViewReportingManager = () => {
+    if (!reportingManager) return;
+    
+    // Create a mock enrollment for the Reporting Manager to open their profile
+    const rmEnroll: EnrollmentWithDetails = {
+      id: 0,
+      student_id: 0,
+      student_name: reportingManager.name,
+      student_email: '',
+      student_department: enrollment?.student_department || '',
+      student_employee_id: reportingManager.employee_id,
+      student_designation: '',
+      course_id: 0,
+      approval_status: 'Approved',
+      eligibility_status: 'Eligible',
+    };
+    
+    setReportingManagerEnrollment(rmEnroll);
+    setViewingReportingManager(true);
   };
 
   const fetchStudentEnrollments = async () => {
@@ -261,13 +299,14 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> = ({
   useEffect(() => {
     if (open && enrollment?.student_id) {
       fetchStudentEnrollments();
-      fetchSbuHead();
+      loadSbuHeadAndReportingManager();
     } else {
       setStudentEnrollments([]);
       setSbuHead(null);
+      setReportingManager(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, enrollment?.student_id]);
+  }, [open, enrollment?.student_id, enrollment?.sbu_head_employee_id, enrollment?.reporting_manager_employee_id]);
 
   if (!enrollment) return null;
 
@@ -308,33 +347,48 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> = ({
             <Divider sx={{ mb: 2 }} />
           </Grid>
 
-          <Grid item xs={12} sm={6}>
-            <Typography variant="body2" color="text.secondary">Employee ID</Typography>
-            <Typography variant="body1" gutterBottom>{enrollment.student_employee_id || 'N/A'}</Typography>
-          </Grid>
-
+          {/* Left Column */}
           <Grid item xs={12} sm={6}>
             <Typography variant="body2" color="text.secondary">Name</Typography>
             <Typography variant="body1" gutterBottom>{enrollment.student_name}</Typography>
           </Grid>
 
+          {/* Right Column */}
+          {reportingManager && (
+            <Grid item xs={12} sm={6}>
+              <Typography variant="body2" color="text.secondary">Reporting Manager</Typography>
+              <Typography variant="body1" gutterBottom>
+                <Chip
+                  label={`${reportingManager.name} (${reportingManager.employee_id.toUpperCase()})`}
+                  size="small"
+                  onClick={handleViewReportingManager}
+                  sx={{
+                    cursor: 'pointer',
+                    background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
+                    color: '#92400e',
+                    fontWeight: 600,
+                    '&:hover': {
+                      background: 'linear-gradient(135deg, #fde68a 0%, #fcd34d 100%)',
+                    },
+                  }}
+                />
+              </Typography>
+            </Grid>
+          )}
+          {!reportingManager && (
+            <Grid item xs={12} sm={6}>
+              <Typography variant="body2" color="text.secondary">Reporting Manager</Typography>
+              <Typography variant="body1" gutterBottom color="text.secondary">N/A</Typography>
+            </Grid>
+          )}
+
+          {/* Left Column */}
           <Grid item xs={12} sm={6}>
-            <Typography variant="body2" color="text.secondary">Email</Typography>
-            <Typography variant="body1" gutterBottom>{enrollment.student_email}</Typography>
+            <Typography variant="body2" color="text.secondary">Employee ID</Typography>
+            <Typography variant="body1" gutterBottom>{enrollment.student_employee_id || 'N/A'}</Typography>
           </Grid>
 
-          <Grid item xs={12} sm={6}>
-            <Typography variant="body2" color="text.secondary">Department</Typography>
-            <Typography variant="body1" gutterBottom>
-              <Chip label={enrollment.student_department} size="small" />
-            </Typography>
-          </Grid>
-
-          <Grid item xs={12} sm={6}>
-            <Typography variant="body2" color="text.secondary">Designation</Typography>
-            <Typography variant="body1" gutterBottom>{enrollment.student_designation || 'N/A'}</Typography>
-          </Grid>
-
+          {/* Right Column */}
           {sbuHead && (
             <Grid item xs={12} sm={6}>
               <Typography variant="body2" color="text.secondary">SBU Head</Typography>
@@ -356,34 +410,56 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> = ({
               </Typography>
             </Grid>
           )}
+          {!sbuHead && (
+            <Grid item xs={12} sm={6}>
+              <Typography variant="body2" color="text.secondary">SBU Head</Typography>
+              <Typography variant="body1" gutterBottom color="text.secondary">N/A</Typography>
+            </Grid>
+          )}
 
+          {/* Left Column */}
           <Grid item xs={12} sm={6}>
-            <Typography variant="body2" color="text.secondary">Total Experience</Typography>
+            <Typography variant="body2" color="text.secondary">Email</Typography>
+            <Typography variant="body1" gutterBottom>{enrollment.student_email}</Typography>
+          </Grid>
+
+          {/* Right Column */}
+          <Grid item xs={12} sm={6}>
+            <Typography variant="body2" color="text.secondary">BS Joining Date</Typography>
             <Typography variant="body1" gutterBottom>
-              {enrollment.student_total_experience 
-                ? `${enrollment.student_total_experience} years` 
-                : formatExperience(enrollment.student_career_start_date)}
+              {enrollment.student_bs_joining_date ? formatDateForDisplay(enrollment.student_bs_joining_date) : 'N/A'}
             </Typography>
           </Grid>
 
+          {/* Left Column */}
+          <Grid item xs={12} sm={6}>
+            <Typography variant="body2" color="text.secondary">Designation</Typography>
+            <Typography variant="body1" gutterBottom>{enrollment.student_designation || 'N/A'}</Typography>
+          </Grid>
+
+          {/* Right Column */}
           <Grid item xs={12} sm={6}>
             <Typography variant="body2" color="text.secondary">BS Experience</Typography>
             <Typography variant="body1" gutterBottom>{formatExperience(enrollment.student_bs_joining_date)}</Typography>
           </Grid>
 
-          {enrollment.student_career_start_date && (
-            <Grid item xs={12} sm={6}>
-              <Typography variant="body2" color="text.secondary">Career Start Date</Typography>
-              <Typography variant="body1" gutterBottom>{formatDateForDisplay(enrollment.student_career_start_date)}</Typography>
-            </Grid>
-          )}
+          {/* Left Column */}
+          <Grid item xs={12} sm={6}>
+            <Typography variant="body2" color="text.secondary">SBU</Typography>
+            <Typography variant="body1" gutterBottom>
+              <Chip label={enrollment.student_department} size="small" sx={{ background: 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)', color: '#1e40af', fontWeight: 600 }} />
+            </Typography>
+          </Grid>
 
-          {enrollment.student_bs_joining_date && (
-            <Grid item xs={12} sm={6}>
-              <Typography variant="body2" color="text.secondary">BS Joining Date</Typography>
-              <Typography variant="body1" gutterBottom>{formatDateForDisplay(enrollment.student_bs_joining_date)}</Typography>
-            </Grid>
-          )}
+          {/* Right Column */}
+          <Grid item xs={12} sm={6}>
+            <Typography variant="body2" color="text.secondary">Total Experience</Typography>
+            <Typography variant="body1" gutterBottom>
+              {enrollment.student_total_experience 
+                ? `${enrollment.student_total_experience} years` 
+                : 'N/A'}
+            </Typography>
+          </Grid>
 
           {enrollment.is_previous_employee && enrollment.student_exit_date && (
             <Grid item xs={12} sm={6}>
@@ -608,6 +684,18 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> = ({
             setSbuHeadEnrollment(null);
           }}
           enrollment={sbuHeadEnrollment}
+        />
+      )}
+
+      {/* Recursive dialog for viewing Reporting Manager profile */}
+      {viewingReportingManager && reportingManagerEnrollment && (
+        <UserDetailsDialog
+          open={viewingReportingManager}
+          onClose={() => {
+            setViewingReportingManager(false);
+            setReportingManagerEnrollment(null);
+          }}
+          enrollment={reportingManagerEnrollment}
         />
       )}
     </Dialog>
