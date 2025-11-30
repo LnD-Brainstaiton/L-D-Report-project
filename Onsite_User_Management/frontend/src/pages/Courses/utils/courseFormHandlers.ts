@@ -28,6 +28,8 @@ export const resetForm = (
     seat_limit: 0,
     total_classes_offered: '',
     prerequisite_course_id: null,
+    location: '',
+    cost: 0,
   };
 
   if (typeof setFormData === 'function') {
@@ -63,10 +65,12 @@ export const handleCreateCourseWithMentors = async (
       start_date: formatDateForAPI(formData.start_date),
       end_date: formatDateForAPI(formData.end_date),
       total_classes_offered: formData.total_classes_offered ? parseInt(String(formData.total_classes_offered)) : null,
-      prerequisite_course_id: formData.prerequisite_course_id || null,
+      prerequisite_course_id: courseType === 'external' ? null : (formData.prerequisite_course_id || null), // No prerequisite for external
       status: courseStatus,
       class_schedule: classSchedule.length > 0 ? classSchedule : null,
       course_type: courseType,
+      location: courseType === 'external' ? formData.location : undefined, // Location only for external
+      cost: courseType === 'external' ? (formData.cost ? parseFloat(String(formData.cost)) : 0) : undefined, // Cost only for external
     });
 
     const courseId = (response.data as { id: number }).id;

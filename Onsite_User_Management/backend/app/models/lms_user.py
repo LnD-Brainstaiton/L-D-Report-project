@@ -37,6 +37,9 @@ class LMSUserCourse(Base):
     end_date = Column(DateTime, nullable=True)
     last_access = Column(DateTime, nullable=True)
     
+    # Enrollment timestamp from LMS (when user was actually enrolled in the course)
+    enrollment_time = Column(DateTime, nullable=True)  # From LMS API timecreated/timestart if available
+    
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

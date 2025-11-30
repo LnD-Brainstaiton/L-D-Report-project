@@ -115,11 +115,52 @@ const App: React.FC = () => {
           />
           {/* External courses */}
           <Route
+            path="/courses/external/planning"
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <Courses courseType="external" status="planning" />
+                </Layout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/courses/external/upcoming"
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <Courses courseType="external" status="upcoming" />
+                </Layout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/courses/external/ongoing"
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <Courses courseType="external" status="ongoing" />
+                </Layout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/courses/external/completed"
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <Courses courseType="external" status="completed" />
+                </Layout>
+              </PrivateRoute>
+            }
+          />
+          {/* Legacy external route - redirect to planning */}
+          <Route
             path="/courses/external"
             element={
               <PrivateRoute>
                 <Layout>
-                  <Courses courseType="external" status="all" />
+                  <Navigate to="/courses/external/planning" replace />
                 </Layout>
               </PrivateRoute>
             }

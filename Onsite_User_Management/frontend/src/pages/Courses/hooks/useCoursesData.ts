@@ -66,7 +66,9 @@ export const useCoursesData = (courseType: CourseType, status: string): UseCours
             categoryid: course.categoryid,
             course_type: 'online' as const,
             seat_limit: 0,
-            current_enrolled: course.enrollment_count || 0, // From local database
+            current_enrolled: course.enrollment_count || 0, // Total enrollment count
+            active_enrolled: course.active_enrollment_count || 0, // Active employees count
+            previous_enrolled: course.previous_enrollment_count || 0, // Previous employees count
             status: 'ongoing' as const,
             visible: course.visible === 1,
             is_lms_course: true,
@@ -97,7 +99,8 @@ export const useCoursesData = (courseType: CourseType, status: string): UseCours
           return;
         }
       } else {
-        const response = await coursesAPI.getAll();
+        // Pass course_type to filter courses by type
+        const response = await coursesAPI.getAll({ course_type: courseType });
         allCoursesData = response.data as CourseWithLMS[];
       }
 
@@ -124,9 +127,19 @@ export const useCoursesData = (courseType: CourseType, status: string): UseCours
 
         if (status === 'all') {
           filtered = filteredByType;
-        } else if (status === 'upcoming') {
+        } else if (status === 'planning') {
+          // Planning: Only show draft courses (not approved yet)
           filtered = filteredByType.filter((course) => {
             const courseStatus = getCourseStatus(course as any);
+            return courseStatus === 'planning' || courseStatus === 'draft';
+          });
+        } else if (status === 'upcoming') {
+          // Upcoming: Only show approved courses (ongoing status) that haven't started yet
+          filtered = filteredByType.filter((course) => {
+            const courseStatus = getCourseStatus(course as any);
+            // Only approved courses (status = 'ongoing') should appear in upcoming
+            if (courseStatus !== 'ongoing') return false;
+            
             const courseStartDate = course.startdate
               ? new Date(course.startdate * 1000)
               : course.start_date
@@ -134,21 +147,61 @@ export const useCoursesData = (courseType: CourseType, status: string): UseCours
                 : null;
             if (!courseStartDate) return false;
             courseStartDate.setHours(0, 0, 0, 0);
-            return (courseStatus === 'ongoing' || courseStatus === 'planning') && courseStartDate > today;
+            // Start date is in the future (tentative date becomes official when approved)
+            return courseStartDate > today;
           });
-        } else {
+        } else if (status === 'ongoing') {
+          // Ongoing: Only show approved courses (ongoing status) that have started
           filtered = filteredByType.filter((course) => {
             const courseStatus = getCourseStatus(course as any);
-            if (status === 'ongoing') {
-              const courseStartDate = course.startdate
-                ? new Date(course.startdate * 1000)
-                : course.start_date
-                  ? new Date(course.start_date)
-                  : null;
-              if (!courseStartDate) return false;
-              courseStartDate.setHours(0, 0, 0, 0);
-              return courseStatus === 'ongoing' && courseStartDate <= today;
+            // Only approved courses (status = 'ongoing') should appear in ongoing
+            if (courseStatus !== 'ongoing') return false;
+            
+            const courseStartDate = course.startdate
+              ? new Date(course.startdate * 1000)
+              : course.start_date
+                ? new Date(course.start_date)
+                : null;
+            if (!courseStartDate) return false;
+            courseStartDate.setHours(0, 0, 0, 0);
+            
+            // Check if course has ended
+            const courseEndDate = course.enddate
+              ? new Date(course.enddate * 1000)
+              : course.end_date
+                ? new Date(course.end_date)
+                : null;
+            if (courseEndDate) {
+              courseEndDate.setHours(0, 0, 0, 0);
+              // If end date has passed, it should be in completed, not ongoing
+              if (courseEndDate < today) return false;
             }
+            
+            // Course has started (start_date <= today) but hasn't ended
+            return courseStartDate <= today;
+          });
+        } else if (status === 'completed') {
+          // Completed: Only show approved courses that have ended
+          filtered = filteredByType.filter((course) => {
+            const courseStatus = getCourseStatus(course as any);
+            // Can be 'completed' status or 'ongoing' with end_date passed
+            if (courseStatus === 'completed') return true;
+            if (courseStatus !== 'ongoing') return false;
+            
+            // Check if end date has passed
+            const courseEndDate = course.enddate
+              ? new Date(course.enddate * 1000)
+              : course.end_date
+                ? new Date(course.end_date)
+                : null;
+            if (!courseEndDate) return false;
+            courseEndDate.setHours(0, 0, 0, 0);
+            return courseEndDate < today;
+          });
+        } else {
+          // Fallback for other statuses
+          filtered = filteredByType.filter((course) => {
+            const courseStatus = getCourseStatus(course as any);
             return courseStatus === status;
           });
         }

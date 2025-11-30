@@ -5,6 +5,7 @@ import { AxiosError } from 'axios';
 
 interface UseMentorsDataReturn {
   mentors: Mentor[];
+  sbus: string[];
   loading: boolean;
   message: AlertMessage | null;
   setMessage: React.Dispatch<React.SetStateAction<AlertMessage | null>>;
@@ -14,6 +15,7 @@ interface UseMentorsDataReturn {
 
 export function useMentorsData(): UseMentorsDataReturn {
   const [mentors, setMentors] = useState<Mentor[]>([]);
+  const [sbus, setSbus] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<AlertMessage | null>(null);
 
@@ -21,7 +23,16 @@ export function useMentorsData(): UseMentorsDataReturn {
     setLoading(true);
     try {
       const response = await mentorsAPI.getAll('all');
-      setMentors(response.data);
+      const mentorsData = response.data;
+      setMentors(mentorsData);
+      
+      // Extract unique SBUs from mentors
+      const uniqueSbus = [...new Set(
+        mentorsData
+          .map((m: Mentor) => m.department)
+          .filter((d: string | undefined): d is string => !!d && d.trim() !== '')
+      )].sort();
+      setSbus(uniqueSbus);
     } catch (error) {
       console.error('Error fetching mentors:', error);
       setMessage({ type: 'error', text: 'Error fetching mentors' });
@@ -52,6 +63,7 @@ export function useMentorsData(): UseMentorsDataReturn {
 
   return {
     mentors,
+    sbus,
     loading,
     message,
     setMessage,

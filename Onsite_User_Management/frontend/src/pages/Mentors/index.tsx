@@ -44,7 +44,7 @@ const Mentors: React.FC = () => {
   const [addExternalMentorDialogOpen, setAddExternalMentorDialogOpen] = useState(false);
 
   // Data hooks
-  const { mentors, loading, message, setMessage, fetchMentors, deleteMentor } = useMentorsData();
+  const { mentors, sbus, loading, message, setMessage, fetchMentors, deleteMentor } = useMentorsData();
 
   const filteredMentors = useFilteredMentors(
     mentors,
@@ -275,19 +275,16 @@ const Mentors: React.FC = () => {
             </TextField>
             <TextField
               select
-              label="Department"
+              label="SBU"
               value={selectedDepartment}
               onChange={(e) => setSelectedDepartment(e.target.value)}
-              sx={{ minWidth: 140 }}
+              sx={{ minWidth: 160 }}
               size="small"
             >
-              <MenuItem value="">All Departments</MenuItem>
-              <MenuItem value="IT">IT</MenuItem>
-              <MenuItem value="HR">HR</MenuItem>
-              <MenuItem value="Finance">Finance</MenuItem>
-              <MenuItem value="Operations">Operations</MenuItem>
-              <MenuItem value="Sales">Sales</MenuItem>
-              <MenuItem value="Marketing">Marketing</MenuItem>
+              <MenuItem value="">All SBUs</MenuItem>
+              {sbus.map((sbu) => (
+                <MenuItem key={sbu} value={sbu}>{sbu}</MenuItem>
+              ))}
             </TextField>
             <TextField
               select

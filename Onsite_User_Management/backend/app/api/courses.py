@@ -76,6 +76,7 @@ def create_course(course: CourseCreate, db: Session = Depends(get_db)):
 def get_courses(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
+    course_type: Optional[str] = Query(None, description="Filter by course type: onsite, online, external"),
     db: Session = Depends(get_db)
 ):
     """Get all courses. Automatically updates course status from ongoing to completed if end_date has passed."""
@@ -104,11 +105,18 @@ def get_courses(
             query = db.query(Course).options(
                 selectinload(Course.mentors).joinedload(CourseMentor.mentor)
             )
+            # Filter by course_type if provided
+            if course_type:
+                query = query.filter(Course.course_type == course_type)
             courses = query.order_by(Course.start_date.desc()).offset(skip).limit(limit).all()
         except Exception as load_error:
             # Fallback: load courses without eager loading
             logger.warning(f"Failed to eager load mentors: {load_error}")
-            courses = db.query(Course).order_by(Course.start_date.desc()).offset(skip).limit(limit).all()
+            query = db.query(Course)
+            # Filter by course_type if provided
+            if course_type:
+                query = query.filter(Course.course_type == course_type)
+            courses = query.order_by(Course.start_date.desc()).offset(skip).limit(limit).all()
         
         # Load mentors, comments, and drafts separately if not already loaded
         course_ids = [c.id for c in courses]

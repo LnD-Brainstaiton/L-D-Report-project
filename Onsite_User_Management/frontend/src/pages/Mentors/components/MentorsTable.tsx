@@ -47,7 +47,7 @@ const MentorsTable: React.FC<MentorsTableProps> = ({ mentors, onViewDetails, onV
               <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>Name</TableCell>
               <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>Mentor</TableCell>
               <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>Email</TableCell>
-              <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>Department</TableCell>
+              <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>SBU</TableCell>
               <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>Course History</TableCell>
               <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }} align="center">Remove</TableCell>
             </TableRow>

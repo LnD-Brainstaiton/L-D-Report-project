@@ -124,6 +124,8 @@ export interface CourseCreate {
   total_classes_offered?: number | null;
   prerequisite_course_id?: number | null;
   class_schedule?: ClassSchedule[] | null;
+  location?: string; // For external courses
+  cost?: number; // For external courses
 }
 
 export interface CourseUpdate extends Partial<CourseCreate> {
@@ -414,6 +416,8 @@ export interface CourseFormData {
   seat_limit?: number;
   total_classes_offered?: string | number | null;
   prerequisite_course_id?: number | null;
+  location?: string; // For external courses
+  cost?: number | string; // For external courses
 }
 
 export interface StudentFormData {

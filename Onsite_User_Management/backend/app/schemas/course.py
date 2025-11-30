@@ -18,6 +18,9 @@ class CourseCreate(BaseModel):
     prerequisite_course_id: Optional[int] = None
     status: Optional[CourseStatus] = CourseStatus.DRAFT  # Default to draft for planning courses
     class_schedule: Optional[List[Dict[str, str]]] = None  # Array of {day, start_time, end_time}
+    course_type: Optional[str] = 'onsite'  # onsite, online, external
+    location: Optional[str] = None  # For external courses
+    cost: Optional[Decimal] = None  # For external courses
 
 class CourseUpdate(BaseModel):
     name: Optional[str] = None
@@ -30,6 +33,9 @@ class CourseUpdate(BaseModel):
     prerequisite_course_id: Optional[int] = None
     status: Optional[CourseStatus] = None
     class_schedule: Optional[List[Dict[str, str]]] = None  # Array of {day, start_time, end_time}
+    course_type: Optional[str] = None  # onsite, online, external
+    location: Optional[str] = None  # For external courses
+    cost: Optional[Decimal] = None  # For external courses
 
 class CourseCostUpdate(BaseModel):
     food_cost: Optional[Decimal] = None
@@ -48,6 +54,9 @@ class CourseResponse(BaseModel):
     prerequisite_course_id: Optional[int]
     is_archived: bool
     status: CourseStatus
+    course_type: str  # onsite, online, external
+    location: Optional[str] = None  # For external courses
+    cost: Optional[Decimal] = None  # For external courses
     food_cost: Decimal
     other_cost: Decimal
     class_schedule: Optional[List[Dict[str, str]]] = None  # Array of {day, start_time, end_time}

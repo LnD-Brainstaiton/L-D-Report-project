@@ -63,6 +63,8 @@ function Courses({ courseType = 'onsite', status = 'all' }: CoursesProps): React
     seat_limit: 0,
     total_classes_offered: '',
     prerequisite_course_id: null,
+    location: '',
+    cost: 0,
   });
   const [classSchedule, setClassSchedule] = useState<ClassSchedule[]>([]);
   const [selectedMentors, setSelectedMentors] = useState<CourseMentorAssignment[]>([]);
@@ -234,7 +236,7 @@ function Courses({ courseType = 'onsite', status = 'all' }: CoursesProps): React
             </Box>
           </Box>
           <Box display="flex" gap={2}>
-            {status === 'planning' && courseType === 'onsite' && (
+            {status === 'planning' && (courseType === 'onsite' || courseType === 'external') && (
               <Button 
                 variant="contained" 
                 startIcon={<Add />} 
@@ -640,7 +642,16 @@ function Courses({ courseType = 'onsite', status = 'all' }: CoursesProps): React
                         )}
                         {courseType === 'online' && (
                           <TableCell align="right" sx={{ color: '#475569', fontWeight: 600 }}>
-                            {course.current_enrolled || '-'}
+                            <Box>
+                              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                {course.current_enrolled || '-'}
+                              </Typography>
+                              {(course as any).active_enrolled !== undefined && (
+                                <Typography variant="caption" sx={{ color: '#64748b', display: 'block' }}>
+                                  Active: {(course as any).active_enrolled || 0} | Previous: {(course as any).previous_enrolled || 0}
+                                </Typography>
+                              )}
+                            </Box>
                           </TableCell>
                         )}
                         {courseType !== 'online' && (
@@ -721,6 +732,12 @@ function Courses({ courseType = 'onsite', status = 'all' }: CoursesProps): React
         onCreate={handleSubmit}
         message={message}
         setMessage={setMessage}
+        selectedMentors={selectedMentors}
+        setSelectedMentors={setSelectedMentors}
+        assignInternalMentorDialogOpen={assignInternalMentorDialogOpen}
+        setAssignInternalMentorDialogOpen={setAssignInternalMentorDialogOpen}
+        addExternalMentorDialogOpen={addExternalMentorDialogOpen}
+        setAddExternalMentorDialogOpen={setAddExternalMentorDialogOpen}
       />
 
       {/* Edit Course Dialog */}

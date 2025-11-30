@@ -62,7 +62,9 @@ export const useFilteredCourses = (
       });
     }
 
-    if (status !== 'all' && courseType === 'onsite') {
+    if (status !== 'all' && (courseType === 'onsite' || courseType === 'external')) {
+      // For onsite and external: status filtering is already done in useCoursesData
+      // This is just for additional filtering if needed
       filtered = filtered.filter((course) => {
         const courseStatus = getCourseStatus(course as any);
         return courseStatus === status;

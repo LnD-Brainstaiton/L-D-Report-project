@@ -42,6 +42,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [coursesOpen, setCoursesOpen] = useState(false);
   const [onsiteOpen, setOnsiteOpen] = useState(false);
+  const [externalOpen, setExternalOpen] = useState(false);
   const [employeesOpen, setEmployeesOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
@@ -54,6 +55,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         const courseType = pathParts[2];
         if (courseType === 'onsite' && pathParts.length > 3) {
           setOnsiteOpen(true);
+        }
+        if (courseType === 'external' && pathParts.length > 3) {
+          setExternalOpen(true);
         }
       }
     }
@@ -78,6 +82,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const handleOnsiteClick = () => {
     setOnsiteOpen(!onsiteOpen);
+  };
+
+  const handleExternalClick = () => {
+    setExternalOpen(!externalOpen);
   };
 
   const handleEmployeesClick = () => {
@@ -186,18 +194,62 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               <ListItemText primary="Online" />
             </ListItemButton>
 
-            {/* External - direct link */}
-            <ListItemButton
-              sx={{ pl: 4 }}
-              selected={location.pathname === '/courses/external'}
-              onClick={() => {
-                navigate('/courses/external');
-                setMobileOpen(false);
-              }}
-            >
-              <ListItemIcon><SchoolIcon /></ListItemIcon>
-              <ListItemText primary="External" />
-            </ListItemButton>
+            {/* External submenu */}
+            <ListItem disablePadding>
+              <ListItemButton onClick={handleExternalClick} sx={{ pl: 4 }}>
+                <ListItemIcon><SchoolIcon /></ListItemIcon>
+                <ListItemText primary="External" />
+                {externalOpen ? <ExpandLess /> : <ExpandMore />}
+              </ListItemButton>
+            </ListItem>
+            <Collapse in={externalOpen} timeout="auto" unmountOnExit>
+              <List component="div" disablePadding>
+                <ListItemButton
+                  sx={{ pl: 6 }}
+                  selected={location.pathname === '/courses/external/planning'}
+                  onClick={() => {
+                    navigate('/courses/external/planning');
+                    setMobileOpen(false);
+                  }}
+                >
+                  <ListItemIcon><EventIcon /></ListItemIcon>
+                  <ListItemText primary="Planning" />
+                </ListItemButton>
+                <ListItemButton
+                  sx={{ pl: 6 }}
+                  selected={location.pathname === '/courses/external/upcoming'}
+                  onClick={() => {
+                    navigate('/courses/external/upcoming');
+                    setMobileOpen(false);
+                  }}
+                >
+                  <ListItemIcon><ScheduleIcon /></ListItemIcon>
+                  <ListItemText primary="Upcoming" />
+                </ListItemButton>
+                <ListItemButton
+                  sx={{ pl: 6 }}
+                  selected={location.pathname === '/courses/external/ongoing'}
+                  onClick={() => {
+                    navigate('/courses/external/ongoing');
+                    setMobileOpen(false);
+                  }}
+                >
+                  <ListItemIcon><PlayCircleIcon /></ListItemIcon>
+                  <ListItemText primary="Ongoing" />
+                </ListItemButton>
+                <ListItemButton
+                  sx={{ pl: 6 }}
+                  selected={location.pathname === '/courses/external/completed'}
+                  onClick={() => {
+                    navigate('/courses/external/completed');
+                    setMobileOpen(false);
+                  }}
+                >
+                  <ListItemIcon><CheckCircleIcon /></ListItemIcon>
+                  <ListItemText primary="Completed" />
+                </ListItemButton>
+              </List>
+            </Collapse>
           </List>
         </Collapse>
 

@@ -63,10 +63,27 @@ async def get_lms_courses(
             # Get enrollment count from local database if requested
             if include_enrollment_counts:
                 # Get from LMSUserCourse table (our local enrollments)
-                enrollment_count = db.query(LMSUserCourse).filter(
+                # Join with Student table to get is_active status
+                
+                # Total enrollment count
+                total_count = db.query(LMSUserCourse).filter(
                     LMSUserCourse.lms_course_id == str(course.id)
                 ).count()
-                course_data["enrollment_count"] = enrollment_count
+                
+                # Active employees count (is_active = True)
+                active_count = db.query(LMSUserCourse).join(
+                    Student, LMSUserCourse.student_id == Student.id
+                ).filter(
+                    LMSUserCourse.lms_course_id == str(course.id),
+                    Student.is_active == True
+                ).count()
+                
+                # Previous employees count (is_active = False)
+                previous_count = total_count - active_count
+                
+                course_data["enrollment_count"] = total_count
+                course_data["active_enrollment_count"] = active_count
+                course_data["previous_enrollment_count"] = previous_count
             
             result.append(course_data)
         
@@ -97,6 +114,15 @@ async def get_lms_course_enrollments(course_id: int, db: Session = Depends(get_d
             # Get student info
             student = db.query(Student).filter(Student.id == enrollment.student_id).first()
             
+            # Get reporting manager info if available
+            reporting_manager_email = None
+            if student and student.reporting_manager_employee_id:
+                reporting_manager = db.query(Student).filter(
+                    Student.employee_id == student.reporting_manager_employee_id
+                ).first()
+                if reporting_manager:
+                    reporting_manager_email = reporting_manager.email
+            
             user_data = {
                 "id": enrollment.id,
                 "student_id": enrollment.student_id,  # Our internal student database ID for fetching details
@@ -105,11 +131,15 @@ async def get_lms_course_enrollments(course_id: int, db: Session = Depends(get_d
                 "fullname": student.name if student else "",
                 "email": student.email if student else "",
                 "department": student.department if student else "",
+                "sbu_name": student.sbu_name if student else "",  # SBU name from ERP
                 "designation": student.designation if student else "",
+                "reporting_manager_name": student.reporting_manager_name if student else "",
+                "reporting_manager_email": reporting_manager_email,
                 "progress": enrollment.progress or 0,
                 "completed": enrollment.completed,
                 "firstaccess": int(enrollment.start_date.timestamp()) if enrollment.start_date else None,
                 "lastaccess": int(enrollment.last_access.timestamp()) if enrollment.last_access else None,
+                "is_active": student.is_active if student else True,  # Include is_active status
             }
             result.append(user_data)
         
@@ -297,6 +327,24 @@ async def sync_lms_data(
                     # Get is_mandatory from cached course (store as integer: 1 or 0)
                     is_mandatory = 1 if course.is_mandatory == 1 else 0
                     
+                    # Use course's timecreated as enrollment_time (when course was created = when it was assigned)
+                    # This is the best approximation since enrollment API doesn't provide user-specific enrollment timestamps
+                    enrollment_timestamp = None
+                    if course.timecreated:
+                        enrollment_timestamp = datetime.fromtimestamp(course.timecreated)
+                    # Fallback: try to get from user API response if available
+                    elif 'timecreated' in user:
+                        enrollment_timestamp = datetime.fromtimestamp(user['timecreated']) if user.get('timecreated') else None
+                    elif 'timestart' in user:
+                        enrollment_timestamp = datetime.fromtimestamp(user['timestart']) if user.get('timestart') else None
+                    elif 'enrolments' in user and isinstance(user['enrolments'], list) and len(user['enrolments']) > 0:
+                        # Check first enrollment for timecreated
+                        first_enrol = user['enrolments'][0]
+                        if 'timecreated' in first_enrol:
+                            enrollment_timestamp = datetime.fromtimestamp(first_enrol['timecreated']) if first_enrol.get('timecreated') else None
+                        elif 'timestart' in first_enrol:
+                            enrollment_timestamp = datetime.fromtimestamp(first_enrol['timestart']) if first_enrol.get('timestart') else None
+                    
                     if existing:
                         # Update
                         existing.course_name = course.fullname
@@ -305,6 +353,9 @@ async def sync_lms_data(
                         existing.is_mandatory = is_mandatory
                         existing.start_date = datetime.fromtimestamp(course.startdate) if course.startdate else None
                         existing.end_date = datetime.fromtimestamp(course.enddate) if course.enddate else None
+                        # Update enrollment_time if we got it from API and it's not already set
+                        if enrollment_timestamp and not existing.enrollment_time:
+                            existing.enrollment_time = enrollment_timestamp
                     else:
                         # Create
                         new_enrollment = LMSUserCourse(
@@ -317,6 +368,7 @@ async def sync_lms_data(
                             is_mandatory=is_mandatory,
                             start_date=datetime.fromtimestamp(course.startdate) if course.startdate else None,
                             end_date=datetime.fromtimestamp(course.enddate) if course.enddate else None,
+                            enrollment_time=enrollment_timestamp,  # Store enrollment timestamp from LMS if available
                         )
                         db.add(new_enrollment)
                     

@@ -115,14 +115,16 @@ const CreateStudentDialog: React.FC<CreateStudentDialogProps> = ({
               label="Career Start Date"
               value={newStudent.career_start_date}
               onChange={(date) => setNewStudent({ ...newStudent, career_start_date: date })}
-              slotProps={{ textField: { fullWidth: true } }}
+              format="dd/MM/yy"
+              slotProps={{ textField: { fullWidth: true, placeholder: 'DD/MM/YY' } }}
             />
             <Box sx={{ mt: 2 }}>
               <DatePicker
                 label="BS Joining Date"
                 value={newStudent.bs_joining_date}
                 onChange={(date) => setNewStudent({ ...newStudent, bs_joining_date: date })}
-                slotProps={{ textField: { fullWidth: true } }}
+                format="dd/MM/yy"
+                slotProps={{ textField: { fullWidth: true, placeholder: 'DD/MM/YY' } }}
               />
             </Box>
           </LocalizationProvider>

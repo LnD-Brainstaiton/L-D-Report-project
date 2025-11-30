@@ -19,7 +19,7 @@ import {
   Tab,
   Tooltip,
 } from '@mui/material';
-import { Star } from '@mui/icons-material';
+import { Star, OpenInNew } from '@mui/icons-material';
 import { studentsAPI } from '../services/api';
 import { formatExperience } from '../utils/experienceUtils';
 import { formatDateForDisplay } from '../utils/dateUtils';
@@ -107,6 +107,7 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> = ({
   const [viewingReportingManager, setViewingReportingManager] = useState(false);
   const [sbuHeadEnrollment, setSbuHeadEnrollment] = useState<EnrollmentWithDetails | null>(null);
   const [reportingManagerEnrollment, setReportingManagerEnrollment] = useState<EnrollmentWithDetails | null>(null);
+  const [loadingLinkedUser, setLoadingLinkedUser] = useState(false);
 
   const [completionStats, setCompletionStats] = useState<Record<CourseType, CompletionStats>>({
     onsite: { rate: 0, completed: 0, total: 0 },
@@ -141,46 +142,85 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> = ({
     }
   };
 
-  const handleViewSbuHead = () => {
-    if (!sbuHead) return;
-    
-    // Create a mock enrollment for the SBU head to open their profile
-    const sbuHeadEnroll: EnrollmentWithDetails = {
-      id: 0,
-      student_id: sbuHead.id,
-      student_name: sbuHead.name,
-      student_email: sbuHead.email,
-      student_department: sbuHead.department,
-      student_employee_id: sbuHead.employee_id,
-      student_designation: sbuHead.designation,
-      course_id: 0,
-      approval_status: 'Approved',
-      eligibility_status: 'Eligible',
-    };
-    
-    setSbuHeadEnrollment(sbuHeadEnroll);
-    setViewingSbuHead(true);
+  const fetchStudentByEmployeeId = async (employeeId: string): Promise<EnrollmentWithDetails | null> => {
+    try {
+      // Fetch all students and find the one with matching employee_id
+      const response = await studentsAPI.getAllWithCourses({});
+      const students = response.data as any[];
+      
+      // Find student by employee_id (case-insensitive)
+      const student = students.find(
+        (s) => s.employee_id?.toUpperCase() === employeeId.toUpperCase()
+      );
+      
+      if (!student) {
+        console.error(`Student with employee_id ${employeeId} not found`);
+        return null;
+      }
+      
+      // Create a complete enrollment object with all student data
+      const enrollmentData: EnrollmentWithDetails = {
+        id: 0,
+        student_id: student.id,
+        student_name: student.name,
+        student_email: student.email || '',
+        student_department: student.department || '',
+        student_employee_id: student.employee_id,
+        student_designation: student.designation || '',
+        student_experience_years: student.experience_years || 0,
+        student_career_start_date: student.career_start_date || null,
+        student_bs_joining_date: student.bs_joining_date || null,
+        student_total_experience: student.total_experience || null,
+        course_id: 0,
+        approval_status: 'Approved',
+        eligibility_status: 'Eligible',
+        // Include SBU Head and Reporting Manager data
+        sbu_head_employee_id: student.sbu_head_employee_id || null,
+        sbu_head_name: student.sbu_head_name || null,
+        reporting_manager_employee_id: student.reporting_manager_employee_id || null,
+        reporting_manager_name: student.reporting_manager_name || null,
+        is_previous_employee: !student.is_active || false,
+        student_exit_date: student.exit_date || null,
+        student_exit_reason: student.exit_reason || null,
+      };
+      
+      return enrollmentData;
+    } catch (error) {
+      console.error('Error fetching student by employee_id:', error);
+      return null;
+    }
   };
 
-  const handleViewReportingManager = () => {
+  const handleViewSbuHead = async () => {
+    if (!sbuHead) return;
+    
+    setLoadingLinkedUser(true);
+    try {
+      // Fetch full student data by employee_id
+      const sbuHeadEnroll = await fetchStudentByEmployeeId(sbuHead.employee_id);
+      if (sbuHeadEnroll) {
+        setSbuHeadEnrollment(sbuHeadEnroll);
+        setViewingSbuHead(true);
+      }
+    } finally {
+      setLoadingLinkedUser(false);
+    }
+  };
+
+  const handleViewReportingManager = async () => {
     if (!reportingManager) return;
     
-    // Create a mock enrollment for the Reporting Manager to open their profile
-    const rmEnroll: EnrollmentWithDetails = {
-      id: 0,
-      student_id: 0,
-      student_name: reportingManager.name,
-      student_email: '',
-      student_department: enrollment?.student_department || '',
-      student_employee_id: reportingManager.employee_id,
-      student_designation: '',
-      course_id: 0,
-      approval_status: 'Approved',
-      eligibility_status: 'Eligible',
-    };
-    
-    setReportingManagerEnrollment(rmEnroll);
-    setViewingReportingManager(true);
+    setLoadingLinkedUser(true);
+    try {
+      // Fetch full student data by employee_id
+      const rmEnroll = await fetchStudentByEmployeeId(reportingManager.employee_id);
+      if (rmEnroll) {
+        setReportingManagerEnrollment(rmEnroll);
+        setViewingReportingManager(true);
+      }
+    } finally {
+      setLoadingLinkedUser(false);
+    }
   };
 
   const fetchStudentEnrollments = async () => {
@@ -211,7 +251,7 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> = ({
         completion_status: course.completion_status,
         progress: course.progress ?? 0,
         course_end_date: course.course_end_date,
-        date_assigned: course.course_start_date,
+        date_assigned: course.date_assigned, // Use date_assigned from backend (now uses created_at - when course was assigned)
         lastaccess: course.lastaccess,
         is_lms_course: true,
         is_mandatory: course.is_mandatory === true || course.is_mandatory === 1,
@@ -629,12 +669,58 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> = ({
                                 </Box>
                               )}
 
+                              {enroll.is_lms_course && enroll.date_assigned && (
+                                <Box>
+                                  <Typography variant="caption" color="text.secondary" display="block">Start Date</Typography>
+                                  <Typography variant="body2" sx={{ mt: 0.5 }}>
+                                    {typeof enroll.date_assigned === 'number' 
+                                      ? new Date(enroll.date_assigned * 1000).toLocaleDateString('en-US', {
+                                          year: 'numeric',
+                                          month: 'short',
+                                          day: 'numeric'
+                                        })
+                                      : formatDateForDisplay(enroll.date_assigned)}
+                                  </Typography>
+                                </Box>
+                              )}
+
                               {enroll.is_lms_course && enroll.lastaccess && (
                                 <Box>
                                   <Typography variant="caption" color="text.secondary" display="block">Last Access</Typography>
                                   <Typography variant="body2" sx={{ mt: 0.5 }}>
-                                    {formatDateForDisplay(enroll.lastaccess)}
+                                    {typeof enroll.lastaccess === 'number' 
+                                      ? new Date(enroll.lastaccess * 1000).toLocaleDateString('en-US', {
+                                          year: 'numeric',
+                                          month: 'short',
+                                          day: 'numeric',
+                                          hour: '2-digit',
+                                          minute: '2-digit'
+                                        })
+                                      : formatDateForDisplay(enroll.lastaccess)}
                                   </Typography>
+                                </Box>
+                              )}
+
+                              {enroll.is_lms_course && (
+                                <Box>
+                                  <Typography variant="caption" color="text.secondary" display="block">LMS Link</Typography>
+                                  <Button
+                                    size="small"
+                                    startIcon={<OpenInNew sx={{ fontSize: 14 }} />}
+                                    href={`https://lms.elearning23.com/course/view.php?id=${enroll.course_id}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    sx={{
+                                      textTransform: 'none',
+                                      fontSize: '0.75rem',
+                                      p: 0.5,
+                                      mt: 0.5,
+                                      minWidth: 'auto',
+                                      color: theme.palette.info.main,
+                                    }}
+                                  >
+                                    Open
+                                  </Button>
                                 </Box>
                               )}
 

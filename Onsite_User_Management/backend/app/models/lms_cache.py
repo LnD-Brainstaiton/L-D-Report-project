@@ -14,6 +14,7 @@ class LMSCourseCache(Base):
     summary = Column(Text)
     startdate = Column(Integer)  # Unix timestamp
     enddate = Column(Integer)  # Unix timestamp
+    timecreated = Column(Integer)  # Unix timestamp - when course was created
     categoryid = Column(Integer)
     categoryname = Column(String)
     visible = Column(Integer, default=1)

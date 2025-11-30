@@ -115,6 +115,7 @@ class LMSCacheService:
                     summary=course.get("summary", ""),
                     startdate=course.get("startdate"),
                     enddate=course.get("enddate"),
+                    timecreated=course.get("timecreated"),  # Store course creation time
                     categoryid=course.get("categoryid"),
                     categoryname=category_map.get(course.get("categoryid"), "Unknown"),
                     visible=course.get("visible", 1),

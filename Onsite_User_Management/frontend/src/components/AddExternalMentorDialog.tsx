@@ -15,8 +15,7 @@ interface ExternalMentorData {
   name: string;
   email: string;
   company: string;
-  designation: string;
-  specialty: string;
+  expertise: string;
   hours_taught: string;
   amount_paid: string;
 }
@@ -38,8 +37,7 @@ const initialFormState: ExternalMentorData = {
   name: '',
   email: '',
   company: '',
-  designation: '',
-  specialty: '',
+  expertise: '',
   hours_taught: '',
   amount_paid: '',
 };
@@ -78,11 +76,8 @@ const AddExternalMentorDialog: React.FC<AddExternalMentorDialogProps> = ({
       if (externalMentorData.company?.trim()) {
         payload.company = externalMentorData.company.trim();
       }
-      if (externalMentorData.designation?.trim()) {
-        payload.designation = externalMentorData.designation.trim();
-      }
-      if (externalMentorData.specialty?.trim()) {
-        payload.specialty = externalMentorData.specialty.trim();
+      if (externalMentorData.expertise?.trim()) {
+        payload.specialty = externalMentorData.expertise.trim();  // Map to specialty field in backend
       }
 
       const response = await mentorsAPI.createExternal(payload as any);
@@ -146,18 +141,12 @@ const AddExternalMentorDialog: React.FC<AddExternalMentorDialogProps> = ({
           sx={{ mt: 2 }}
         />
         <TextField
-          label="Designation"
+          label="Expertise"
           fullWidth
-          value={externalMentorData.designation}
-          onChange={(e) => setExternalMentorData({ ...externalMentorData, designation: e.target.value })}
+          value={externalMentorData.expertise}
+          onChange={(e) => setExternalMentorData({ ...externalMentorData, expertise: e.target.value })}
           sx={{ mt: 2 }}
-        />
-        <TextField
-          label="Specialty"
-          fullWidth
-          value={externalMentorData.specialty}
-          onChange={(e) => setExternalMentorData({ ...externalMentorData, specialty: e.target.value })}
-          sx={{ mt: 2 }}
+          placeholder="e.g., Python, Machine Learning, Project Management"
         />
         <TextField
           label="Hours Taught"

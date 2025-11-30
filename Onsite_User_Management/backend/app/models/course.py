@@ -31,6 +31,9 @@ class Course(Base):
     prerequisite_course_id = Column(Integer, ForeignKey("courses.id"), nullable=True)
     is_archived = Column(Boolean, default=False)
     status = Column(Enum(CourseStatus, values_callable=lambda x: [e.value for e in x]), nullable=False, default=CourseStatus.DRAFT, index=True)  # draft, ongoing, completed
+    course_type = Column(String, nullable=False, default='onsite', index=True)  # onsite, online, external
+    location = Column(String, nullable=True)  # For external courses
+    cost = Column(Numeric(10, 2), nullable=True)  # For external courses
     food_cost = Column(Numeric(10, 2), nullable=False, default=0.0)
     other_cost = Column(Numeric(10, 2), nullable=False, default=0.0)
     class_schedule = Column(JSON, nullable=True)  # Array of {day: str, start_time: str, end_time: str} e.g., [{"day": "Tuesday", "start_time": "14:00", "end_time": "17:00"}]

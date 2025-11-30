@@ -58,7 +58,12 @@ export const useEnrollments = (
             date_assigned: user.firstaccess || (course as any).startdate || null,
             lastaccess: user.lastaccess || null,
             is_lms_enrollment: true,
-          };
+            is_active: user.is_active !== false,  // Include is_active status (default to true if not provided)
+            // New fields for online course enrollments
+            sbu_name: user.sbu_name || user.department || 'Unknown',
+            reporting_manager_name: user.reporting_manager_name || '',
+            reporting_manager_email: user.reporting_manager_email || '',
+          } as any;  // Type assertion to include new fields
         });
         
         setEnrollments(mappedEnrollments);

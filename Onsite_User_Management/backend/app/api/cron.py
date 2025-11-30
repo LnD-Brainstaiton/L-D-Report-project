@@ -245,6 +245,22 @@ async def daily_sync_cron_job(
                         # Get is_mandatory from cached course (store as integer: 1 or 0)
                         is_mandatory = 1 if course.is_mandatory == 1 else 0
                         
+                        # Use course's timecreated as enrollment_time (when course was created = when it was assigned)
+                        enrollment_timestamp = None
+                        if course.timecreated:
+                            enrollment_timestamp = datetime.fromtimestamp(course.timecreated)
+                        # Fallback: try to get from user API response if available
+                        elif 'timecreated' in user:
+                            enrollment_timestamp = datetime.fromtimestamp(user['timecreated']) if user.get('timecreated') else None
+                        elif 'timestart' in user:
+                            enrollment_timestamp = datetime.fromtimestamp(user['timestart']) if user.get('timestart') else None
+                        elif 'enrolments' in user and isinstance(user['enrolments'], list) and len(user['enrolments']) > 0:
+                            first_enrol = user['enrolments'][0]
+                            if 'timecreated' in first_enrol:
+                                enrollment_timestamp = datetime.fromtimestamp(first_enrol['timecreated']) if first_enrol.get('timecreated') else None
+                            elif 'timestart' in first_enrol:
+                                enrollment_timestamp = datetime.fromtimestamp(first_enrol['timestart']) if first_enrol.get('timestart') else None
+                        
                         if existing:
                             existing.course_name = course.fullname
                             existing.course_shortname = course.shortname
@@ -252,6 +268,9 @@ async def daily_sync_cron_job(
                             existing.is_mandatory = is_mandatory
                             existing.start_date = datetime.fromtimestamp(course.startdate) if course.startdate else None
                             existing.end_date = datetime.fromtimestamp(course.enddate) if course.enddate else None
+                            # Update enrollment_time if we got it from API and it's not already set
+                            if enrollment_timestamp and not existing.enrollment_time:
+                                existing.enrollment_time = enrollment_timestamp
                         else:
                             new_enrollment = LMSUserCourse(
                                 student_id=student.id,
@@ -263,6 +282,7 @@ async def daily_sync_cron_job(
                                 is_mandatory=is_mandatory,
                                 start_date=datetime.fromtimestamp(course.startdate) if course.startdate else None,
                                 end_date=datetime.fromtimestamp(course.enddate) if course.enddate else None,
+                                enrollment_time=enrollment_timestamp,  # Store enrollment timestamp from LMS if available
                             )
                             db.add(new_enrollment)
                         

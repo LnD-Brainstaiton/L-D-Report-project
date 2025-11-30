@@ -86,6 +86,8 @@ const CourseFormDialog: React.FC<CourseFormDialogProps> = ({
   const isFormValid = (): boolean => {
     if (!formData.start_date || (formData.seat_limit ?? 0) <= 0) return false;
     if (isCreate && (!formData.name || !formData.batch_code)) return false;
+    // For external courses, location is required
+    if (courseType === 'external' && isCreate && !formData.location) return false;
     return true;
   };
 
@@ -149,10 +151,12 @@ const CourseFormDialog: React.FC<CourseFormDialogProps> = ({
                   handleFormDataChange({ start_date: newValue, end_date: null });
                 }
               }}
+              format="dd/MM/yy"
               slotProps={{
                 textField: {
                   fullWidth: true,
                   required: true,
+                  placeholder: 'DD/MM/YY',
                 },
               }}
             />
@@ -165,9 +169,11 @@ const CourseFormDialog: React.FC<CourseFormDialogProps> = ({
                 }
               }}
               minDate={formData.start_date || undefined}
+              format="dd/MM/yy"
               slotProps={{
                 textField: {
                   fullWidth: true,
+                  placeholder: 'DD/MM/YY',
                   error: !!(formData.end_date && formData.start_date && formData.end_date < formData.start_date),
                   helperText:
                     formData.end_date && formData.start_date && formData.end_date < formData.start_date
@@ -200,8 +206,8 @@ const CourseFormDialog: React.FC<CourseFormDialogProps> = ({
             inputProps={{ min: 0 }}
           />
 
-          {/* Prerequisite Course */}
-          {(isCreate || formData.prerequisite_course_id !== undefined) && (
+          {/* Prerequisite Course - Only for onsite courses */}
+          {(isCreate || formData.prerequisite_course_id !== undefined) && courseType !== 'external' && (
             <TextField
               select
               label="Prerequisite Course"
@@ -222,49 +228,78 @@ const CourseFormDialog: React.FC<CourseFormDialogProps> = ({
             </TextField>
           )}
 
+          {/* Location - Only for external courses */}
+          {courseType === 'external' && (
+            <TextField
+              label="Location"
+              value={formData.location || ''}
+              onChange={(e) => handleFormDataChange({ location: e.target.value })}
+              fullWidth
+              required
+            />
+          )}
+
+          {/* Cost - Only for external courses */}
+          {courseType === 'external' && (
+            <TextField
+              label="Cost"
+              type="number"
+              value={formData.cost || ''}
+              onChange={(e) => handleFormDataChange({ cost: e.target.value ? parseFloat(e.target.value) : 0 })}
+              fullWidth
+              inputProps={{ min: 0, step: 0.01 }}
+              InputProps={{
+                startAdornment: <Typography sx={{ mr: 1, color: 'text.secondary' }}>Tk</Typography>,
+              }}
+            />
+          )}
+
           <Divider sx={{ my: 2 }} />
 
           {/* Class Schedule */}
           <ClassScheduleForm schedule={classSchedule} onChange={setClassSchedule} />
 
           {/* Create Mode: Draft Checkbox and Mentors */}
-          {isCreate && courseType === 'onsite' && (
+          {isCreate && (courseType === 'onsite' || courseType === 'external') && (
             <>
               <Divider sx={{ my: 2 }} />
 
-              {/* Draft Checkbox */}
-              <Box
-                sx={{
-                  p: 2,
-                  borderRadius: 2,
-                  bgcolor: alpha(theme.palette.primary.main, 0.05),
-                  border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
-                }}
-              >
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={createAsDraft}
-                      onChange={(e) => setCreateAsDraft?.(e.target.checked)}
-                      color="primary"
+              {/* Draft Checkbox - Only for onsite */}
+              {courseType === 'onsite' && (
+                <>
+                  <Box
+                    sx={{
+                      p: 2,
+                      borderRadius: 2,
+                      bgcolor: alpha(theme.palette.primary.main, 0.05),
+                      border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
+                    }}
+                  >
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={createAsDraft}
+                          onChange={(e) => setCreateAsDraft?.(e.target.checked)}
+                          color="primary"
+                        />
+                      }
+                      label={
+                        <Box>
+                          <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                            Create as Draft
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {createAsDraft
+                              ? 'Course will be created in planning stage.'
+                              : 'Course will be created directly as ongoing.'}
+                          </Typography>
+                        </Box>
+                      }
                     />
-                  }
-                  label={
-                    <Box>
-                      <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                        Create as Draft
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {createAsDraft
-                          ? 'Course will be created in planning stage.'
-                          : 'Course will be created directly as ongoing.'}
-                      </Typography>
-                    </Box>
-                  }
-                />
-              </Box>
-
-              <Divider sx={{ my: 2 }} />
+                  </Box>
+                  <Divider sx={{ my: 2 }} />
+                </>
+              )}
 
               {/* Mentor Assignment */}
               <Box>
@@ -273,14 +308,16 @@ const CourseFormDialog: React.FC<CourseFormDialogProps> = ({
                     Assign Mentors
                   </Typography>
                   <Box display="flex" gap={1}>
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      startIcon={<PersonAdd />}
-                      onClick={onAssignInternalMentor}
-                    >
-                      Assign Internal
-                    </Button>
+                    {courseType === 'onsite' && (
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        startIcon={<PersonAdd />}
+                        onClick={onAssignInternalMentor}
+                      >
+                        Assign Internal
+                      </Button>
+                    )}
                     <Button
                       variant="outlined"
                       size="small"
@@ -294,7 +331,11 @@ const CourseFormDialog: React.FC<CourseFormDialogProps> = ({
 
                 {selectedMentors.length === 0 ? (
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                    No mentors assigned. Click "Assign Internal" or "Add External" to assign mentors to this course.
+                    {courseType === 'external' && formData.location ? (
+                      <>Location: <strong>{formData.location}</strong></>
+                    ) : (
+                      <>No mentors assigned. Click {courseType === 'onsite' ? '"Assign Internal" or ' : ''}"Add External" to assign mentors to this course.</>
+                    )}
                   </Typography>
                 ) : (
                   <Box display="flex" flexDirection="column" gap={1}>

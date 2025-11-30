@@ -339,7 +339,8 @@ def get_student_enrollments(student_id: int, db: Session = Depends(get_db)):
             'progress': lms_course.progress or 0,
             'course_start_date': lms_course.start_date.isoformat() if lms_course.start_date else None,
             'course_end_date': lms_course.end_date.isoformat() if lms_course.end_date else None,
-            'lastaccess': lms_course.last_access.isoformat() if lms_course.last_access else None,
+            'date_assigned': int(lms_course.enrollment_time.timestamp()) if lms_course.enrollment_time else (int(lms_course.created_at.timestamp()) if lms_course.created_at else None),  # Unix timestamp - when course was assigned (uses enrollment_time if available, otherwise created_at)
+            'lastaccess': int(lms_course.last_access.timestamp()) if lms_course.last_access else None,  # Unix timestamp for frontend
             'is_lms_course': True,
             'is_mandatory': lms_course.is_mandatory == 1 if hasattr(lms_course, 'is_mandatory') and lms_course.is_mandatory is not None else False,
             'student_name': student.name,
@@ -1491,6 +1492,22 @@ async def sync_lms_course_enrollments(db: Session = Depends(get_db)):
                             LMSUserCourse.lms_course_id == str(course_id)
                         ).first()
                         
+                        # Use course's timecreated as enrollment_time (when course was created = when it was assigned)
+                        enrollment_timestamp = None
+                        if course.get('timecreated'):
+                            enrollment_timestamp = datetime.fromtimestamp(course['timecreated'])
+                        # Fallback: try to get from user API response if available
+                        elif 'timecreated' in user:
+                            enrollment_timestamp = datetime.fromtimestamp(user['timecreated']) if user.get('timecreated') else None
+                        elif 'timestart' in user:
+                            enrollment_timestamp = datetime.fromtimestamp(user['timestart']) if user.get('timestart') else None
+                        elif 'enrolments' in user and isinstance(user['enrolments'], list) and len(user['enrolments']) > 0:
+                            first_enrol = user['enrolments'][0]
+                            if 'timecreated' in first_enrol:
+                                enrollment_timestamp = datetime.fromtimestamp(first_enrol['timecreated']) if first_enrol.get('timecreated') else None
+                            elif 'timestart' in first_enrol:
+                                enrollment_timestamp = datetime.fromtimestamp(first_enrol['timestart']) if first_enrol.get('timestart') else None
+                        
                         if not existing_enrollment:
                             # Create new LMS course enrollment record
                             lms_enrollment = LMSUserCourse(
@@ -1501,9 +1518,13 @@ async def sync_lms_course_enrollments(db: Session = Depends(get_db)):
                                 course_shortname=course_shortname,
                                 lms_user_id=str(user.get("id", "")),
                                 progress=0,  # Will be updated separately if needed
-                                completed=False
+                                completed=False,
+                                enrollment_time=enrollment_timestamp,  # Store enrollment timestamp from LMS if available
                             )
                             db.add(lms_enrollment)
+                        elif enrollment_timestamp and not existing_enrollment.enrollment_time:
+                            # Update enrollment_time if we got it from API and it's not already set
+                            existing_enrollment.enrollment_time = enrollment_timestamp
                         
             except Exception as e:
                 error_msg = f"Error processing course {course_id} ({course_name}): {str(e)}"
@@ -1723,12 +1744,31 @@ async def daily_sync_cron_job(
                             LMSUserCourse.lms_course_id == str(course.id)
                         ).first()
                         
+                        # Use course's timecreated as enrollment_time (when course was created = when it was assigned)
+                        enrollment_timestamp = None
+                        if course.timecreated:
+                            enrollment_timestamp = datetime.fromtimestamp(course.timecreated)
+                        # Fallback: try to get from user API response if available
+                        elif 'timecreated' in user:
+                            enrollment_timestamp = datetime.fromtimestamp(user['timecreated']) if user.get('timecreated') else None
+                        elif 'timestart' in user:
+                            enrollment_timestamp = datetime.fromtimestamp(user['timestart']) if user.get('timestart') else None
+                        elif 'enrolments' in user and isinstance(user['enrolments'], list) and len(user['enrolments']) > 0:
+                            first_enrol = user['enrolments'][0]
+                            if 'timecreated' in first_enrol:
+                                enrollment_timestamp = datetime.fromtimestamp(first_enrol['timecreated']) if first_enrol.get('timecreated') else None
+                            elif 'timestart' in first_enrol:
+                                enrollment_timestamp = datetime.fromtimestamp(first_enrol['timestart']) if first_enrol.get('timestart') else None
+                        
                         if existing:
                             existing.course_name = course.fullname
                             existing.course_shortname = course.shortname
                             existing.category_name = course.categoryname
                             existing.start_date = datetime.fromtimestamp(course.startdate) if course.startdate else None
                             existing.end_date = datetime.fromtimestamp(course.enddate) if course.enddate else None
+                            # Update enrollment_time if we got it from course and it's not already set
+                            if enrollment_timestamp and not existing.enrollment_time:
+                                existing.enrollment_time = enrollment_timestamp
                         else:
                             new_enrollment = LMSUserCourse(
                                 student_id=student.id,
@@ -1739,6 +1779,7 @@ async def daily_sync_cron_job(
                                 category_name=course.categoryname,
                                 start_date=datetime.fromtimestamp(course.startdate) if course.startdate else None,
                                 end_date=datetime.fromtimestamp(course.enddate) if course.enddate else None,
+                                enrollment_time=enrollment_timestamp,  # Store course timecreated as enrollment time
                             )
                             db.add(new_enrollment)
                         

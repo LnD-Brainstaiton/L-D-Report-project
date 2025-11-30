@@ -7,6 +7,7 @@ import {
   CircularProgress,
   useTheme,
   alpha,
+  Typography,
 } from '@mui/material';
 import { ArrowBack } from '@mui/icons-material';
 import { useCourseDetailData } from './hooks/useCourseDetailData';
@@ -89,6 +90,9 @@ function CourseDetail(): React.ReactElement {
   
   // Enrollment sections - different for onsite vs online courses
   const isOnlineCourse = course?.is_lms_course === true;
+  
+  // Employee filter state (for online courses)
+  const [employeeFilter, setEmployeeFilter] = useState<'all' | 'active' | 'previous'>('active');
   
   // Dialogs state
   const [withdrawDialogOpen, setWithdrawDialogOpen] = useState<boolean>(false);
@@ -321,9 +325,52 @@ function CourseDetail(): React.ReactElement {
           />
         )}
 
+        {/* Employee Filter - Only for online courses */}
+        {isOnlineCourse && (
+          <Box sx={{ mb: 3, p: 2, backgroundColor: alpha(theme.palette.primary.main, 0.05), borderRadius: 2, border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}` }}>
+            <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
+              <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.secondary' }}>
+                Filter by Employee Status:
+              </Typography>
+              <Box display="flex" gap={1} flexWrap="wrap">
+                <Button
+                  variant={employeeFilter === 'all' ? 'contained' : 'outlined'}
+                  size="small"
+                  onClick={() => setEmployeeFilter('all')}
+                  sx={{ textTransform: 'none', minWidth: 100 }}
+                >
+                  All ({loadingEnrollments ? '...' : enrollments.length})
+                </Button>
+                <Button
+                  variant={employeeFilter === 'active' ? 'contained' : 'outlined'}
+                  size="small"
+                  onClick={() => setEmployeeFilter('active')}
+                  sx={{ textTransform: 'none', minWidth: 100 }}
+                  color="success"
+                >
+                  Active ({loadingEnrollments ? '...' : enrollments.filter((e: any) => e.is_active !== false).length})
+                </Button>
+                <Button
+                  variant={employeeFilter === 'previous' ? 'contained' : 'outlined'}
+                  size="small"
+                  onClick={() => setEmployeeFilter('previous')}
+                  sx={{ textTransform: 'none', minWidth: 100 }}
+                  color="warning"
+                >
+                  Previous ({loadingEnrollments ? '...' : enrollments.filter((e: any) => e.is_active === false).length})
+                </Button>
+              </Box>
+            </Box>
+          </Box>
+        )}
+
         {/* Enrollment Sections */}
         <EnrollmentSections
-          enrollments={enrollments}
+          enrollments={employeeFilter === 'all' 
+            ? enrollments 
+            : employeeFilter === 'active'
+            ? enrollments.filter((e: any) => e.is_active !== false)
+            : enrollments.filter((e: any) => e.is_active === false)}
           loadingEnrollments={loadingEnrollments}
           isOnlineCourse={isOnlineCourse}
           onViewDetails={(enrollment) => {

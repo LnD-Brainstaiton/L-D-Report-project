@@ -142,8 +142,11 @@ interface CourseParams {
 }
 
 export const coursesAPI = {
-  getAll: (params?: CourseParams): Promise<AxiosResponse<Course[]>> =>
-    api.get('/courses/', { params }),
+  getAll: (params?: CourseParams): Promise<AxiosResponse<Course[]>> => {
+    // Add course_type to params if not already present
+    const queryParams = params || {};
+    return api.get('/courses/', { params: queryParams });
+  },
   getById: (id: number | string): Promise<AxiosResponse<Course>> =>
     api.get(`/courses/${id}`),
   create: (data: CourseCreate): Promise<AxiosResponse<Course>> =>
@@ -196,6 +199,8 @@ interface LMSCourse {
   categoryid?: number;
   visible?: number;
   enrollment_count?: number;
+  active_enrollment_count?: number;
+  previous_enrollment_count?: number;
   [key: string]: any;
 }
 
@@ -208,12 +213,17 @@ interface LMSEnrollment {
   completion_date?: string;
 }
 
+interface LMSCoursesResponse {
+  courses: LMSCourse[];
+  message?: string;
+}
+
 export const lmsAPI = {
-  getCourses: (includeEnrollmentCounts = false): Promise<AxiosResponse<LMSCourse[]>> =>
+  getCourses: (includeEnrollmentCounts = false): Promise<AxiosResponse<LMSCoursesResponse>> =>
     api.get('/lms/courses', { params: { include_enrollment_counts: includeEnrollmentCounts } }),
-  getCourseEnrollments: (courseId: number | string): Promise<AxiosResponse<LMSEnrollment[]>> =>
+  getCourseEnrollments: (courseId: number | string): Promise<AxiosResponse<{ enrollments: LMSEnrollment[] }>> =>
     api.get(`/lms/courses/${courseId}/enrollments`),
-  getUserCourses: (userId: string): Promise<AxiosResponse<OnlineCourse[]>> =>
+  getUserCourses: (userId: string): Promise<AxiosResponse<{ courses: OnlineCourse[] }>> =>
     api.get(`/lms/users/${userId}/courses`),
 };
 

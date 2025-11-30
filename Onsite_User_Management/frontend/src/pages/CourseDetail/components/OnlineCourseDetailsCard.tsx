@@ -8,8 +8,9 @@ import {
   Theme,
   alpha,
   Box,
+  Button,
 } from '@mui/material';
-import { Star } from '@mui/icons-material';
+import { Star, OpenInNew } from '@mui/icons-material';
 import { Course } from '../../../types';
 
 interface OnlineCourseDetailsCardProps {
@@ -115,6 +116,31 @@ function OnlineCourseDetailsCard({ course, theme }: OnlineCourseDetailsCardProps
                   })
                 : 'Not set'}
             </Typography>
+          </Grid>
+          <Grid item xs={12}>
+            <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600, mb: 0.5 }}>
+              Open in LMS
+            </Typography>
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<OpenInNew />}
+              href={`https://lms.elearning23.com/course/view.php?id=${course.lms_course_id || course.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              sx={{
+                textTransform: 'none',
+                fontWeight: 600,
+                borderColor: theme.palette.info.main,
+                color: theme.palette.info.main,
+                '&:hover': {
+                  backgroundColor: alpha(theme.palette.info.main, 0.1),
+                  borderColor: theme.palette.info.main,
+                },
+              }}
+            >
+              View on LMS Website
+            </Button>
           </Grid>
         </Grid>
       </CardContent>

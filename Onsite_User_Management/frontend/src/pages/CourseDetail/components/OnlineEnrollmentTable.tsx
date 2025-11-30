@@ -39,6 +39,10 @@ function OnlineEnrollmentTable({ enrollments, onViewDetails }: OnlineEnrollmentT
           <TableRow sx={{ background: 'linear-gradient(135deg, rgba(30, 64, 175, 0.05) 0%, rgba(5, 150, 105, 0.05) 100%)' }}>
             <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>Employee ID</TableCell>
             <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>Name</TableCell>
+            <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>Email</TableCell>
+            <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>SBU</TableCell>
+            <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>PM Name</TableCell>
+            <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>PM Email</TableCell>
             <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>Date Assigned</TableCell>
             <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>Last Access</TableCell>
             <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }} align="right">Progress</TableCell>
@@ -47,6 +51,7 @@ function OnlineEnrollmentTable({ enrollments, onViewDetails }: OnlineEnrollmentT
         <TableBody>
           {enrollments.map((enrollment) => {
             const progress = enrollment.progress || 0;
+            const enrollmentAny = enrollment as any;
             return (
               <TableRow
                 key={enrollment.id}
@@ -81,6 +86,10 @@ function OnlineEnrollmentTable({ enrollments, onViewDetails }: OnlineEnrollmentT
                   {enrollment.student_employee_id}
                 </TableCell>
                 <TableCell sx={{ color: '#475569', fontWeight: 500 }}>{enrollment.student_name}</TableCell>
+                <TableCell sx={{ color: '#64748b' }}>{enrollment.student_email || 'N/A'}</TableCell>
+                <TableCell sx={{ color: '#64748b' }}>{enrollmentAny.sbu_name || enrollment.student_department || 'N/A'}</TableCell>
+                <TableCell sx={{ color: '#64748b' }}>{enrollmentAny.reporting_manager_name || 'N/A'}</TableCell>
+                <TableCell sx={{ color: '#64748b' }}>{enrollmentAny.reporting_manager_email || 'N/A'}</TableCell>
                 <TableCell sx={{ color: '#64748b' }}>
                   {enrollment.date_assigned 
                     ? new Date((enrollment.date_assigned as number) * 1000).toLocaleDateString('en-US', {
