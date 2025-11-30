@@ -24,6 +24,7 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  Link,
 } from '@mui/material';
 import {
   PersonAdd,
@@ -106,7 +107,7 @@ const Users: React.FC = () => {
     .reduce((acc: StudentWithEnrollments[], user) => {
       const normalizedId = user.employee_id?.toLowerCase();
       const existingIndex = acc.findIndex(u => u.employee_id?.toLowerCase() === normalizedId);
-      
+
       if (existingIndex === -1) {
         acc.push(user);
       } else {
@@ -114,7 +115,7 @@ const Users: React.FC = () => {
         const existing = acc[existingIndex];
         const existingCompleted = (existing as any).completed_courses || 0;
         const currentCompleted = (user as any).completed_courses || 0;
-        
+
         if (currentCompleted > existingCompleted) {
           acc[existingIndex] = user;
         }
@@ -300,12 +301,12 @@ const Users: React.FC = () => {
                   <React.Fragment key={user.id}>
                     <TableRow sx={{ borderBottom: '1px solid rgba(30, 64, 175, 0.08)', '&:hover': { background: 'linear-gradient(90deg, rgba(30, 64, 175, 0.03) 0%, rgba(5, 150, 105, 0.03) 100%)' }, backgroundColor: user.never_taken_course ? alpha('#f59e0b', 0.03) : 'transparent' }}>
                       <TableCell>
-                        <Typography 
+                        <Typography
                           component="span"
                           onClick={() => handleViewDetails(user)}
-                          sx={{ 
-                            color: '#1e40af', 
-                            fontWeight: 600, 
+                          sx={{
+                            color: '#1e40af',
+                            fontWeight: 600,
                             cursor: 'pointer',
                             '&:hover': {
                               textDecoration: 'underline',
@@ -317,7 +318,13 @@ const Users: React.FC = () => {
                         </Typography>
                       </TableCell>
                       <TableCell sx={{ fontWeight: 500, color: '#1e3a8a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.name}</TableCell>
-                      <TableCell sx={{ color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={user.email}>{user.email}</TableCell>
+                      <TableCell sx={{ color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={user.email}>
+                        {user.email ? (
+                          <Link href={`mailto:${user.email}`} color="inherit" underline="hover">
+                            {user.email}
+                          </Link>
+                        ) : ''}
+                      </TableCell>
                       <TableCell>
                         <Chip label={user.department} size="small" sx={{ background: 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)', color: '#1e40af', fontWeight: 600 }} />
                       </TableCell>
@@ -344,11 +351,11 @@ const Users: React.FC = () => {
                           const onsiteCount = enrollments.filter((e: any) => e.course_type === 'onsite').length;
                           const onlineCount = enrollments.filter((e: any) => e.course_type === 'online').length;
                           const externalCount = enrollments.filter((e: any) => e.course_type === 'external').length;
-                          
+
                           if (enrollments.length === 0) {
                             return <Chip label="No History" size="small" sx={{ background: alpha('#fbbf24', 0.1), color: '#92400e', fontWeight: 500, border: `1px solid ${alpha('#fbbf24', 0.3)}` }} />;
                           }
-                          
+
                           return (
                             <Box display="flex" gap={0.5} justifyContent="center" flexWrap="wrap">
                               <Chip label={`Onsite-${onsiteCount}`} size="small" sx={{ background: 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)', color: '#1e40af', fontWeight: 600, fontSize: '0.7rem', height: 22 }} />

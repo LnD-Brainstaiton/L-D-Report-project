@@ -96,24 +96,38 @@ export const formatDateRangeDisplay = (
 
 /**
  * Get course start date (handles both Unix timestamp and date string)
+ * NOTE: Date strings (YYYY-MM-DD) are parsed as LOCAL time, not UTC
  */
 export const getCourseStartDate = (course: CourseWithTimestamps | Course): Date | null => {
   const courseWithTs = course as CourseWithTimestamps;
   if (courseWithTs.startdate) {
     return new Date(courseWithTs.startdate * 1000);
   }
-  return course.start_date ? new Date(course.start_date) : null;
+  if (course.start_date) {
+    // Parse YYYY-MM-DD string as local date
+    // new Date("YYYY-MM-DD") defaults to UTC, which can be previous day in local time
+    // new Date(year, monthIndex, day) uses local time
+    const [year, month, day] = String(course.start_date).split('-').map(Number);
+    return new Date(year, month - 1, day);
+  }
+  return null;
 };
 
 /**
  * Get course end date (handles both Unix timestamp and date string)
+ * NOTE: Date strings (YYYY-MM-DD) are parsed as LOCAL time, not UTC
  */
 export const getCourseEndDate = (course: CourseWithTimestamps | Course): Date | null => {
   const courseWithTs = course as CourseWithTimestamps;
   if (courseWithTs.enddate) {
     return new Date(courseWithTs.enddate * 1000);
   }
-  return course.end_date ? new Date(course.end_date) : null;
+  if (course.end_date) {
+    // Parse YYYY-MM-DD string as local date
+    const [year, month, day] = String(course.end_date).split('-').map(Number);
+    return new Date(year, month - 1, day);
+  }
+  return null;
 };
 
 /**

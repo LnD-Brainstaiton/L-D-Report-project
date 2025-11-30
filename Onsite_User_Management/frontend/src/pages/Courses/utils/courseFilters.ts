@@ -100,8 +100,15 @@ export const useFilteredCourses = (
     if (dateRange) {
       const { start: periodStart, end: periodEnd } = dateRange;
       filtered = filtered.filter((course) => {
+        // Use helper to get local date correctly
         const courseStartDate = getCourseStartDate(course);
-        if (!courseStartDate) return false;
+
+        // If no start_date, include it if status is 'planning', 'draft', 'upcoming', or 'ongoing' (user explicitly set status)
+        if (!courseStartDate) {
+          const courseStatus = getCourseStatus(course as any);
+          return courseStatus === 'planning' || courseStatus === 'draft' || courseStatus === 'upcoming' || courseStatus === 'ongoing';
+        }
+
         const normalizedDate = new Date(courseStartDate);
         normalizedDate.setHours(0, 0, 0, 0);
         return normalizedDate >= periodStart && normalizedDate <= periodEnd;

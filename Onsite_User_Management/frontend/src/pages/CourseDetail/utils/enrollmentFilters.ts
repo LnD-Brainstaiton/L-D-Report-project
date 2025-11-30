@@ -48,6 +48,7 @@ export const filterOnlineEnrollments = (enrollments: EnrollmentWithLMS[]): Onlin
 };
 
 interface OnsiteEnrollmentFilters {
+  completed: EnrollmentWithLMS[];
   approved: EnrollmentWithLMS[];
   eligiblePending: EnrollmentWithLMS[];
   notEligible: EnrollmentWithLMS[];
@@ -56,10 +57,18 @@ interface OnsiteEnrollmentFilters {
 }
 
 export const filterOnsiteEnrollments = (enrollments: EnrollmentWithLMS[]): OnsiteEnrollmentFilters => {
+  const completed = enrollments.filter((e) => {
+    if (e.is_lms_enrollment) return false;
+    const approvalStatus = normalizeStatus(e.approval_status);
+    const completionStatus = normalizeStatus(e.completion_status);
+    return approvalStatus === 'Approved' && completionStatus === 'Completed';
+  });
+
   const approved = enrollments.filter((e) => {
     if (e.is_lms_enrollment) return false;
     const approvalStatus = normalizeStatus(e.approval_status);
-    return approvalStatus === 'Approved';
+    const completionStatus = normalizeStatus(e.completion_status);
+    return approvalStatus === 'Approved' && completionStatus !== 'Completed';
   });
 
   const eligiblePending = enrollments.filter((e) => {
@@ -95,6 +104,6 @@ export const filterOnsiteEnrollments = (enrollments: EnrollmentWithLMS[]): Onsit
     return approvalStatus === 'Withdrawn';
   });
 
-  return { approved, eligiblePending, notEligible, rejected, withdrawn };
+  return { completed, approved, eligiblePending, notEligible, rejected, withdrawn };
 };
 

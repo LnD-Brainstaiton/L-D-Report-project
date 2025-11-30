@@ -18,6 +18,7 @@ import {
   Tabs,
   Tab,
   Tooltip,
+  Link,
 } from '@mui/material';
 import { Star, OpenInNew } from '@mui/icons-material';
 import { studentsAPI } from '../services/api';
@@ -61,6 +62,7 @@ interface OnlineCourseEnrollment {
   lastaccess: number | null;
   is_lms_course: boolean;
   is_mandatory: boolean;
+  score?: number | null;
 }
 
 interface CompletionStats {
@@ -130,7 +132,7 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> = ({
     } else {
       setSbuHead(null);
     }
-    
+
     // Reporting Manager from ERP data
     if (enrollment?.reporting_manager_employee_id && enrollment?.reporting_manager_name) {
       setReportingManager({
@@ -147,17 +149,17 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> = ({
       // Fetch all students and find the one with matching employee_id
       const response = await studentsAPI.getAllWithCourses({});
       const students = response.data as any[];
-      
+
       // Find student by employee_id (case-insensitive)
       const student = students.find(
         (s) => s.employee_id?.toUpperCase() === employeeId.toUpperCase()
       );
-      
+
       if (!student) {
         console.error(`Student with employee_id ${employeeId} not found`);
         return null;
       }
-      
+
       // Create a complete enrollment object with all student data
       const enrollmentData: EnrollmentWithDetails = {
         id: 0,
@@ -183,7 +185,7 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> = ({
         student_exit_date: student.exit_date || null,
         student_exit_reason: student.exit_reason || null,
       };
-      
+
       return enrollmentData;
     } catch (error) {
       console.error('Error fetching student by employee_id:', error);
@@ -193,7 +195,7 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> = ({
 
   const handleViewSbuHead = async () => {
     if (!sbuHead) return;
-    
+
     setLoadingLinkedUser(true);
     try {
       // Fetch full student data by employee_id
@@ -209,7 +211,7 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> = ({
 
   const handleViewReportingManager = async () => {
     if (!reportingManager) return;
-    
+
     setLoadingLinkedUser(true);
     try {
       // Fetch full student data by employee_id
@@ -255,8 +257,9 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> = ({
         lastaccess: course.lastaccess,
         is_lms_course: true,
         is_mandatory: course.is_mandatory === true || course.is_mandatory === 1,
+        score: course.score,
       }));
-      
+
       // Sort courses by priority:
       // 1. Completed + Mandatory
       // 2. Completed + Not Mandatory
@@ -270,7 +273,7 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> = ({
           const isFailed = course.completion_status === 'Failed';
           const isInProgress = course.completion_status === 'In Progress';
           const isMandatory = course.is_mandatory;
-          
+
           if (isCompleted && isMandatory) return 0;
           if (isCompleted && !isMandatory) return 1;
           if (isMandatory && !isCompleted && !isFailed) return 2;
@@ -278,7 +281,7 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> = ({
           if (isFailed) return 4;
           return 5; // Not Started
         };
-        
+
         return getPriority(a) - getPriority(b);
       });
       setOnlineCourses(mappedOnlineCourses);
@@ -286,15 +289,15 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> = ({
       // Use stats from backend if available, otherwise calculate
       if (data.onsite_stats && data.online_stats) {
         setCompletionStats({
-          onsite: { 
-            rate: data.onsite_stats.rate, 
-            completed: data.onsite_stats.completed, 
-            total: data.onsite_stats.total 
+          onsite: {
+            rate: data.onsite_stats.rate,
+            completed: data.onsite_stats.completed,
+            total: data.onsite_stats.total
           },
-          online: { 
-            rate: data.online_stats.rate, 
-            completed: data.online_stats.completed, 
-            total: data.online_stats.total 
+          online: {
+            rate: data.online_stats.rate,
+            completed: data.online_stats.completed,
+            total: data.online_stats.total
           },
           external: { rate: 0, completed: 0, total: 0 },
         });
@@ -367,14 +370,14 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> = ({
       <DialogTitle sx={{ fontWeight: 600, fontSize: '1.25rem', display: 'flex', alignItems: 'center', gap: 2 }}>
         Complete User Profile - {enrollment.student_name}
         {enrollment.is_previous_employee && (
-          <Chip 
-            label="Previous Employee" 
-            size="small" 
-            sx={{ 
+          <Chip
+            label="Previous Employee"
+            size="small"
+            sx={{
               background: 'linear-gradient(135deg, #fee2e2 0%, #fecaca 100%)',
               color: '#991b1b',
               fontWeight: 600,
-            }} 
+            }}
           />
         )}
       </DialogTitle>
@@ -460,7 +463,13 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> = ({
           {/* Left Column */}
           <Grid item xs={12} sm={6}>
             <Typography variant="body2" color="text.secondary">Email</Typography>
-            <Typography variant="body1" gutterBottom>{enrollment.student_email}</Typography>
+            <Typography variant="body1" gutterBottom>
+              {enrollment.student_email ? (
+                <Link href={`mailto:${enrollment.student_email}`} color="inherit" underline="hover">
+                  {enrollment.student_email}
+                </Link>
+              ) : 'N/A'}
+            </Typography>
           </Grid>
 
           {/* Right Column */}
@@ -495,8 +504,8 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> = ({
           <Grid item xs={12} sm={6}>
             <Typography variant="body2" color="text.secondary">Total Experience</Typography>
             <Typography variant="body1" gutterBottom>
-              {enrollment.student_total_experience 
-                ? `${enrollment.student_total_experience} years` 
+              {enrollment.student_total_experience
+                ? `${enrollment.student_total_experience} years`
                 : 'N/A'}
             </Typography>
           </Grid>
@@ -583,17 +592,16 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> = ({
                         <Card
                           key={enroll.id}
                           sx={{
-                            borderLeft: `4px solid ${
-                              isCompleted ? theme.palette.success.main :
+                            borderLeft: `4px solid ${isCompleted ? theme.palette.success.main :
                               isFailed ? theme.palette.error.main :
-                              isInProgress ? theme.palette.warning.main :
-                              theme.palette.grey[400]
-                            }`,
+                                isInProgress ? theme.palette.warning.main :
+                                  theme.palette.grey[400]
+                              }`,
                             backgroundColor: isCompleted
                               ? alpha(theme.palette.success.main, 0.05)
                               : isFailed
-                              ? alpha(theme.palette.error.main, 0.05)
-                              : alpha(theme.palette.primary.main, 0.02),
+                                ? alpha(theme.palette.error.main, 0.05)
+                                : alpha(theme.palette.primary.main, 0.02),
                             borderRadius: 2,
                             boxShadow: `0 2px 8px ${alpha(theme.palette.primary.main, 0.1)}`,
                           }}
@@ -643,8 +651,8 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> = ({
                                     label={enroll.approval_status}
                                     color={
                                       enroll.approval_status === 'Approved' ? 'success' :
-                                      enroll.approval_status === 'Pending' ? 'warning' :
-                                      enroll.approval_status === 'Withdrawn' || enroll.approval_status === 'Rejected' ? 'error' : 'default'
+                                        enroll.approval_status === 'Pending' ? 'warning' :
+                                          enroll.approval_status === 'Withdrawn' || enroll.approval_status === 'Rejected' ? 'error' : 'default'
                                     }
                                     size="small"
                                     sx={{ mt: 0.5 }}
@@ -654,17 +662,26 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> = ({
 
                               {enroll.is_lms_course && (
                                 <Box>
-                                  <Typography variant="caption" color="text.secondary" display="block">Progress</Typography>
+                                  <Typography variant="caption" color="text.secondary" display="block">Attendance</Typography>
                                   <Typography
                                     variant="body2"
                                     sx={{
                                       fontWeight: 600,
                                       mt: 0.5,
                                       color: (enroll.progress || 0) >= 100 ? theme.palette.success.main :
-                                             (enroll.progress || 0) >= 50 ? theme.palette.warning.main : theme.palette.error.main
+                                        (enroll.progress || 0) >= 50 ? theme.palette.warning.main : theme.palette.error.main
                                     }}
                                   >
                                     {(enroll.progress || 0).toFixed(1)}%
+                                  </Typography>
+                                </Box>
+                              )}
+
+                              {enroll.is_lms_course && (
+                                <Box>
+                                  <Typography variant="caption" color="text.secondary" display="block">Marks Obtained</Typography>
+                                  <Typography variant="body2" sx={{ mt: 0.5, fontWeight: 600 }}>
+                                    {enroll.score !== undefined && enroll.score !== null ? `${enroll.score}%` : 'N/A'}
                                   </Typography>
                                 </Box>
                               )}
@@ -673,12 +690,12 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> = ({
                                 <Box>
                                   <Typography variant="caption" color="text.secondary" display="block">Start Date</Typography>
                                   <Typography variant="body2" sx={{ mt: 0.5 }}>
-                                    {typeof enroll.date_assigned === 'number' 
+                                    {typeof enroll.date_assigned === 'number'
                                       ? new Date(enroll.date_assigned * 1000).toLocaleDateString('en-US', {
-                                          year: 'numeric',
-                                          month: 'short',
-                                          day: 'numeric'
-                                        })
+                                        year: 'numeric',
+                                        month: 'short',
+                                        day: 'numeric'
+                                      })
                                       : formatDateForDisplay(enroll.date_assigned)}
                                   </Typography>
                                 </Box>
@@ -688,14 +705,14 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> = ({
                                 <Box>
                                   <Typography variant="caption" color="text.secondary" display="block">Last Access</Typography>
                                   <Typography variant="body2" sx={{ mt: 0.5 }}>
-                                    {typeof enroll.lastaccess === 'number' 
+                                    {typeof enroll.lastaccess === 'number'
                                       ? new Date(enroll.lastaccess * 1000).toLocaleDateString('en-US', {
-                                          year: 'numeric',
-                                          month: 'short',
-                                          day: 'numeric',
-                                          hour: '2-digit',
-                                          minute: '2-digit'
-                                        })
+                                        year: 'numeric',
+                                        month: 'short',
+                                        day: 'numeric',
+                                        hour: '2-digit',
+                                        minute: '2-digit'
+                                      })
                                       : formatDateForDisplay(enroll.lastaccess)}
                                   </Typography>
                                 </Box>

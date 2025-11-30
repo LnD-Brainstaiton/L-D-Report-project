@@ -72,6 +72,16 @@ def get_enrollments(
         enrollment_dict['batch_code'] = enrollment.batch_code or (enrollment.course.batch_code if enrollment.course else None)
         enrollment_dict['course_description'] = enrollment.course.description if enrollment.course else None
         
+        # Add missing student details
+        if enrollment.student:
+            enrollment_dict['sbu_head_employee_id'] = enrollment.student.sbu_head_employee_id
+            enrollment_dict['sbu_head_name'] = enrollment.student.sbu_head_name
+            enrollment_dict['reporting_manager_employee_id'] = enrollment.student.reporting_manager_employee_id
+            enrollment_dict['reporting_manager_name'] = enrollment.student.reporting_manager_name
+            enrollment_dict['student_bs_joining_date'] = enrollment.student.bs_joining_date
+            enrollment_dict['student_total_experience'] = enrollment.student.total_experience
+            enrollment_dict['student_career_start_date'] = enrollment.student.career_start_date
+        
         # Calculate overall completion rate for this student across all courses
         # Only count courses that have a final outcome (completed, failed, or withdrawn)
         # Exclude: pending approvals, not started, in progress, and rejected (admin's decision)
@@ -148,6 +158,16 @@ def get_eligible_enrollments(
         enrollment_dict['course_name'] = enrollment.course_name or (enrollment.course.name if enrollment.course else None)
         enrollment_dict['batch_code'] = enrollment.batch_code or (enrollment.course.batch_code if enrollment.course else None)
         enrollment_dict['course_description'] = enrollment.course.description if enrollment.course else None
+        
+        # Add missing student details
+        if enrollment.student:
+            enrollment_dict['sbu_head_employee_id'] = enrollment.student.sbu_head_employee_id
+            enrollment_dict['sbu_head_name'] = enrollment.student.sbu_head_name
+            enrollment_dict['reporting_manager_employee_id'] = enrollment.student.reporting_manager_employee_id
+            enrollment_dict['reporting_manager_name'] = enrollment.student.reporting_manager_name
+            enrollment_dict['student_bs_joining_date'] = enrollment.student.bs_joining_date
+            enrollment_dict['student_total_experience'] = enrollment.student.total_experience
+            enrollment_dict['student_career_start_date'] = enrollment.student.career_start_date
         result.append(EnrollmentResponse(**enrollment_dict))
     
     return result
@@ -193,6 +213,16 @@ def approve_enrollment(
     enrollment_dict['course_name'] = enrollment.course.name
     enrollment_dict['batch_code'] = enrollment.course.batch_code
     enrollment_dict['course_description'] = enrollment.course.description
+    
+    # Add missing student details
+    if enrollment.student:
+        enrollment_dict['sbu_head_employee_id'] = enrollment.student.sbu_head_employee_id
+        enrollment_dict['sbu_head_name'] = enrollment.student.sbu_head_name
+        enrollment_dict['reporting_manager_employee_id'] = enrollment.student.reporting_manager_employee_id
+        enrollment_dict['reporting_manager_name'] = enrollment.student.reporting_manager_name
+        enrollment_dict['student_bs_joining_date'] = enrollment.student.bs_joining_date
+        enrollment_dict['student_total_experience'] = enrollment.student.total_experience
+        enrollment_dict['student_career_start_date'] = enrollment.student.career_start_date
     
     return EnrollmentResponse(**enrollment_dict)
 
@@ -295,6 +325,16 @@ def withdraw_enrollment(
     enrollment_dict['batch_code'] = enrollment.course.batch_code
     enrollment_dict['course_description'] = enrollment.course.description
     
+    # Add missing student details
+    if enrollment.student:
+        enrollment_dict['sbu_head_employee_id'] = enrollment.student.sbu_head_employee_id
+        enrollment_dict['sbu_head_name'] = enrollment.student.sbu_head_name
+        enrollment_dict['reporting_manager_employee_id'] = enrollment.student.reporting_manager_employee_id
+        enrollment_dict['reporting_manager_name'] = enrollment.student.reporting_manager_name
+        enrollment_dict['student_bs_joining_date'] = enrollment.student.bs_joining_date
+        enrollment_dict['student_total_experience'] = enrollment.student.total_experience
+        enrollment_dict['student_career_start_date'] = enrollment.student.career_start_date
+    
     return EnrollmentResponse(**enrollment_dict)
 
 @router.post("/{enrollment_id}/reapprove", response_model=EnrollmentResponse)
@@ -345,6 +385,16 @@ def reapprove_enrollment(
     enrollment_dict['course_name'] = enrollment.course.name
     enrollment_dict['batch_code'] = enrollment.course.batch_code
     enrollment_dict['course_description'] = enrollment.course.description
+    
+    # Add missing student details
+    if enrollment.student:
+        enrollment_dict['sbu_head_employee_id'] = enrollment.student.sbu_head_employee_id
+        enrollment_dict['sbu_head_name'] = enrollment.student.sbu_head_name
+        enrollment_dict['reporting_manager_employee_id'] = enrollment.student.reporting_manager_employee_id
+        enrollment_dict['reporting_manager_name'] = enrollment.student.reporting_manager_name
+        enrollment_dict['student_bs_joining_date'] = enrollment.student.bs_joining_date
+        enrollment_dict['student_total_experience'] = enrollment.student.total_experience
+        enrollment_dict['student_career_start_date'] = enrollment.student.career_start_date
     
     return EnrollmentResponse(**enrollment_dict)
 
@@ -433,6 +483,16 @@ def create_enrollment(
     enrollment_dict['batch_code'] = enrollment.course.batch_code
     enrollment_dict['course_description'] = enrollment.course.description
     
+    # Add missing student details
+    if enrollment.student:
+        enrollment_dict['sbu_head_employee_id'] = enrollment.student.sbu_head_employee_id
+        enrollment_dict['sbu_head_name'] = enrollment.student.sbu_head_name
+        enrollment_dict['reporting_manager_employee_id'] = enrollment.student.reporting_manager_employee_id
+        enrollment_dict['reporting_manager_name'] = enrollment.student.reporting_manager_name
+        enrollment_dict['student_bs_joining_date'] = enrollment.student.bs_joining_date
+        enrollment_dict['student_total_experience'] = enrollment.student.total_experience
+        enrollment_dict['student_career_start_date'] = enrollment.student.career_start_date
+    
     return EnrollmentResponse(**enrollment_dict)
 
 @router.get("/dashboard/stats")
@@ -514,6 +574,16 @@ def get_enrollment(enrollment_id: int, db: Session = Depends(get_db)):
     enrollment_dict['course_name'] = enrollment.course.name
     enrollment_dict['batch_code'] = enrollment.course.batch_code
     enrollment_dict['course_description'] = enrollment.course.description
+    
+    # Add missing student details
+    if enrollment.student:
+        enrollment_dict['sbu_head_employee_id'] = enrollment.student.sbu_head_employee_id
+        enrollment_dict['sbu_head_name'] = enrollment.student.sbu_head_name
+        enrollment_dict['reporting_manager_employee_id'] = enrollment.student.reporting_manager_employee_id
+        enrollment_dict['reporting_manager_name'] = enrollment.student.reporting_manager_name
+        enrollment_dict['student_bs_joining_date'] = enrollment.student.bs_joining_date
+        enrollment_dict['student_total_experience'] = enrollment.student.total_experience
+        enrollment_dict['student_career_start_date'] = enrollment.student.career_start_date
     
     return EnrollmentResponse(**enrollment_dict)
 

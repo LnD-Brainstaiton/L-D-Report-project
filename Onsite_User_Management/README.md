@@ -270,12 +270,15 @@ Once running, visit `http://localhost:8000/docs` for interactive API documentati
 
 ✅ **User Management**
 - Complete employee profiles with course history (onsite, online, external)
+- **Enhanced Profile View**: Full employee details including SBU Head, Reporting Manager, Joining Date, and Experience
 - Automatic sync from LMS for employee data
 - Department-based filtering (replaced SBU)
 - Filter by "Never Taken Course" or "Has Taken Courses"
 - Overall completion rate display (separate for each course type)
 - Course history with attendance and completion status
+- **Online Course Details**: View "Attendance" and "Marks Obtained" for online courses
 - Clickable employee IDs to view full details (everywhere in the application)
+- **Consistent UI**: Unified table layouts with proper alignment and text handling across all views
 
 ✅ **Dashboard Analytics**
 - Comprehensive dashboard with course statistics

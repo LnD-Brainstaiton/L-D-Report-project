@@ -225,6 +225,10 @@ export const lmsAPI = {
     api.get(`/lms/courses/${courseId}/enrollments`),
   getUserCourses: (userId: string): Promise<AxiosResponse<{ courses: OnlineCourse[] }>> =>
     api.get(`/lms/users/${userId}/courses`),
+  checkCourseMandatory: (courseId: number | string): Promise<AxiosResponse<{ course_id: number; fullname: string; is_mandatory: number; is_mandatory_bool: boolean }>> =>
+    api.get(`/lms/courses/${courseId}/check-mandatory`),
+  updateCourseMandatory: (courseId: number | string, isMandatory: boolean): Promise<AxiosResponse<{ course_id: number; fullname: string; is_mandatory: number; is_mandatory_bool: boolean; message: string }>> =>
+    api.put(`/lms/courses/${courseId}/mandatory`, null, { params: { is_mandatory: isMandatory } }),
 };
 
 // ============================================================================

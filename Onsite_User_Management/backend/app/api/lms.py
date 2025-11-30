@@ -140,6 +140,13 @@ async def get_lms_course_enrollments(course_id: int, db: Session = Depends(get_d
                 "firstaccess": int(enrollment.start_date.timestamp()) if enrollment.start_date else None,
                 "lastaccess": int(enrollment.last_access.timestamp()) if enrollment.last_access else None,
                 "is_active": student.is_active if student else True,  # Include is_active status
+                "sbu_head_employee_id": student.sbu_head_employee_id if student else None,
+                "sbu_head_name": student.sbu_head_name if student else None,
+                "reporting_manager_employee_id": student.reporting_manager_employee_id if student else None,
+                "bs_joining_date": student.bs_joining_date.isoformat() if student and student.bs_joining_date else None,
+                "total_experience": student.total_experience if student else None,
+                "career_start_date": student.career_start_date.isoformat() if student and student.career_start_date else None,
+                "experience_years": student.experience_years if student else 0,
             }
             result.append(user_data)
         
@@ -391,3 +398,77 @@ async def sync_lms_data(
     except Exception as e:
         logger.error(f"LMS sync error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"LMS sync failed: {str(e)}")
+
+
+@router.get("/courses/{course_id}/check-mandatory")
+async def check_course_mandatory(
+    course_id: int,
+    db: Session = Depends(get_db),
+    current_admin: Dict[str, Any] = Depends(get_current_admin)
+):
+    """
+    Check the is_mandatory status of a specific course.
+    """
+    try:
+        course = db.query(LMSCourseCache).filter(LMSCourseCache.id == course_id).first()
+        
+        if not course:
+            raise HTTPException(status_code=404, detail=f"Course with ID {course_id} not found")
+        
+        return {
+            "course_id": course.id,
+            "fullname": course.fullname,
+            "shortname": course.shortname,
+            "is_mandatory": course.is_mandatory,
+            "is_mandatory_bool": course.is_mandatory == 1 if course.is_mandatory is not None else False,
+            "is_mandatory_type": str(type(course.is_mandatory)),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error checking course mandatory status: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error checking course: {str(e)}")
+
+
+@router.put("/courses/{course_id}/mandatory")
+async def update_course_mandatory(
+    course_id: int,
+    is_mandatory: bool = Query(..., description="Set to true for mandatory, false for optional"),
+    db: Session = Depends(get_db),
+    current_admin: Dict[str, Any] = Depends(get_current_admin)
+):
+    """
+    Update the is_mandatory status of a specific course.
+    Note: This updates the local cache. The value will be overwritten on next sync from LMS.
+    """
+    try:
+        course = db.query(LMSCourseCache).filter(LMSCourseCache.id == course_id).first()
+        
+        if not course:
+            raise HTTPException(status_code=404, detail=f"Course with ID {course_id} not found")
+        
+        # Update is_mandatory (store as 1 or 0)
+        course.is_mandatory = 1 if is_mandatory else 0
+        db.commit()
+        db.refresh(course)
+        
+        # Also update all related LMSUserCourse records for this course
+        from app.models.lms_user import LMSUserCourse
+        db.query(LMSUserCourse).filter(
+            LMSUserCourse.lms_course_id == str(course_id)
+        ).update({"is_mandatory": course.is_mandatory})
+        db.commit()
+        
+        return {
+            "course_id": course.id,
+            "fullname": course.fullname,
+            "is_mandatory": course.is_mandatory,
+            "is_mandatory_bool": course.is_mandatory == 1,
+            "message": f"Course mandatory status updated to {'mandatory' if is_mandatory else 'optional'}"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating course mandatory status: {str(e)}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error updating course: {str(e)}")

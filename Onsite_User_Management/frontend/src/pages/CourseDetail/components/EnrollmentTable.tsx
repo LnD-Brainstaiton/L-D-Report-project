@@ -11,6 +11,7 @@ import {
   Box,
   Typography,
   useTheme,
+  Link,
 } from '@mui/material';
 import { CheckCircle, Cancel, PersonRemove, Refresh, Edit } from '@mui/icons-material';
 import { Enrollment } from '../../../types';
@@ -28,12 +29,12 @@ interface EnrollmentTableProps {
   actionsHeaderText?: string;
 }
 
-function EnrollmentTable({ 
-  enrollments, 
-  onViewDetails, 
-  onApprove, 
-  onReject, 
-  onWithdraw, 
+function EnrollmentTable({
+  enrollments,
+  onViewDetails,
+  onApprove,
+  onReject,
+  onWithdraw,
   onReapprove,
   onEditAttendance,
   showEligibilityReason = false,
@@ -46,26 +47,27 @@ function EnrollmentTable({
     <TableContainer>
       <Table size="small">
         <TableHead>
-          <TableRow>
-            <TableCell>Employee ID</TableCell>
-            <TableCell>Name</TableCell>
-            <TableCell>Email</TableCell>
-            <TableCell>Department</TableCell>
-            {showEligibilityReason && <TableCell>Eligibility Reason</TableCell>}
-            <TableCell>Status</TableCell>
-            <TableCell>Score</TableCell>
-            <TableCell>Attendance</TableCell>
-            {showActions && <TableCell>{actionsHeaderText}</TableCell>}
+          <TableRow sx={{ background: 'linear-gradient(135deg, rgba(30, 64, 175, 0.05) 0%, rgba(5, 150, 105, 0.05) 100%)' }}>
+            <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem', width: 100 }}>Employee ID</TableCell>
+            <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem', width: 160 }}>Name</TableCell>
+            <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem', width: 200 }}>Email</TableCell>
+            <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem', width: 120 }}>SBU</TableCell>
+            {showEligibilityReason && <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem', width: 200 }}>Eligibility Reason</TableCell>}
+            <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem', width: 120 }}>Status</TableCell>
+            <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem', width: 80 }}>Score</TableCell>
+            <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem', width: 100 }}>Attendance</TableCell>
+            {showActions && <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem', width: 120 }}>{actionsHeaderText}</TableCell>}
           </TableRow>
         </TableHead>
         <TableBody>
           {enrollments.map((enrollment) => (
             <TableRow key={enrollment.id}>
-              <TableCell 
+              <TableCell
                 sx={{
                   cursor: onViewDetails ? 'pointer' : 'default',
                   color: onViewDetails ? theme.palette.primary.main : 'inherit',
                   fontWeight: onViewDetails ? 500 : 400,
+                  whiteSpace: 'nowrap',
                   '&:hover': onViewDetails ? {
                     textDecoration: 'underline',
                     color: theme.palette.primary.dark
@@ -75,8 +77,16 @@ function EnrollmentTable({
               >
                 {enrollment.student_employee_id}
               </TableCell>
-              <TableCell>{enrollment.student_name}</TableCell>
-              <TableCell>{enrollment.student_email}</TableCell>
+              <TableCell sx={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 160 }} title={enrollment.student_name}>
+                {enrollment.student_name}
+              </TableCell>
+              <TableCell sx={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 200, fontSize: '0.65rem' }} title={enrollment.student_email}>
+                {enrollment.student_email ? (
+                  <Link href={`mailto:${enrollment.student_email}`} color="inherit" underline="hover" sx={{ fontSize: 'inherit' }}>
+                    {enrollment.student_email}
+                  </Link>
+                ) : ''}
+              </TableCell>
               <TableCell>
                 <Chip label={enrollment.student_department} size="small" />
               </TableCell>
@@ -93,10 +103,10 @@ function EnrollmentTable({
                   size="small"
                   color={
                     enrollment.completion_status === 'Completed' ? 'success' :
-                    enrollment.completion_status === 'Failed' ? 'error' :
-                    enrollment.approval_status === 'Approved' ? 'success' :
-                    enrollment.approval_status === 'Pending' ? 'warning' :
-                    'default'
+                      enrollment.completion_status === 'Failed' ? 'error' :
+                        enrollment.approval_status === 'Approved' ? 'success' :
+                          enrollment.approval_status === 'Pending' ? 'warning' :
+                            'default'
                   }
                 />
               </TableCell>

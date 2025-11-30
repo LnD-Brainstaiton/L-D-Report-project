@@ -337,6 +337,7 @@ def get_student_enrollments(student_id: int, db: Session = Depends(get_db)):
             'approval_status': 'Approved',
             'completion_status': completion_status,
             'progress': lms_course.progress or 0,
+            'score': None,  # Placeholder for marks obtained
             'course_start_date': lms_course.start_date.isoformat() if lms_course.start_date else None,
             'course_end_date': lms_course.end_date.isoformat() if lms_course.end_date else None,
             'date_assigned': int(lms_course.enrollment_time.timestamp()) if lms_course.enrollment_time else (int(lms_course.created_at.timestamp()) if lms_course.created_at else None),  # Unix timestamp - when course was assigned (uses enrollment_time if available, otherwise created_at)

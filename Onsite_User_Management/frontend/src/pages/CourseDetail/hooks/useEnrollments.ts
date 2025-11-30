@@ -14,8 +14,8 @@ interface UseEnrollmentsReturn {
 }
 
 export const useEnrollments = (
-  courseId: string | undefined, 
-  course: Course | null, 
+  courseId: string | undefined,
+  course: Course | null,
   courseType: string | undefined
 ): UseEnrollmentsReturn => {
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
@@ -37,12 +37,12 @@ export const useEnrollments = (
         const lmsResponse = await lmsAPI.getCourseEnrollments(courseId!);
         const responseData = lmsResponse.data as { enrollments?: any[] };
         const lmsEnrollments = responseData.enrollments || [];
-        
+
         // Map enrollments - progress is already included from local database
         const mappedEnrollments: Enrollment[] = lmsEnrollments.map((user: any) => {
           const progress = user.progress || 0;
           const completionStatus = user.completed ? 'Completed' : (progress > 0 ? 'In Progress' : 'Not Started');
-          
+
           return {
             id: user.id,
             student_id: user.student_id,  // Use the actual student database ID
@@ -63,9 +63,17 @@ export const useEnrollments = (
             sbu_name: user.sbu_name || user.department || 'Unknown',
             reporting_manager_name: user.reporting_manager_name || '',
             reporting_manager_email: user.reporting_manager_email || '',
+            // Map missing fields for UserDetailsDialog
+            sbu_head_employee_id: user.sbu_head_employee_id,
+            sbu_head_name: user.sbu_head_name,
+            reporting_manager_employee_id: user.reporting_manager_employee_id,
+            student_bs_joining_date: user.bs_joining_date,
+            student_total_experience: user.total_experience,
+            student_career_start_date: user.career_start_date,
+            student_experience_years: user.experience_years,
           } as any;  // Type assertion to include new fields
         });
-        
+
         setEnrollments(mappedEnrollments);
         // No batch API calls needed - all data comes from local database
       } else {

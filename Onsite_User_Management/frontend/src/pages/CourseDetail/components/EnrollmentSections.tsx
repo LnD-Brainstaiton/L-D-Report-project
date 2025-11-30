@@ -54,7 +54,7 @@ function EnrollmentSections({
   // Filter enrollments based on search and status
   const filteredEnrollments = useMemo(() => {
     let filtered = [...enrollments];
-    
+
     // Apply employee search filter
     if (employeeSearch.trim()) {
       const searchLower = employeeSearch.toLowerCase().trim();
@@ -65,16 +65,16 @@ function EnrollmentSections({
         return name.includes(searchLower) || email.includes(searchLower) || employeeId.includes(searchLower);
       });
     }
-    
+
     return filtered;
   }, [enrollments, employeeSearch]);
 
   // Apply status filter for online courses
   const getFilteredOnlineEnrollments = useMemo(() => {
     if (!isOnlineCourse) return { completed: [], inProgress: [], notStarted: [] };
-    
+
     const { completed, inProgress, notStarted } = filterOnlineEnrollments(filteredEnrollments);
-    
+
     if (statusFilter === 'completed') {
       return { completed, inProgress: [], notStarted: [] };
     } else if (statusFilter === 'in_progress') {
@@ -82,7 +82,7 @@ function EnrollmentSections({
     } else if (statusFilter === 'not_started') {
       return { completed: [], inProgress: [], notStarted };
     }
-    
+
     return { completed, inProgress, notStarted };
   }, [filteredEnrollments, isOnlineCourse, statusFilter]);
 
@@ -133,7 +133,7 @@ function EnrollmentSections({
                 }
               }}
             />
-            
+
             {/* Status Filter */}
             <FormControl size="small" sx={{ minWidth: 200 }}>
               <InputLabel>Completion Status</InputLabel>
@@ -161,7 +161,7 @@ function EnrollmentSections({
                 </MenuItem>
               </Select>
             </FormControl>
-            
+
             {/* Clear Filters Button */}
             {hasActiveFilters && (
               <Chip
@@ -174,7 +174,7 @@ function EnrollmentSections({
               />
             )}
           </Stack>
-          
+
           {/* Results Summary */}
           <Box mt={2} display="flex" gap={2} flexWrap="wrap">
             <Typography variant="body2" color="text.secondary">
@@ -192,7 +192,7 @@ function EnrollmentSections({
 
         {/* Completed Students */}
         {completed.length > 0 && (
-          <Card sx={{ 
+          <Card sx={{
             mb: 3,
             borderLeft: `4px solid ${theme.palette.success.main}`,
             backgroundColor: alpha(theme.palette.success.main, 0.05),
@@ -201,7 +201,7 @@ function EnrollmentSections({
               <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: theme.palette.success.main }}>
                 Completed ({completed.length})
               </Typography>
-              <OnlineEnrollmentTable 
+              <OnlineEnrollmentTable
                 enrollments={completed}
                 onViewDetails={onViewDetails}
               />
@@ -211,7 +211,7 @@ function EnrollmentSections({
 
         {/* In Progress Students */}
         {inProgress.length > 0 && (
-          <Card sx={{ 
+          <Card sx={{
             mb: 3,
             borderLeft: `4px solid ${theme.palette.warning.main}`,
             backgroundColor: alpha(theme.palette.warning.main, 0.05),
@@ -220,7 +220,7 @@ function EnrollmentSections({
               <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: theme.palette.warning.main }}>
                 In Progress ({inProgress.length})
               </Typography>
-              <OnlineEnrollmentTable 
+              <OnlineEnrollmentTable
                 enrollments={inProgress}
                 onViewDetails={onViewDetails}
               />
@@ -230,7 +230,7 @@ function EnrollmentSections({
 
         {/* Not Started Students */}
         {notStarted.length > 0 && (
-          <Card sx={{ 
+          <Card sx={{
             mb: 3,
             borderLeft: `4px solid ${theme.palette.grey[500]}`,
             backgroundColor: alpha(theme.palette.grey[500], 0.05),
@@ -239,7 +239,7 @@ function EnrollmentSections({
               <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: theme.palette.grey[700] }}>
                 Not Started ({notStarted.length})
               </Typography>
-              <OnlineEnrollmentTable 
+              <OnlineEnrollmentTable
                 enrollments={notStarted}
                 onViewDetails={onViewDetails}
               />
@@ -251,7 +251,7 @@ function EnrollmentSections({
           <Card>
             <CardContent>
               <Typography variant="body2" color="text.secondary" align="center" py={3}>
-                {hasActiveFilters 
+                {hasActiveFilters
                   ? 'No students match your search criteria. Try adjusting the filters.'
                   : 'No students enrolled in this online course yet.'}
               </Typography>
@@ -263,7 +263,7 @@ function EnrollmentSections({
   }
 
   // Onsite course enrollments - apply employee search filter
-  const { approved, eligiblePending, notEligible, rejected, withdrawn } = filterOnsiteEnrollments(filteredEnrollments);
+  const { completed, approved, eligiblePending, notEligible, rejected, withdrawn } = filterOnsiteEnrollments(filteredEnrollments);
 
   return (
     <>
@@ -294,7 +294,7 @@ function EnrollmentSections({
               }
             }}
           />
-          
+
           {/* Clear Filters Button */}
           {employeeSearch.trim() && (
             <Chip
@@ -307,12 +307,12 @@ function EnrollmentSections({
             />
           )}
         </Stack>
-        
+
         {/* Results Summary */}
         {employeeSearch.trim() && (
           <Box mt={2}>
             <Typography variant="body2" color="text.secondary">
-              Showing: {approved.length + eligiblePending.length + notEligible.length + rejected.length + withdrawn.length} of {enrollments.length} enrollments
+              Showing: {completed.length + approved.length + eligiblePending.length + notEligible.length + rejected.length + withdrawn.length} of {enrollments.length} enrollments
             </Typography>
             <Typography variant="body2" color="primary.main" sx={{ fontWeight: 500 }}>
               Search: "{employeeSearch}"
@@ -321,9 +321,31 @@ function EnrollmentSections({
         )}
       </Card>
 
-      {/* Approved/Enrolled Students */}
+      {/* Completed Students */}
+      {completed.length > 0 && (
+        <Card sx={{
+          mb: 3,
+          borderLeft: `4px solid ${theme.palette.success.main}`,
+          backgroundColor: alpha(theme.palette.success.main, 0.02),
+        }}>
+          <CardContent>
+            <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: theme.palette.success.main }}>
+              Completed ({completed.length})
+            </Typography>
+            <EnrollmentTable
+              enrollments={completed}
+              onViewDetails={onViewDetails}
+              onEditAttendance={onEditAttendance}
+              onWithdraw={onWithdraw}
+              showActions={true}
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Approved/Enrolled Students (Active) */}
       {approved.length > 0 && (
-        <Card sx={{ 
+        <Card sx={{
           mb: 3,
           borderLeft: `4px solid ${theme.palette.primary.main}`,
           backgroundColor: alpha(theme.palette.primary.main, 0.02),
@@ -345,7 +367,7 @@ function EnrollmentSections({
 
       {/* Eligible Pending */}
       {eligiblePending.length > 0 && (
-        <Card sx={{ 
+        <Card sx={{
           mb: 3,
           borderLeft: `4px solid ${theme.palette.success.main}`,
           backgroundColor: alpha(theme.palette.success.main, 0.02),
@@ -367,7 +389,7 @@ function EnrollmentSections({
 
       {/* Not Eligible */}
       {notEligible.length > 0 && (
-        <Card sx={{ 
+        <Card sx={{
           mb: 3,
           borderLeft: `4px solid ${theme.palette.error.main}`,
           backgroundColor: alpha(theme.palette.error.main, 0.02),
@@ -390,7 +412,7 @@ function EnrollmentSections({
 
       {/* Rejected */}
       {rejected.length > 0 && (
-        <Card sx={{ 
+        <Card sx={{
           mb: 3,
           borderLeft: `4px solid ${theme.palette.error.main}`,
           backgroundColor: alpha(theme.palette.error.main, 0.02),
@@ -412,7 +434,7 @@ function EnrollmentSections({
 
       {/* Withdrawn */}
       {withdrawn.length > 0 && (
-        <Card sx={{ 
+        <Card sx={{
           mb: 3,
           borderLeft: `4px solid ${theme.palette.warning.main}`,
           backgroundColor: alpha(theme.palette.warning.main, 0.02),
@@ -432,11 +454,11 @@ function EnrollmentSections({
         </Card>
       )}
 
-      {approved.length === 0 && eligiblePending.length === 0 && notEligible.length === 0 && rejected.length === 0 && withdrawn.length === 0 && (
+      {completed.length === 0 && approved.length === 0 && eligiblePending.length === 0 && notEligible.length === 0 && rejected.length === 0 && withdrawn.length === 0 && (
         <Card>
           <CardContent>
             <Typography variant="body2" color="text.secondary" align="center" py={3}>
-              {employeeSearch.trim() 
+              {employeeSearch.trim()
                 ? 'No students match your search criteria. Try adjusting the search.'
                 : 'No enrollments yet. Use "Import Enrollments" or "Manual Enrollment" to add students.'}
             </Typography>

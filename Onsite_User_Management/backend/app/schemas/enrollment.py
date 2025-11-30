@@ -38,6 +38,15 @@ class EnrollmentResponse(BaseModel):
     total_courses_assigned: Optional[int] = None
     completed_courses: Optional[int] = None
     
+    # Additional student details for User Profile
+    sbu_head_employee_id: Optional[str] = None
+    sbu_head_name: Optional[str] = None
+    reporting_manager_employee_id: Optional[str] = None
+    reporting_manager_name: Optional[str] = None
+    student_bs_joining_date: Optional[datetime] = None
+    student_total_experience: Optional[float] = None
+    student_career_start_date: Optional[datetime] = None
+    
     class Config:
         from_attributes = True
 
