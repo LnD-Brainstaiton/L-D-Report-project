@@ -157,8 +157,13 @@ export const coursesAPI = {
     api.delete(`/courses/${id}`),
   remove: (id: number | string): Promise<AxiosResponse<void>> =>
     api.delete(`/courses/${id}`),
-  generateReport: (id: number | string): Promise<AxiosResponse<Blob>> =>
-    api.get(`/courses/${id}/report`, { responseType: 'blob' }),
+  generateReport: (id: number | string, startDate?: string, endDate?: string): Promise<AxiosResponse<Blob>> =>
+    api.get(`/courses/${id}/report`, {
+      responseType: 'blob',
+      params: { start_date: startDate, end_date: endDate }
+    }),
+  generateSummaryReport: (id: number | string): Promise<AxiosResponse<Blob>> =>
+    api.get(`/courses/${id}/report/summary`, { responseType: 'blob' }),
   updateCosts: (id: number | string, data: CourseCostUpdate): Promise<AxiosResponse<Course>> =>
     api.put(`/courses/${id}/costs`, data),
   assignMentor: (id: number | string, data: CourseMentorCreate): Promise<AxiosResponse<CourseMentor>> =>
@@ -180,6 +185,11 @@ export const coursesAPI = {
   // Approval endpoint
   approveCourse: (courseId: number | string, approvedBy: string): Promise<AxiosResponse<Course>> =>
     api.post(`/courses/${courseId}/approve`, null, { params: { approved_by: approvedBy } }),
+  generateOverallReport: (courseType: string, startDate?: string, endDate?: string): Promise<AxiosResponse<Blob>> =>
+    api.get(`/courses/report/overall`, {
+      responseType: 'blob',
+      params: { course_type: courseType, start_date: startDate, end_date: endDate }
+    }),
 };
 
 // ============================================================================
@@ -229,6 +239,18 @@ export const lmsAPI = {
     api.get(`/lms/courses/${courseId}/check-mandatory`),
   updateCourseMandatory: (courseId: number | string, isMandatory: boolean): Promise<AxiosResponse<{ course_id: number; fullname: string; is_mandatory: number; is_mandatory_bool: boolean; message: string }>> =>
     api.put(`/lms/courses/${courseId}/mandatory`, null, { params: { is_mandatory: isMandatory } }),
+  generateReport: (courseId: number | string, startDate?: string, endDate?: string): Promise<AxiosResponse<Blob>> =>
+    api.get(`/lms/courses/${courseId}/report`, {
+      responseType: 'blob',
+      params: { start_date: startDate, end_date: endDate }
+    }),
+  generateSummaryReport: (courseId: number | string): Promise<AxiosResponse<Blob>> =>
+    api.get(`/lms/courses/${courseId}/report/summary`, { responseType: 'blob' }),
+  generateOverallReport: (startDate?: string, endDate?: string): Promise<AxiosResponse<Blob>> =>
+    api.get(`/lms/report/overall`, {
+      responseType: 'blob',
+      params: { start_date: startDate, end_date: endDate }
+    }),
 };
 
 // ============================================================================
@@ -278,8 +300,11 @@ export const studentsAPI = {
     api.post(`/students/${id}/remove`),
   restore: (id: number): Promise<AxiosResponse<Student>> =>
     api.post(`/students/${id}/restore`),
-  generateOverallReport: (): Promise<AxiosResponse<Blob>> =>
-    api.get('/students/report/overall', { responseType: 'blob' }),
+  generateOverallReport: (startDate?: string, endDate?: string): Promise<AxiosResponse<Blob>> =>
+    api.get('/students/report/overall', {
+      responseType: 'blob',
+      params: { start_date: startDate, end_date: endDate }
+    }),
   tagAsMentor: (id: number): Promise<AxiosResponse<Mentor>> =>
     api.post(`/students/${id}/mentor-tag`),
   removeMentorTag: (id: number): Promise<AxiosResponse<void>> =>

@@ -426,8 +426,16 @@ def remove_course_mentor(
     return None
 
 @router.get("/{course_id}/report")
-def generate_course_report(course_id: int, db: Session = Depends(get_db)):
-    """Generate an Excel report for a course with enrolled students data (Approved and Withdrawn only, excluding Rejected)."""
+def generate_course_report(
+    course_id: int, 
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
+    db: Session = Depends(get_db)
+):
+    """Generate an Excel report for a course with enrolled students data (Approved and Withdrawn only).
+    
+    Supports date range filtering based on enrollment/approval date.
+    """
     from app.models.student import Student
     from app.models.enrollment import CompletionStatus, ApprovalStatus
     
@@ -436,11 +444,19 @@ def generate_course_report(course_id: int, db: Session = Depends(get_db)):
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
     
-    # Get only approved and withdrawn enrollments (exclude rejected and pending)
-    enrollments = db.query(Enrollment).filter(
+    # Base query
+    query = db.query(Enrollment).filter(
         Enrollment.course_id == course_id,
         Enrollment.approval_status.in_([ApprovalStatus.APPROVED, ApprovalStatus.WITHDRAWN])
-    ).all()
+    )
+    
+    # Apply date filter (using approved_at or created_at)
+    if start_date:
+        query = query.filter(func.date(Enrollment.created_at) >= start_date)
+    if end_date:
+        query = query.filter(func.date(Enrollment.created_at) <= end_date)
+        
+    enrollments = query.all()
     
     # Prepare data for Excel
     report_data = []
@@ -520,10 +536,10 @@ def generate_course_report(course_id: int, db: Session = Depends(get_db)):
     # Create Excel file in memory
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df.to_excel(writer, sheet_name='Enrollments', index=False)
+        df.to_excel(writer, sheet_name='Participants', index=False)
         
         # Auto-adjust column widths
-        worksheet = writer.sheets['Enrollments']
+        worksheet = writer.sheets['Participants']
         from openpyxl.utils import get_column_letter
         for idx, col in enumerate(df.columns):
             max_length = max(
@@ -538,7 +554,195 @@ def generate_course_report(course_id: int, db: Session = Depends(get_db)):
     # Generate filename
     safe_course_name = "".join(c for c in course.name if c.isalnum() or c in (' ', '-', '_')).strip()
     safe_batch_code = "".join(c for c in course.batch_code if c.isalnum() or c in (' ', '-', '_')).strip()
-    filename = f"{safe_course_name}_{safe_batch_code}_Report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    filename = f"{safe_course_name}_{safe_batch_code}_Participants_{datetime.now().strftime('%Y%m%d')}.xlsx"
+    
+    return StreamingResponse(
+        io.BytesIO(output.read()),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+@router.get("/{course_id}/report/summary")
+def generate_course_summary_report(
+    course_id: int,
+    db: Session = Depends(get_db)
+):
+    """Generate a summary report for a specific course."""
+    from app.models.enrollment import CompletionStatus, ApprovalStatus
+    
+    course = db.query(Course).filter(Course.id == course_id).first()
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+        
+    # Calculate stats
+    total_enrolled = db.query(Enrollment).filter(
+        Enrollment.course_id == course_id,
+        Enrollment.approval_status == ApprovalStatus.APPROVED
+    ).count()
+    
+    completed = db.query(Enrollment).filter(
+        Enrollment.course_id == course_id,
+        Enrollment.approval_status == ApprovalStatus.APPROVED,
+        Enrollment.completion_status == CompletionStatus.COMPLETED
+    ).count()
+    
+    failed = db.query(Enrollment).filter(
+        Enrollment.course_id == course_id,
+        Enrollment.approval_status == ApprovalStatus.APPROVED,
+        Enrollment.completion_status == CompletionStatus.FAILED
+    ).count()
+    
+    withdrawn = db.query(Enrollment).filter(
+        Enrollment.course_id == course_id,
+        Enrollment.approval_status == ApprovalStatus.WITHDRAWN
+    ).count()
+    
+    completion_rate = (completed / total_enrolled * 100) if total_enrolled > 0 else 0
+    
+    # Mentors
+    mentors_str = ", ".join([m.mentor.name for m in course.mentors]) if course.mentors else "None"
+    
+    summary_data = [{
+        'Course Name': course.name,
+        'Batch Code': course.batch_code,
+        'Type': course.course_type,
+        'Start Date': course.start_date.strftime('%Y-%m-%d') if course.start_date else 'N/A',
+        'End Date': course.end_date.strftime('%Y-%m-%d') if course.end_date else 'N/A',
+        'Status': course.status.value if course.status else 'N/A',
+        'Mentors': mentors_str,
+        'Total Enrolled': total_enrolled,
+        'Completed': completed,
+        'Failed': failed,
+        'Withdrawn': withdrawn,
+        'Completion Rate': f"{completion_rate:.1f}%",
+        'Total Training Cost': float(course.food_cost or 0) + float(course.other_cost or 0) + sum(float(m.amount_paid or 0) for m in course.mentors) if course.mentors else 0
+    }]
+    
+    df = pd.DataFrame(summary_data)
+    
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, sheet_name='Summary', index=False)
+        
+        # Auto-adjust column widths
+        worksheet = writer.sheets['Summary']
+        from openpyxl.utils import get_column_letter
+        for idx, col in enumerate(df.columns):
+            max_length = max(
+                df[col].astype(str).map(len).max() if not df.empty else 0,
+                len(str(col))
+            )
+            column_letter = get_column_letter(idx + 1)
+            worksheet.column_dimensions[column_letter].width = min(max_length + 2, 50)
+            
+    output.seek(0)
+    
+    safe_course_name = "".join(c for c in course.name if c.isalnum() or c in (' ', '-', '_')).strip()
+    safe_batch_code = "".join(c for c in course.batch_code if c.isalnum() or c in (' ', '-', '_')).strip()
+    filename = f"{safe_course_name}_{safe_batch_code}_Summary_{datetime.now().strftime('%Y%m%d')}.xlsx"
+    
+    return StreamingResponse(
+        io.BytesIO(output.read()),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+
+@router.get("/report/overall")
+def generate_overall_courses_report(
+    course_type: str = Query(..., description="Course type: onsite or external"),
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
+    db: Session = Depends(get_db)
+):
+    """Generate a consolidated Excel report for all courses of a specific type with summary stats.
+    
+    Supports date range filtering based on enrollment/approval date.
+    """
+    from app.models.student import Student
+    from app.models.enrollment import CompletionStatus, ApprovalStatus, EligibilityStatus
+    import pandas as pd
+    import io
+    from fastapi.responses import StreamingResponse
+    
+    # Get all courses of the specified type
+    courses = db.query(Course).filter(Course.course_type == course_type).all()
+    
+    report_data = []
+    
+    for course in courses:
+        # Base query for enrollments
+        query = db.query(Enrollment).filter(
+            Enrollment.course_id == course.id,
+            Enrollment.approval_status.in_([ApprovalStatus.APPROVED, ApprovalStatus.WITHDRAWN])
+        )
+        
+        # Apply date filter
+        if start_date:
+            query = query.filter(func.date(Enrollment.created_at) >= start_date)
+        if end_date:
+            query = query.filter(func.date(Enrollment.created_at) <= end_date)
+            
+        enrollments = query.all()
+        
+        # Calculate stats
+        total_enrolled = len(enrollments)
+        completed = sum(1 for e in enrollments if e.completion_status == CompletionStatus.COMPLETED)
+        failed = sum(1 for e in enrollments if e.completion_status == CompletionStatus.FAILED)
+        withdrawn = sum(1 for e in enrollments if e.approval_status == ApprovalStatus.WITHDRAWN)
+        
+        completion_rate = (completed / total_enrolled * 100) if total_enrolled > 0 else 0
+        
+        # Mentors
+        mentors_str = ", ".join([m.mentor.name for m in course.mentors]) if course.mentors else "None"
+        
+        # Calculate total training cost
+        total_mentor_cost = sum(float(m.amount_paid or 0) for m in course.mentors) if course.mentors else 0
+        total_cost = float(course.food_cost or 0) + float(course.other_cost or 0) + total_mentor_cost
+        
+        report_data.append({
+            'Course Name': course.name,
+            'Batch Code': course.batch_code,
+            'Type': course.course_type,
+            'Start Date': course.start_date.strftime('%Y-%m-%d') if course.start_date else 'N/A',
+            'End Date': course.end_date.strftime('%Y-%m-%d') if course.end_date else 'N/A',
+            'Status': course.status.value if course.status else 'N/A',
+            'Mentors': mentors_str,
+            'Total Enrolled': total_enrolled,
+            'Completed': completed,
+            'Failed': failed,
+            'Withdrawn': withdrawn,
+            'Completion Rate': f"{completion_rate:.1f}%",
+            'Total Training Cost': total_cost
+        })
+            
+    df = pd.DataFrame(report_data)
+    
+    if df.empty:
+        df = pd.DataFrame(columns=[
+            'Course Name', 'Batch Code', 'Type', 'Start Date', 'End Date',
+            'Status', 'Mentors', 'Total Enrolled', 'Completed', 'Failed',
+            'Withdrawn', 'Completion Rate', 'Total Training Cost'
+        ])
+        
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        sheet_name = f"{course_type.capitalize()} Courses Summary"
+        df.to_excel(writer, sheet_name=sheet_name, index=False)
+        
+        worksheet = writer.sheets[sheet_name]
+        from openpyxl.utils import get_column_letter
+        for idx, col in enumerate(df.columns):
+            max_length = max(
+                df[col].astype(str).map(len).max() if not df.empty else 0,
+                len(str(col))
+            )
+            column_letter = get_column_letter(idx + 1)
+            worksheet.column_dimensions[column_letter].width = min(max_length + 2, 50)
+            
+    output.seek(0)
+    
+    filename = f"{course_type.capitalize()}_Courses_Summary_{datetime.now().strftime('%Y%m%d')}.xlsx"
     
     return StreamingResponse(
         io.BytesIO(output.read()),

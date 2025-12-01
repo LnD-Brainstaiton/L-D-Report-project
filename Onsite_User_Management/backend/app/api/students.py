@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 import os
 import aiofiles
-from datetime import datetime
+from datetime import datetime, date
 import pandas as pd
 import io
 import logging
@@ -658,11 +658,20 @@ def restore_student(
     }
 
 @router.get("/report/overall")
-def generate_overall_report(db: Session = Depends(get_db)):
-    """Generate an Excel report with all employee enrollment history (active employees only)."""
+def generate_overall_report(
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
+    db: Session = Depends(get_db)
+):
+    """Generate an Excel report with all employee enrollment history (active employees only).
+    
+    Supports date range filtering based on enrollment/assignment date.
+    Includes both Onsite and Online (LMS) courses.
+    """
     try:
         from app.models.enrollment import Enrollment, ApprovalStatus, CompletionStatus, EligibilityStatus
         from app.models.course import Course
+        from app.models.lms_user import LMSUserCourse
         from app.services.eligibility_service import EligibilityService
         
         # Get all active students
@@ -672,36 +681,65 @@ def generate_overall_report(db: Session = Depends(get_db)):
         report_data = []
         
         for student in active_students:
-            # Get all enrollments for this student
-            enrollments = db.query(Enrollment).filter(
+            # --- Onsite Enrollments ---
+            onsite_query = db.query(Enrollment).filter(
                 Enrollment.student_id == student.id
-            ).all()
+            )
             
-            # If student has no enrollments, add one row with "No courses taken yet"
-            if not enrollments:
+            # Apply date filter for onsite (using created_at)
+            if start_date:
+                onsite_query = onsite_query.filter(func.date(Enrollment.created_at) >= start_date)
+            if end_date:
+                onsite_query = onsite_query.filter(func.date(Enrollment.created_at) <= end_date)
+                
+            enrollments = onsite_query.all()
+            
+            # --- Online (LMS) Enrollments ---
+            online_query = db.query(LMSUserCourse).filter(
+                LMSUserCourse.student_id == student.id
+            )
+            
+            # Apply date filter for online (using enrollment_time or created_at)
+            if start_date:
+                online_query = online_query.filter(
+                    func.coalesce(func.date(LMSUserCourse.enrollment_time), func.date(LMSUserCourse.created_at)) >= start_date
+                )
+            if end_date:
+                online_query = online_query.filter(
+                    func.coalesce(func.date(LMSUserCourse.enrollment_time), func.date(LMSUserCourse.created_at)) <= end_date
+                )
+                
+            lms_courses = online_query.all()
+            
+            # If student has no enrollments in range, add one row with "No courses taken"
+            if not enrollments and not lms_courses:
                 report_data.append({
-                    'bsid': student.employee_id or '',
-                    'name': student.name or '',
-                    'email': student.email or '',
-                    'department': student.department or '',
-                    'designation': student.designation or '',
-                    'course_name': 'No courses taken yet',
-                    'batch_code': 'N/A',
-                    'attendance': 'N/A',
-                    'score': 'N/A',
-                    'completion_status': 'N/A',
-                    'approval_date': 'N/A',
-                    'completion_date': 'N/A',
-                    'withdrawn': 'N/A',
+                    'BSID': student.employee_id or '',
+                    'Name': student.name or '',
+                    'Email': student.email or '',
+                    'Department': student.department or '',
+                    'Designation': student.designation or '',
+                    'Course Name': 'No courses taken in selected period',
+                    'Course Type': 'N/A',
+                    'Batch Code': 'N/A',
+                    'Attendance': 'N/A',
+                    'Score': 'N/A',
+                    'Progress': 'N/A',
+                    'Last Access': 'N/A',
+                    'Completion Status': 'N/A',
+                    'Approval Date': 'N/A',
+                    'Completion Date': 'N/A',
+                    'Withdrawn': 'N/A',
                 })
                 continue
             
+            # Process Onsite Enrollments
             for enrollment in enrollments:
-                # Get course name and batch code (use denormalized values if available)
+                # Get course name and batch code
                 course_name = enrollment.course_name or (enrollment.course.name if enrollment.course else '')
                 batch_code = enrollment.batch_code or (enrollment.course.batch_code if enrollment.course else '')
                 
-                # Get attendance as percentage (present/total_attendance * 100)
+                # Get attendance
                 attendance = ''
                 if enrollment.total_attendance and enrollment.total_attendance > 0 and enrollment.present is not None:
                     attendance_percentage = (enrollment.present / enrollment.total_attendance * 100)
@@ -710,17 +748,11 @@ def generate_overall_report(db: Session = Depends(get_db)):
                     attendance = f"{enrollment.attendance_percentage:.1f}%"
                 elif enrollment.attendance_status:
                     attendance = enrollment.attendance_status
-                else:
-                    attendance = ''
                 
-                # Get score as percentage
-                score = ''
-                if enrollment.score is not None:
-                    score = f"{enrollment.score}%"
-                else:
-                    score = ''
+                # Get score
+                score = f"{enrollment.score}%" if enrollment.score is not None else ''
                 
-                # Get completion status (map to required values: COMPLETED, FAILED, WITHDRAWN, PENDING, INELIGIBLE)
+                # Get completion status
                 if enrollment.approval_status == ApprovalStatus.WITHDRAWN:
                     completion_status = 'WITHDRAWN'
                 elif enrollment.eligibility_status in [EligibilityStatus.INELIGIBLE_PREREQUISITE, EligibilityStatus.INELIGIBLE_DUPLICATE, EligibilityStatus.INELIGIBLE_ANNUAL_LIMIT]:
@@ -732,61 +764,75 @@ def generate_overall_report(db: Session = Depends(get_db)):
                 elif enrollment.completion_status == CompletionStatus.FAILED:
                     completion_status = 'FAILED'
                 else:
-                    completion_status = 'PENDING'  # Default for NOT_STARTED, IN_PROGRESS, etc.
+                    completion_status = 'PENDING'
                 
-                # Get approval date (format as YYYY-MM-DD)
-                approval_date = ''
-                if enrollment.approved_at:
-                    approval_date = enrollment.approved_at.strftime('%Y-%m-%d')
-                
-                # Get completion date (format as YYYY-MM-DD)
-                completion_date = ''
-                if enrollment.completion_date:
-                    completion_date = enrollment.completion_date.strftime('%Y-%m-%d')
-                
-                # Check if withdrawn
-                withdrawn = enrollment.approval_status == ApprovalStatus.WITHDRAWN
+                # Dates
+                approval_date = enrollment.approved_at.strftime('%Y-%m-%d') if enrollment.approved_at else ''
+                completion_date = enrollment.completion_date.strftime('%Y-%m-%d') if enrollment.completion_date else ''
+                withdrawn = 'TRUE' if enrollment.approval_status == ApprovalStatus.WITHDRAWN else 'FALSE'
                 
                 report_data.append({
-                    'bsid': student.employee_id or '',
-                    'name': student.name or '',
-                    'email': student.email or '',
-                    'department': student.department or '',
-                    'designation': student.designation or '',
-                    'course_name': course_name,
-                    'batch_code': batch_code,
-                    'attendance': attendance,
-                    'score': score,
-                    'completion_status': completion_status,
-                    'approval_date': approval_date,
-                    'completion_date': completion_date,
-                    'withdrawn': 'TRUE' if withdrawn else 'FALSE',
+                    'BSID': student.employee_id or '',
+                    'Name': student.name or '',
+                    'Email': student.email or '',
+                    'Department': student.department or '',
+                    'Designation': student.designation or '',
+                    'Course Name': course_name,
+                    'Course Type': 'Onsite',
+                    'Batch Code': batch_code,
+                    'Attendance': attendance,
+                    'Score': score,
+                    'Progress': 'N/A', # Not applicable for onsite
+                    'Last Access': 'N/A', # Not applicable for onsite
+                    'Completion Status': completion_status,
+                    'Approval Date': approval_date,
+                    'Completion Date': completion_date,
+                    'Withdrawn': withdrawn,
+                })
+                
+            # Process Online Enrollments
+            for lms_course in lms_courses:
+                completion_status = "COMPLETED" if lms_course.completed else ("IN_PROGRESS" if lms_course.progress and lms_course.progress > 0 else "NOT_STARTED")
+                
+                # Dates
+                enrollment_date = lms_course.enrollment_time or lms_course.created_at
+                approval_date = enrollment_date.strftime('%Y-%m-%d') if enrollment_date else '' # Auto-approved
+                completion_date = lms_course.completion_date.strftime('%Y-%m-%d') if lms_course.completion_date else ''
+                last_access = lms_course.last_access.strftime('%Y-%m-%d %H:%M') if lms_course.last_access else 'Never'
+                
+                report_data.append({
+                    'BSID': student.employee_id or '',
+                    'Name': student.name or '',
+                    'Email': student.email or '',
+                    'Department': student.department or '',
+                    'Designation': student.designation or '',
+                    'Course Name': lms_course.course_name,
+                    'Course Type': 'Online',
+                    'Batch Code': lms_course.course_shortname or '',
+                    'Attendance': 'N/A', # Not applicable for online
+                    'Score': 'N/A', # Placeholder if score not available
+                    'Progress': f"{lms_course.progress:.1f}%" if lms_course.progress is not None else '0%',
+                    'Last Access': last_access,
+                    'Completion Status': completion_status,
+                    'Approval Date': approval_date,
+                    'Completion Date': completion_date,
+                    'Withdrawn': 'FALSE',
                 })
         
         # Create DataFrame
         df = pd.DataFrame(report_data)
         
-        # If no enrollments, create empty DataFrame with columns
+        # If no data, create empty DataFrame with columns
         if df.empty:
             df = pd.DataFrame(columns=[
-                'bsid', 'name', 'email', 'department', 'designation',
-                'course_name', 'batch_code', 'attendance', 'score',
-                'completion_status', 'approval_date', 'completion_date',
-                'withdrawn'
+                'BSID', 'Name', 'Email', 'Department', 'Designation',
+                'Course Name', 'Course Type', 'Batch Code', 'Attendance', 'Score',
+                'Progress', 'Last Access', 'Completion Status', 'Approval Date', 
+                'Completion Date', 'Withdrawn'
             ])
         else:
-            # Sort by bsid ascending, then approval_date descending
-            # Convert approval_date to datetime for proper sorting, handling empty strings
-            df['approval_date_sort'] = pd.to_datetime(df['approval_date'], errors='coerce')
-            df = df.sort_values(
-                by=['bsid', 'approval_date_sort'],
-                ascending=[True, False],
-                na_position='last'
-            )
-            # Drop the temporary sort column
-            df = df.drop(columns=['approval_date_sort'])
-            # Reset index
-            df = df.reset_index(drop=True)
+            # Sort by BSID then Course Name
+            df = df.sort_values(by=['BSID', 'Course Name'])
         
         # Create Excel file in memory
         output = io.BytesIO()
@@ -803,6 +849,22 @@ def generate_overall_report(db: Session = Depends(get_db)):
                 )
                 column_letter = get_column_letter(idx + 1)
                 worksheet.column_dimensions[column_letter].width = min(max_length + 2, 50)
+                
+        output.seek(0)
+        
+        filename = f"training_history_report_{datetime.now().strftime('%Y%m%d')}.xlsx"
+        
+        return StreamingResponse(
+            io.BytesIO(output.read()),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+
+    except Exception as e:
+        logger.error(f"Error generating report: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Error generating report: {str(e)}")
         
         output.seek(0)
         
