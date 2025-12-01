@@ -100,15 +100,25 @@ const Mentors: React.FC = () => {
     }
   };
 
-  const handleAddExternalMentor = async () => {
+  const handleAddExternalMentor = async (assignment: { mentor_id: number; hours_taught: number; amount_paid: number; course_id?: number }) => {
     try {
-      setMessage({ type: 'success', text: 'External mentor created successfully' });
+      // If a course is selected, assign the mentor to the course
+      if (assignment.course_id) {
+        await coursesAPI.assignMentor(assignment.course_id, {
+          mentor_id: assignment.mentor_id,
+          hours_taught: assignment.hours_taught,
+          amount_paid: assignment.amount_paid,
+        });
+        setMessage({ type: 'success', text: 'External mentor created/selected and assigned to course successfully' });
+      } else {
+        setMessage({ type: 'success', text: 'External mentor created successfully' });
+      }
       setAddExternalMentorDialogOpen(false);
       fetchMentors();
     } catch (error) {
-      console.error('Error creating external mentor:', error);
+      console.error('Error creating/assigning external mentor:', error);
       const axiosError = error as AxiosError<{ detail?: string }>;
-      const errorMessage = axiosError.response?.data?.detail || axiosError.message || 'Error creating external mentor';
+      const errorMessage = axiosError.response?.data?.detail || axiosError.message || 'Error creating/assigning external mentor';
       setMessage({ type: 'error', text: errorMessage });
       throw error;
     }
@@ -350,6 +360,8 @@ const Mentors: React.FC = () => {
         onClose={() => setAddExternalMentorDialogOpen(false)}
         onAdd={handleAddExternalMentor}
         isDraft={false}
+        showCourseSelection={true}
+        allowSelection={true}
       />
     </Box>
   );

@@ -1,4 +1,4 @@
-import { coursesAPI } from '../../../services/api';
+import { coursesAPI, lmsAPI } from '../../../services/api';
 import { formatDateForAPI } from '../../../utils/dateUtils';
 import type { AlertMessage, ClassScheduleEntry } from '../../../types';
 import { AxiosError } from 'axios';
@@ -33,30 +33,50 @@ export const handleApproveCourse = async (
   }
 };
 
-export const handleGenerateReport = async (courseId: number, setMessage: SetMessage): Promise<void> => {
+export const handleGenerateReport = async (
+  courseId: number,
+  setMessage: SetMessage,
+  courseType: 'onsite' | 'online' | 'external' = 'onsite'
+): Promise<void> => {
   try {
-    const response = await coursesAPI.generateReport(courseId);
-    const blob = new Blob([response.data as BlobPart], {
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    });
-    const contentDisposition = response.headers['content-disposition'];
+    setMessage({ type: 'info', text: 'Generating report...' });
+
+    let response;
     let filename = `course_report_${courseId}.xlsx`;
-    if (contentDisposition) {
-      const filenameMatch = contentDisposition.match(/filename="?(.+)"?/i);
-      if (filenameMatch) {
-        filename = filenameMatch[1];
-      }
+
+    if (courseType === 'online') {
+      response = await lmsAPI.generateReport(courseId);
+      filename = `online_participant_details_${courseId}.xlsx`;
+    } else {
+      response = await coursesAPI.generateReport(courseId);
+      filename = `participant_details_${courseId}.xlsx`;
     }
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    window.URL.revokeObjectURL(url);
-    setMessage({ type: 'success', text: 'Report generated and downloaded successfully' });
+
+    if (response) {
+      const contentDisposition = response.headers['content-disposition'];
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="?(.+)"?/i);
+        if (filenameMatch) {
+          filename = filenameMatch[1];
+        }
+      }
+
+      const blob = new Blob([response.data], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      setMessage({ type: 'success', text: 'Report generated successfully' });
+    }
   } catch (error) {
+    console.error('Error generating report:', error);
     const axiosError = error as AxiosError<{ detail?: string }>;
     setMessage({ type: 'error', text: axiosError.response?.data?.detail || 'Error generating report' });
   }

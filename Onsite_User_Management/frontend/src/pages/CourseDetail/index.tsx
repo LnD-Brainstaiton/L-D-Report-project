@@ -252,7 +252,7 @@ function CourseDetail(): React.ReactElement {
             onManualEnroll={handleOpenManualEnroll}
             onImportEnrollments={() => setImportDialogOpen(true)}
             onUploadAttendance={() => setAttendanceDialogOpen(true)}
-            onGenerateReport={() => handleGenerateReport(Number(courseId!), setMessage)}
+            onGenerateReport={() => handleGenerateReport(Number(courseId!), setMessage, courseType as any)}
             theme={theme}
           />
         )}
@@ -529,6 +529,7 @@ function CourseDetail(): React.ReactElement {
         onClose={() => setAddExternalMentorDialogOpen(false)}
         onAdd={handleAddExternalMentor}
         isDraft={course?.status === 'draft'}
+        allowSelection={true}
       />
 
       <EditMentorDialog

@@ -62,6 +62,13 @@ def create_external_mentor(mentor: MentorCreate, db: Session = Depends(get_db)):
     if not mentor.name:
         raise HTTPException(status_code=400, detail="Name is required for external mentors")
     
+    # Check if a student exists with this email and update is_mentor flag
+    if mentor.email:
+        student = db.query(Student).filter(Student.email == mentor.email).first()
+        if student and not student.is_mentor:
+            student.is_mentor = True
+            db.add(student) # Ensure it's marked for update
+    
     db_mentor = Mentor(
         is_internal=False,
         name=mentor.name,
