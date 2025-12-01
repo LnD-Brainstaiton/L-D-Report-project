@@ -59,7 +59,7 @@ function CourseDetail(): React.ReactElement {
   const location = useLocation();
   const { courseId } = useParams<{ courseId: string }>();
   const courseType = (location.state as any)?.courseType || 'onsite';
-  
+
   // Data hooks
   const {
     course,
@@ -71,29 +71,29 @@ function CourseDetail(): React.ReactElement {
     setCourse,
     fetchCourse,
   } = useCourseDetailData(courseId, courseType);
-  
+
   const {
     enrollments,
     loadingEnrollments,
     setEnrollments,
     fetchEnrollments,
   } = useEnrollments(courseId, course, courseType);
-  
+
   // Combined message state
   const [message, setMessage] = useState<Message | null>(null);
-  
+
   useEffect(() => {
     if (courseMessage) {
       setMessage(courseMessage);
     }
   }, [courseMessage]);
-  
+
   // Enrollment sections - different for onsite vs online courses
   const isOnlineCourse = course?.is_lms_course === true;
-  
+
   // Employee filter state (for online courses)
   const [employeeFilter, setEmployeeFilter] = useState<'all' | 'active' | 'previous'>('active');
-  
+
   // Dialogs state
   const [withdrawDialogOpen, setWithdrawDialogOpen] = useState<boolean>(false);
   const [selectedEnrollment, setSelectedEnrollment] = useState<Enrollment | null>(null);
@@ -125,7 +125,9 @@ function CourseDetail(): React.ReactElement {
   const [foodCost, setFoodCost] = useState<string>('');
   const [otherCost, setOtherCost] = useState<string>('');
   const [editCostsLoading, setEditCostsLoading] = useState<boolean>(false);
+
   const [mentorCosts, setMentorCosts] = useState<MentorCost[]>([]);
+  const [generalMentorCost, setGeneralMentorCost] = useState<string>('');
   const [userDetailsOpen, setUserDetailsOpen] = useState<boolean>(false);
   const [selectedUserEnrollment, setSelectedUserEnrollment] = useState<Enrollment | null>(null);
   const [commentDialogOpen, setCommentDialogOpen] = useState<boolean>(false);
@@ -211,14 +213,14 @@ function CourseDetail(): React.ReactElement {
       </Button>
 
       {message && (
-        <Alert 
+        <Alert
           severity={message.type}
           onClose={() => setMessage(null)}
-          sx={{ 
+          sx={{
             mb: 3,
             borderRadius: '8px',
             border: 'none',
-          }} 
+          }}
         >
           {message.text}
         </Alert>
@@ -304,14 +306,17 @@ function CourseDetail(): React.ReactElement {
           <CostBreakdownCard
             course={course}
             draftMentorsWithDetails={draftMentorsWithDetails as DraftMentorWithDetails[]}
-            onEditClick={() => handleOpenEditCosts(
-              course as any,
-              draftMentorsWithDetails as any,
-              setFoodCost,
-              setOtherCost,
-              setMentorCosts,
-              setEditCostsDialogOpen
-            )}
+            onEditClick={() => {
+              handleOpenEditCosts(
+                course as any,
+                draftMentorsWithDetails as any,
+                setFoodCost,
+                setOtherCost,
+                setMentorCosts,
+                setEditCostsDialogOpen
+              );
+              setGeneralMentorCost('');
+            }}
             theme={theme}
           />
         )}
@@ -366,11 +371,11 @@ function CourseDetail(): React.ReactElement {
 
         {/* Enrollment Sections */}
         <EnrollmentSections
-          enrollments={employeeFilter === 'all' 
-            ? enrollments 
+          enrollments={employeeFilter === 'all'
+            ? enrollments
             : employeeFilter === 'active'
-            ? enrollments.filter((e: any) => e.is_active !== false)
-            : enrollments.filter((e: any) => e.is_active === false)}
+              ? enrollments.filter((e: any) => e.is_active !== false)
+              : enrollments.filter((e: any) => e.is_active === false)}
           loadingEnrollments={loadingEnrollments}
           isOnlineCourse={isOnlineCourse}
           onViewDetails={(enrollment) => {
@@ -566,6 +571,9 @@ function CourseDetail(): React.ReactElement {
         mentorCosts={mentorCosts}
         handleMentorCostChange={handleMentorCostChange}
         editCostsLoading={editCostsLoading}
+        courseType={courseType}
+        generalMentorCost={generalMentorCost}
+        setGeneralMentorCost={setGeneralMentorCost}
         onConfirm={() => handleSaveCosts(
           foodCost,
           otherCost,
@@ -575,7 +583,8 @@ function CourseDetail(): React.ReactElement {
           setMessage,
           setEditCostsDialogOpen,
           fetchCourse,
-          setEditCostsLoading
+          setEditCostsLoading,
+          generalMentorCost
         )}
       />
 

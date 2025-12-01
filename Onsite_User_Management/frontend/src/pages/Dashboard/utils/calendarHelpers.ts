@@ -18,6 +18,7 @@ interface CalendarEvent {
     time: string;
     day: string;
     scheduleIndex: number;
+    courseType?: string;
   };
 }
 
@@ -58,27 +59,36 @@ export const generateCourseColor = (courseId: number): string => {
  */
 export const convertSchedulesToEvents = (
   courses: CourseWithSchedule[],
-  courseType: string
+  _courseType: string // Unused now as we process all passed courses
 ): CalendarEvent[] => {
   const events: CalendarEvent[] = [];
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  // Only process ongoing courses for calendar events (onsite only)
-  const ongoingCoursesForCalendar =
-    courseType === 'onsite'
-      ? courses.filter((c) => {
-          const courseStatus = getCourseStatus(c as any);
-          if (courseStatus !== 'ongoing') return false;
-          const courseStartDate = getCourseStartDate(c);
-          if (!courseStartDate) return false;
-          courseStartDate.setHours(0, 0, 0, 0);
-          return courseStartDate <= today;
-        })
-      : [];
+  // Process both onsite and external courses that are ongoing
+  const ongoingCoursesForCalendar = courses.filter((c) => {
+    const courseStatus = getCourseStatus(c as any);
+    if (courseStatus !== 'ongoing') return false;
+
+    // Only process onsite and external courses
+    if (c.course_type !== 'onsite' && c.course_type !== 'external') return false;
+
+    const courseStartDate = getCourseStartDate(c);
+    if (!courseStartDate) return false;
+    courseStartDate.setHours(0, 0, 0, 0);
+    return courseStartDate <= today;
+  });
 
   ongoingCoursesForCalendar.forEach((course) => {
-    const eventColor = generateCourseColor(course.id);
+    // Use different base colors for onsite vs external
+    // Onsite: Blue/Green hues (default logic)
+    // External: Orange/Red hues
+    const isExternal = course.course_type === 'external';
+    const eventColor = isExternal
+      ? `hsl(${Math.abs(generateCourseColor(course.id).split(',')[0].split('(')[1] as any) % 60 + 10}, 80%, 55%)` // Orange/Red range
+      : generateCourseColor(course.id);
+
+    const typeTag = isExternal ? '[External]' : '[Onsite]';
 
     if (course.class_schedule && Array.isArray(course.class_schedule)) {
       course.class_schedule.forEach((schedule, scheduleIndex) => {
@@ -109,8 +119,8 @@ export const convertSchedulesToEvents = (
 
               const title =
                 course.class_schedule!.filter((s) => s.day === schedule.day).length > 1
-                  ? `${course.name} (${course.batch_code}) - ${convertTo12HourFormat(schedule.start_time)}`
-                  : `${course.name} (${course.batch_code})`;
+                  ? `${typeTag} ${course.name} (${course.batch_code}) - ${convertTo12HourFormat(schedule.start_time)}`
+                  : `${typeTag} ${course.name} (${course.batch_code})`;
 
               events.push({
                 id: eventId,
@@ -127,6 +137,7 @@ export const convertSchedulesToEvents = (
                   time: `${convertTo12HourFormat(schedule.start_time)} - ${convertTo12HourFormat(schedule.end_time)}`,
                   day: schedule.day,
                   scheduleIndex: scheduleIndex,
+                  courseType: course.course_type,
                 },
               });
             }

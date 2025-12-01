@@ -32,6 +32,9 @@ interface EditCostsDialogProps {
   handleMentorCostChange: (index: number, field: 'hours_taught' | 'amount_paid', value: string) => void;
   editCostsLoading: boolean;
   onConfirm: () => void;
+  courseType?: string;
+  generalMentorCost?: string;
+  setGeneralMentorCost?: (cost: string) => void;
 }
 
 function EditCostsDialog({
@@ -45,6 +48,9 @@ function EditCostsDialog({
   handleMentorCostChange,
   editCostsLoading,
   onConfirm,
+  courseType,
+  generalMentorCost,
+  setGeneralMentorCost,
 }: EditCostsDialogProps): React.ReactElement {
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
@@ -85,11 +91,30 @@ function EditCostsDialog({
             Mentor Costs
           </Typography>
         </Box>
-        
+
         {mentorCosts.length === 0 ? (
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            No mentors assigned. Use "Assign Internal Mentor" or "Add External Mentor" buttons to add mentors.
-          </Typography>
+          <Box>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              No mentors assigned.
+              {courseType !== 'external' && ' Use "Assign Internal Mentor" or "Add External Mentor" buttons to add mentors.'}
+            </Typography>
+
+            {courseType === 'external' && setGeneralMentorCost && (
+              <TextField
+                label="Total Mentor Cost"
+                type="number"
+                fullWidth
+                value={generalMentorCost}
+                onChange={(e) => setGeneralMentorCost(e.target.value)}
+                sx={{ mb: 2 }}
+                InputProps={{
+                  startAdornment: <InputAdornment position="start">Tk</InputAdornment>,
+                }}
+                inputProps={{ min: 0, step: 0.01 }}
+                helperText="Enter total cost if no specific mentor is assigned. A placeholder 'External Trainer' will be created."
+              />
+            )}
+          </Box>
         ) : (
           <Box display="flex" flexDirection="column" gap={2} sx={{ mb: 2 }}>
             {mentorCosts.map((mc, index) => (

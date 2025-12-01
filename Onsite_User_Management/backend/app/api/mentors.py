@@ -99,6 +99,10 @@ def create_internal_mentor(student_id: int, db: Session = Depends(get_db)):
         designation=student.designation
     )
     db.add(db_mentor)
+    
+    # Update student.is_mentor flag
+    student.is_mentor = True
+    
     db.commit()
     db.refresh(db_mentor)
     return MentorResponse.from_orm(db_mentor)

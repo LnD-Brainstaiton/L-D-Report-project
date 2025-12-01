@@ -21,10 +21,10 @@ import {
 import { Visibility, ExpandMore, ExpandLess, UploadFile, Download } from '@mui/icons-material';
 
 const attendancePreviewData = [
-  { name: 'John Doe', email: 'john.doe@company.com', total_classes_attended: 8, score: 85.5 },
-  { name: 'Jane Smith', email: 'jane.smith@company.com', total_classes_attended: 9, score: 92.0 },
-  { name: 'Bob Wilson', email: 'bob.wilson@company.com', total_classes_attended: 7, score: 78.5 },
-  { name: 'Alice Brown', email: 'alice.brown@company.com', total_classes_attended: 10, score: 95.0 },
+  { employee_id: 'BS0019', name: 'Raisul Kabir', email: 'raisul@brainstation-23.com', total_classes_attended: 10, score: 100 },
+  { employee_id: 'BS0342', name: 'Md. Mosabbir Alam', email: 'mosabbir.alam@brainstation-23.com', total_classes_attended: 9, score: 95 },
+  { employee_id: 'BS0489', name: 'M.J. Ferdous', email: 'mj.ferdous@brainstation-23.com', total_classes_attended: 8, score: 90 },
+  { employee_id: 'BS0666', name: 'Farzana Afroze', email: 'farzana.afroze@brainstation-23.com', total_classes_attended: 10, score: 98 },
 ];
 
 interface AttendanceDialogProps {
@@ -62,11 +62,11 @@ function AttendanceDialog({
       <DialogContent>
         {/* Preview Section */}
         <Box>
-          <Box 
-            display="flex" 
-            alignItems="center" 
+          <Box
+            display="flex"
+            alignItems="center"
             justifyContent="space-between"
-            sx={{ 
+            sx={{
               cursor: 'pointer',
               p: 1,
               borderRadius: 1,
@@ -82,7 +82,7 @@ function AttendanceDialog({
               {showAttendancePreview ? <ExpandLess /> : <ExpandMore />}
             </IconButton>
           </Box>
-          
+
           <Collapse in={showAttendancePreview}>
             <Box mt={1} sx={{ border: `1px solid ${alpha(theme.palette.divider, 0.1)}`, borderRadius: 2, overflow: 'hidden' }}>
               <Box sx={{ p: 1, display: 'flex', justifyContent: 'flex-end', borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}` }}>
@@ -92,8 +92,8 @@ function AttendanceDialog({
                   startIcon={<Download />}
                   onClick={() => {
                     const link = document.createElement('a');
-                    link.href = '/ADA2025A_completion.xlsx';
-                    link.download = 'attendance_template.xlsx';
+                    link.href = '/Attendance_Score.xlsx';
+                    link.download = 'Attendance_Score.xlsx';
                     document.body.appendChild(link);
                     link.click();
                     document.body.removeChild(link);
@@ -107,6 +107,7 @@ function AttendanceDialog({
                 <Table size="small" sx={{ minWidth: 650 }}>
                   <TableHead>
                     <TableRow sx={{ backgroundColor: alpha(theme.palette.primary.main, 0.05) }}>
+                      <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem' }}>employee_id</TableCell>
                       <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem' }}>name</TableCell>
                       <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem' }}>email</TableCell>
                       <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem' }}>total_classes_attended</TableCell>
@@ -115,12 +116,13 @@ function AttendanceDialog({
                   </TableHead>
                   <TableBody>
                     {attendancePreviewData.map((row, index) => (
-                      <TableRow 
+                      <TableRow
                         key={index}
-                        sx={{ 
+                        sx={{
                           '&:nth-of-type(odd)': { backgroundColor: alpha(theme.palette.primary.main, 0.02) }
                         }}
                       >
+                        <TableCell sx={{ fontSize: '0.75rem' }}>{row.employee_id}</TableCell>
                         <TableCell sx={{ fontSize: '0.75rem' }}>{row.name}</TableCell>
                         <TableCell sx={{ fontSize: '0.75rem' }}>{row.email}</TableCell>
                         <TableCell sx={{ fontSize: '0.75rem' }}>{row.total_classes_attended}</TableCell>
@@ -132,13 +134,13 @@ function AttendanceDialog({
               </TableContainer>
               <Box sx={{ p: 1, backgroundColor: alpha(theme.palette.info.main, 0.05), borderTop: `1px solid ${alpha(theme.palette.divider, 0.1)}` }}>
                 <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
-                  
+
                 </Typography>
               </Box>
             </Box>
           </Collapse>
         </Box>
-        
+
         <Box sx={{ mt: 3 }}>
           <Button variant="outlined" component="label" startIcon={<UploadFile />} fullWidth>
             Select File

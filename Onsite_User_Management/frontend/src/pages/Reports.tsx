@@ -37,47 +37,84 @@ import DateRangeSelector, { DateRangeOption } from '../components/DateRangeSelec
 import { format } from 'date-fns';
 
 type ReportCategory = 'overall' | 'onsite' | 'online' | 'external';
+type ReportType = 'course' | 'employee';
 
-const steps = [
-  {
-    label: 'Select Report Category',
-    description: 'Choose the type of report you want to generate.',
-  },
-  {
-    label: 'Select Course',
-    description: 'Search and select the specific course.',
-  },
-  {
+const getSteps = (reportType: ReportType | null) => {
+  const steps = [
+    {
+      label: 'Select Report Type',
+      description: 'Choose between Course Reports or Employee Reports.',
+    },
+    {
+      label: reportType === 'employee' ? 'Select Employee' : 'Select Category',
+      description: 'Choose the specific category or employee.',
+    },
+  ];
+
+  if (reportType !== 'employee') {
+    steps.push({
+      label: 'Select Course / Details',
+      description: 'Search and select the specific course or verify details.',
+    });
+  }
+
+  steps.push({
     label: 'Select Date Range',
     description: 'Filter the report data by a specific time period.',
-  },
-  {
+  });
+
+  steps.push({
     label: 'Download Report',
     description: 'Review your selection and download the report.',
-  },
-];
+  });
+
+  return steps;
+};
 
 const Reports: React.FC = () => {
   const theme = useTheme();
   const [activeStep, setActiveStep] = useState(0);
+  const [reportType, setReportType] = useState<ReportType | null>(null);
   const [category, setCategory] = useState<ReportCategory | null>(null);
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
   const [dateOption, setDateOption] = useState<DateRangeOption>('month');
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
+  const [selectedEmployee, setSelectedEmployee] = useState<any | null>(null);
+  const [isAllEmployees, setIsAllEmployees] = useState(false);
 
   const [overallReportType, setOverallReportType] = useState<ReportCategory | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [allCourses, setAllCourses] = useState<Course[]>([]);
+  const [allEmployees, setAllEmployees] = useState<any[]>([]);
   const [downloadingReport, setDownloadingReport] = useState<string | null>(null);
 
   // Fetch courses when category changes
   useEffect(() => {
-    if (category && category !== 'overall') {
+    if (category && category !== 'overall' && reportType === 'course') {
       fetchCourses(category);
     }
-  }, [category]);
+  }, [category, reportType]);
+
+  // Fetch employees when report type is employee
+  useEffect(() => {
+    if (reportType === 'employee') {
+      fetchEmployees();
+    }
+  }, [reportType]);
+
+  const fetchEmployees = async () => {
+    setLoading(true);
+    try {
+      const response = await studentsAPI.getAll({ is_active: true });
+      setAllEmployees(response.data);
+    } catch (error) {
+      console.error('Error fetching employees:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const fetchCourses = async (selectedCategory: ReportCategory) => {
     setLoading(true);
@@ -106,32 +143,28 @@ const Reports: React.FC = () => {
     }
   };
 
+  const steps = getSteps(reportType);
+
   const handleNext = () => {
-    // Skip course selection if category is 'overall'
-    if (activeStep === 0 && category === 'overall') {
-      setActiveStep(1); // Go to Sub-category selection (which is now Step 1 for overall)
-    } else {
-      setActiveStep((prevActiveStep) => prevActiveStep + 1);
-    }
+    setActiveStep((prevActiveStep) => prevActiveStep + 1);
   };
 
   const handleBack = () => {
-    if (activeStep === 1 && category === 'overall') {
-      setActiveStep(0); // Jump back to Category
+    if (activeStep === 1 && category === 'overall' && reportType === 'course') {
       setCategory(null);
       setOverallReportType(null);
-    } else if (activeStep === 2 && category === 'overall') {
-      setActiveStep(1); // Jump back to Sub-category
-    } else {
-      setActiveStep((prevActiveStep) => prevActiveStep - 1);
     }
+    setActiveStep((prevActiveStep) => prevActiveStep - 1);
   };
 
   const handleReset = () => {
     setActiveStep(0);
+    setReportType(null);
     setCategory(null);
     setOverallReportType(null);
     setSelectedCourse(null);
+    setSelectedEmployee(null);
+    setIsAllEmployees(false);
     setAllCourses([]);
   };
 
@@ -151,7 +184,15 @@ const Reports: React.FC = () => {
       const formattedStartDate = (startDate && !ignoreDateRange) ? format(startDate, 'yyyy-MM-dd') : undefined;
       const formattedEndDate = (endDate && !ignoreDateRange) ? format(endDate, 'yyyy-MM-dd') : undefined;
 
-      if (type === 'overall') {
+      if (reportType === 'employee') {
+        if (isAllEmployees) {
+          response = await studentsAPI.generateOverallReport(formattedStartDate, formattedEndDate);
+          filename = `all_employees_report_${new Date().toISOString().split('T')[0]}.xlsx`;
+        } else if (selectedEmployee) {
+          response = await studentsAPI.generateStudentReport(selectedEmployee.id, formattedStartDate, formattedEndDate);
+          filename = `employee_report_${selectedEmployee.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.xlsx`;
+        }
+      } else if (type === 'overall') {
         // Use overallReportType if available (new flow), otherwise fall back to category (shouldn't happen in new flow but good for safety)
         const targetCategory = overallReportType || category;
 
@@ -248,7 +289,7 @@ const Reports: React.FC = () => {
           setCategory(value);
           // Auto-advance
           setTimeout(() => {
-            setActiveStep(1); // Always go to Step 1 (Sub-category for Overall, Course Selection for others)
+            setActiveStep((prev) => prev + 1);
           }, 300);
         })}
       >
@@ -270,37 +311,167 @@ const Reports: React.FC = () => {
       case 0:
         return (
           <Grid container spacing={2}>
-            {renderCategoryCard(
-              'onsite',
-              'Onsite Courses',
-              'Physical classroom training sessions',
-              <School sx={{ fontSize: 40 }} />,
-              theme.palette.primary.main
-            )}
-            {renderCategoryCard(
-              'online',
-              'Online Courses',
-              'E-learning and virtual courses',
-              <Computer sx={{ fontSize: 40 }} />,
-              theme.palette.info.main
-            )}
-            {renderCategoryCard(
-              'external',
-              'External Courses',
-              'Training by external providers',
-              <Public sx={{ fontSize: 40 }} />,
-              theme.palette.success.main
-            )}
-            {renderCategoryCard(
-              'overall',
-              'Overall Report',
-              'Complete training history across all types',
-              <Assessment sx={{ fontSize: 40 }} />,
-              theme.palette.warning.main
-            )}
+            <Grid item xs={12} sm={6}>
+              <Card
+                sx={{
+                  cursor: 'pointer',
+                  border: reportType === 'course' ? `2px solid ${theme.palette.primary.main}` : `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+                  backgroundColor: reportType === 'course' ? alpha(theme.palette.primary.main, 0.04) : 'background.paper',
+                  transition: 'all 0.2s',
+                  height: '100%',
+                  '&:hover': {
+                    transform: 'translateY(-4px)',
+                    boxShadow: theme.shadows[4],
+                    borderColor: theme.palette.primary.main,
+                  },
+                }}
+                onClick={() => {
+                  setReportType('course');
+                  setTimeout(() => setActiveStep((prev) => prev + 1), 300);
+                }}
+              >
+                <CardContent sx={{ textAlign: 'center', py: 3 }}>
+                  <Box sx={{ color: theme.palette.primary.main, mb: 2 }}><School sx={{ fontSize: 40 }} /></Box>
+                  <Typography variant="h6" gutterBottom>Course Reports</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Generate reports for specific courses or categories (Onsite, Online, External).
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <Card
+                sx={{
+                  cursor: 'pointer',
+                  border: reportType === 'employee' ? `2px solid ${theme.palette.secondary.main}` : `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+                  backgroundColor: reportType === 'employee' ? alpha(theme.palette.secondary.main, 0.04) : 'background.paper',
+                  transition: 'all 0.2s',
+                  height: '100%',
+                  '&:hover': {
+                    transform: 'translateY(-4px)',
+                    boxShadow: theme.shadows[4],
+                    borderColor: theme.palette.secondary.main,
+                  },
+                }}
+                onClick={() => {
+                  setReportType('employee');
+                  setTimeout(() => setActiveStep((prev) => prev + 1), 300);
+                }}
+              >
+                <CardContent sx={{ textAlign: 'center', py: 3 }}>
+                  <Box sx={{ color: theme.palette.secondary.main, mb: 2 }}><Assessment sx={{ fontSize: 40 }} /></Box>
+                  <Typography variant="h6" gutterBottom>Employee Reports</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Generate comprehensive training history for individual employees or all staff.
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
           </Grid>
         );
       case 1:
+        if (reportType === 'course') {
+          return (
+            <Grid container spacing={2}>
+              {renderCategoryCard(
+                'onsite',
+                'Onsite Courses',
+                'Physical classroom training sessions',
+                <School sx={{ fontSize: 40 }} />,
+                theme.palette.primary.main
+              )}
+              {renderCategoryCard(
+                'online',
+                'Online Courses',
+                'E-learning and virtual courses',
+                <Computer sx={{ fontSize: 40 }} />,
+                theme.palette.info.main
+              )}
+              {renderCategoryCard(
+                'external',
+                'External Courses',
+                'Training by external providers',
+                <Public sx={{ fontSize: 40 }} />,
+                theme.palette.success.main
+              )}
+              {renderCategoryCard(
+                'overall',
+                'Overall Report',
+                'Complete training history across all types',
+                <Assessment sx={{ fontSize: 40 }} />,
+                theme.palette.warning.main
+              )}
+            </Grid>
+          );
+        } else if (reportType === 'employee') {
+          return (
+            <Box sx={{ maxWidth: 600, mx: 'auto', py: 2 }}>
+              <Typography variant="subtitle1" gutterBottom>
+                Select Employee
+              </Typography>
+
+              <Box sx={{ mb: 3 }}>
+                <Button
+                  variant={isAllEmployees ? "contained" : "outlined"}
+                  onClick={() => {
+                    setIsAllEmployees(!isAllEmployees);
+                    setSelectedEmployee(null);
+                  }}
+                  fullWidth
+                  sx={{ mb: 2 }}
+                >
+                  {isAllEmployees ? "Selected: All Employees (Master Report)" : "Select All Employees (Master Report)"}
+                </Button>
+              </Box>
+
+              <Divider sx={{ my: 2 }}>OR</Divider>
+
+              <Autocomplete
+                options={allEmployees}
+                getOptionLabel={(option) => `${option.name} (${option.employee_id})`}
+                value={selectedEmployee}
+                onChange={(_, newValue) => {
+                  setSelectedEmployee(newValue);
+                  setIsAllEmployees(false);
+                }}
+                disabled={isAllEmployees}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Search Employee"
+                    placeholder="Type to search by name or ID..."
+                  />
+                )}
+                loading={loading}
+                sx={{ mb: 4 }}
+              />
+
+              <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
+                <Button onClick={handleBack}>Back</Button>
+                <Button variant="contained" onClick={handleNext} disabled={!selectedEmployee && !isAllEmployees}>
+                  Continue
+                </Button>
+              </Box>
+            </Box>
+          );
+        }
+        return null;
+      case 2:
+        if (reportType === 'employee') {
+          // Render Date Range for Employee
+          return (
+            <Box sx={{ maxWidth: 600, mx: 'auto', py: 2 }}>
+              <DateRangeSelector onChange={handleDateRangeChange} initialOption={dateOption} />
+              <Box sx={{ mt: 4, display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
+                <Button onClick={handleBack}>Back</Button>
+                <Button variant="contained" onClick={handleNext} disabled={dateOption !== 'all_time' && (!startDate || !endDate)}>
+                  Continue
+                </Button>
+              </Box>
+            </Box>
+          );
+        }
+        // Course Mode: Select Course or Overall Type
         if (category === 'overall') {
           return (
             <Box sx={{ maxWidth: 800, mx: 'auto', py: 2 }}>
@@ -316,7 +487,7 @@ const Reports: React.FC = () => {
                   theme.palette.primary.main,
                   () => {
                     setOverallReportType('onsite');
-                    setActiveStep(2);
+                    setActiveStep((prev) => prev + 1);
                   }
                 )}
                 {renderCategoryCard(
@@ -327,7 +498,7 @@ const Reports: React.FC = () => {
                   theme.palette.info.main,
                   () => {
                     setOverallReportType('online');
-                    setActiveStep(2);
+                    setActiveStep((prev) => prev + 1);
                   }
                 )}
                 {renderCategoryCard(
@@ -338,7 +509,7 @@ const Reports: React.FC = () => {
                   theme.palette.success.main,
                   () => {
                     setOverallReportType('external');
-                    setActiveStep(2);
+                    setActiveStep((prev) => prev + 1);
                   }
                 )}
               </Grid>
@@ -380,7 +551,73 @@ const Reports: React.FC = () => {
             </Box>
           </Box>
         );
-      case 2:
+      case 3:
+        if (reportType === 'employee') {
+          // Render Download for Employee
+          return (
+            <Box sx={{ maxWidth: 600, mx: 'auto', py: 2 }}>
+              <Paper variant="outlined" sx={{ p: 3, mb: 3, backgroundColor: alpha(theme.palette.background.default, 0.5) }}>
+                <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                  Selected Filters
+                </Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={6}>
+                    <Typography variant="caption" color="text.secondary">Report Type</Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography variant="body1" fontWeight={500} sx={{ textTransform: 'capitalize' }}>
+                        Employee Report
+                      </Typography>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="caption" color="text.secondary">Date Range</Typography>
+                    <Typography variant="body1" fontWeight={500}>
+                      {dateOption === 'all_time' ? 'All Time' : `${startDate && format(startDate, 'MMM d, yyyy')} - ${endDate && format(endDate, 'MMM d, yyyy')}`}
+                    </Typography>
+                  </Grid>
+                  {(selectedEmployee || isAllEmployees) && (
+                    <Grid item xs={12}>
+                      <Typography variant="caption" color="text.secondary">Selected Employee</Typography>
+                      <Typography variant="body1" fontWeight={500}>
+                        {isAllEmployees ? "All Employees (Master Report)" : `${selectedEmployee.name} (${selectedEmployee.employee_id})`}
+                      </Typography>
+                    </Grid>
+                  )}
+                </Grid>
+              </Paper>
+
+              <Grid container spacing={2}>
+                <Grid item xs={12}>
+                  <Button
+                    variant="contained"
+                    size="large"
+                    startIcon={downloadingReport === 'participants' ? <CircularProgress size={20} color="inherit" /> : <Download />}
+                    onClick={() => handleDownloadReport('participants')}
+                    disabled={!!downloadingReport}
+                    fullWidth
+                    sx={{ py: 1.5 }}
+                  >
+                    {downloadingReport === 'participants' ? 'Downloading...' : 'Download Employee Report'}
+                  </Button>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1, textAlign: 'center' }}>
+                    Full training history (Onsite, Online, External)
+                  </Typography>
+                </Grid>
+              </Grid>
+
+              <Box sx={{ mt: 4, display: 'flex', justifyContent: 'flex-start' }}>
+                <Button onClick={handleBack} startIcon={<ArrowBack />}>
+                  Back
+                </Button>
+                <Box sx={{ flex: 1 }} />
+                <Button color="inherit" onClick={handleReset}>
+                  Start Over
+                </Button>
+              </Box>
+            </Box>
+          );
+        }
+        // Course Mode: Date Range
         return (
           <Box sx={{ maxWidth: 600, mx: 'auto', py: 2 }}>
             <DateRangeSelector onChange={handleDateRangeChange} initialOption={dateOption} />
@@ -392,7 +629,8 @@ const Reports: React.FC = () => {
             </Box>
           </Box>
         );
-      case 3:
+      case 4:
+        // Course Mode: Download
         return (
           <Box sx={{ maxWidth: 600, mx: 'auto', py: 2 }}>
             <Paper variant="outlined" sx={{ p: 3, mb: 3, backgroundColor: alpha(theme.palette.background.default, 0.5) }}>
@@ -401,7 +639,7 @@ const Reports: React.FC = () => {
               </Typography>
               <Grid container spacing={2}>
                 <Grid item xs={6}>
-                  <Typography variant="caption" color="text.secondary">Report Category</Typography>
+                  <Typography variant="caption" color="text.secondary">Report Type</Typography>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <Typography variant="body1" fontWeight={500} sx={{ textTransform: 'capitalize' }}>
                       {category === 'overall' ? `Overall ${overallReportType}` : category}

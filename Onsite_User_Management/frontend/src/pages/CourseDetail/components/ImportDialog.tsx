@@ -22,10 +22,10 @@ import {
 import { Visibility, ExpandMore, ExpandLess, UploadFile, Download } from '@mui/icons-material';
 
 const enrollmentPreviewData = [
-  { employee_id: 'EMP143', name: 'Casey Smith', email: 'casey.smith143@company.com', department: 'Operations', designation: 'Engineer', course_name: 'Advanced Data Analytics', batch_code: 'ADA2025A' },
-  { employee_id: 'EMP102', name: 'Morgan Williams', email: 'morgan.williams102@company.com', department: 'Marketing', designation: 'Engineer', course_name: 'Advanced Data Analytics', batch_code: 'ADA2025A' },
-  { employee_id: 'EMP144', name: 'Reese Williams', email: 'reese.williams144@company.com', department: 'Operations', designation: 'Manager', course_name: 'Advanced Data Analytics', batch_code: 'ADA2025A' },
-  { employee_id: 'EMP145', name: 'Alex Johnson', email: 'alex.johnson145@company.com', department: 'IT', designation: 'Coordinator', course_name: 'Advanced Data Analytics', batch_code: 'ADA2025A' },
+  { employee_id: 'BS0019', name: 'Raisul Kabir', email: 'raisul@brainstation-23.com', sbu: 'CXO', designation: 'CEO', course_name: 'GenAI Essentials', batch_code: '1' },
+  { employee_id: 'BS0342', name: 'Md. Mosabbir Alam', email: 'mosabbir.alam@brainstation-23.com', sbu: 'CXO', designation: 'CFO', course_name: 'GenAI Essentials', batch_code: '1' },
+  { employee_id: 'BS0489', name: 'M.J. Ferdous', email: 'mj.ferdous@brainstation-23.com', sbu: 'CXO', designation: 'COO', course_name: 'GenAI Essentials', batch_code: '1' },
+  { employee_id: 'BS0666', name: 'Farzana Afroze', email: 'farzana.afroze@brainstation-23.com', sbu: 'HR', designation: 'Head of HR', course_name: 'GenAI Essentials', batch_code: '1' },
 ];
 
 interface ImportDialogProps {
@@ -65,11 +65,11 @@ function ImportDialog({
       <DialogContent>
         {/* Preview Section */}
         <Box>
-          <Box 
-            display="flex" 
-            alignItems="center" 
+          <Box
+            display="flex"
+            alignItems="center"
             justifyContent="space-between"
-            sx={{ 
+            sx={{
               cursor: 'pointer',
               p: 1,
               borderRadius: 1,
@@ -85,7 +85,7 @@ function ImportDialog({
               {showImportPreview ? <ExpandLess /> : <ExpandMore />}
             </IconButton>
           </Box>
-          
+
           <Collapse in={showImportPreview}>
             <Box mt={1} sx={{ border: `1px solid ${alpha(theme.palette.divider, 0.1)}`, borderRadius: 2, overflow: 'hidden' }}>
               <Box sx={{ p: 1, display: 'flex', justifyContent: 'flex-end', borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}` }}>
@@ -95,8 +95,8 @@ function ImportDialog({
                   startIcon={<Download />}
                   onClick={() => {
                     const link = document.createElement('a');
-                    link.href = '/ADA2025A_registration.xlsx';
-                    link.download = 'enrollment_template.xlsx';
+                    link.href = '/Import_Enrollment.xlsx';
+                    link.download = 'Import_Enrollment.xlsx';
                     document.body.appendChild(link);
                     link.click();
                     document.body.removeChild(link);
@@ -113,7 +113,7 @@ function ImportDialog({
                       <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>employee_id</TableCell>
                       <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>name</TableCell>
                       <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>email</TableCell>
-                      <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>department</TableCell>
+                      <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>sbu</TableCell>
                       <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>designation</TableCell>
                       <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>course_name</TableCell>
                       <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>batch_code</TableCell>
@@ -121,9 +121,9 @@ function ImportDialog({
                   </TableHead>
                   <TableBody>
                     {enrollmentPreviewData.map((row, index) => (
-                      <TableRow 
+                      <TableRow
                         key={index}
-                        sx={{ 
+                        sx={{
                           '&:nth-of-type(odd)': { backgroundColor: alpha(theme.palette.primary.main, 0.02) }
                         }}
                       >
@@ -131,7 +131,7 @@ function ImportDialog({
                         <TableCell sx={{ fontSize: '0.75rem', whiteSpace: 'nowrap' }}>{row.name}</TableCell>
                         <TableCell sx={{ fontSize: '0.75rem', whiteSpace: 'nowrap' }}>{row.email}</TableCell>
                         <TableCell sx={{ fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
-                          <Chip label={row.department} size="small" sx={{ height: 20, fontSize: '0.7rem' }} />
+                          <Chip label={row.sbu} size="small" sx={{ height: 20, fontSize: '0.7rem' }} />
                         </TableCell>
                         <TableCell sx={{ fontSize: '0.75rem', whiteSpace: 'nowrap' }}>{row.designation}</TableCell>
                         <TableCell sx={{ fontSize: '0.75rem', whiteSpace: 'nowrap' }}>{row.course_name}</TableCell>
@@ -143,13 +143,13 @@ function ImportDialog({
               </TableContainer>
               <Box sx={{ p: 1, backgroundColor: alpha(theme.palette.info.main, 0.05), borderTop: `1px solid ${alpha(theme.palette.divider, 0.1)}` }}>
                 <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
-                  
+
                 </Typography>
               </Box>
             </Box>
           </Collapse>
         </Box>
-        
+
         <Box sx={{ mt: 3 }}>
           <Button variant="outlined" component="label" startIcon={<UploadFile />} fullWidth>
             Select File

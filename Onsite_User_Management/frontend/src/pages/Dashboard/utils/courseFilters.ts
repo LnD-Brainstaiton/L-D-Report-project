@@ -49,6 +49,17 @@ export const filterOnlineCourses = (
     return courseStartDate <= today && (!courseEndDate || courseEndDate >= today);
   });
 
+  let completed = courses.filter((c) => {
+    const courseEndDate = c.enddate
+      ? new Date(c.enddate * 1000)
+      : c.end_date
+        ? new Date(c.end_date)
+        : null;
+    if (!courseEndDate) return false;
+    courseEndDate.setHours(0, 0, 0, 0);
+    return courseEndDate < today;
+  });
+
   if (dateRange) {
     const { start: periodStart, end: periodEnd } = dateRange;
 
@@ -77,9 +88,20 @@ export const filterOnlineCourses = (
       const endsAfterPeriodStart = !courseEndDate || courseEndDate >= periodStart;
       return startsBeforePeriodEnd && endsAfterPeriodStart;
     });
+
+    completed = courses.filter((c) => {
+      const courseEndDate = c.enddate
+        ? new Date(c.enddate * 1000)
+        : c.end_date
+          ? new Date(c.end_date)
+          : null;
+      if (!courseEndDate) return false;
+      courseEndDate.setHours(0, 0, 0, 0);
+      return courseEndDate < today && courseEndDate >= periodStart && courseEndDate <= periodEnd;
+    });
   }
 
-  return { upcoming, ongoing, planning: [], completed: [] };
+  return { upcoming, ongoing, planning: [], completed };
 };
 
 /**

@@ -210,243 +210,198 @@ const Dashboard: React.FC = () => {
 
       {/* Main Statistics Cards */}
       <Grid container spacing={3} mb={4}>
-        {courseType === 'onsite' ? (
-          <>
-            <Grid item xs={12} sm={6} md={3}>
-              <StatCard
-                title="Planning Courses"
-                value={stats.planningCourses}
-                icon={<Event sx={{ fontSize: 32, color: theme.palette.info.main }} />}
-                color={theme.palette.info.main}
-                onClick={() => navigate('/courses/onsite/planning')}
-                subtitle={timePeriod !== 'all' ? dateRangeFormatted : 'Scheduled'}
-                courses={filteredPlanningCourses}
-                statusKey="planning"
-                displayCounts={displayCounts}
-                setDisplayCounts={setDisplayCounts}
-                timePeriod={timePeriod}
-                selectedMonth={selectedMonth}
-                selectedQuarter={selectedQuarter}
-                selectedYear={selectedYear}
-              />
-            </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <StatCard
-                title="Upcoming Courses"
-                value={stats.upcomingCourses}
-                icon={<Schedule sx={{ fontSize: 32, color: theme.palette.secondary.main }} />}
-                color={theme.palette.secondary.main}
-                onClick={() => navigate('/courses/onsite/upcoming')}
-                subtitle={timePeriod !== 'all' ? dateRangeFormatted : 'Scheduled to start'}
-                courses={filteredUpcomingCourses}
-                statusKey="upcoming"
-                displayCounts={displayCounts}
-                setDisplayCounts={setDisplayCounts}
-                timePeriod={timePeriod}
-                selectedMonth={selectedMonth}
-                selectedQuarter={selectedQuarter}
-                selectedYear={selectedYear}
-              />
-            </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <StatCard
-                title="Ongoing Courses"
-                value={stats.ongoingCourses}
-                icon={<PlayCircle sx={{ fontSize: 32, color: theme.palette.success.main }} />}
-                color={theme.palette.success.main}
-                onClick={() => navigate('/courses/onsite/ongoing')}
-                subtitle={timePeriod !== 'all' ? dateRangeFormatted : 'In progress'}
-                courses={filteredOngoingCourses}
-                statusKey="ongoing"
-                displayCounts={displayCounts}
-                setDisplayCounts={setDisplayCounts}
-                timePeriod={timePeriod}
-                selectedMonth={selectedMonth}
-                selectedQuarter={selectedQuarter}
-                selectedYear={selectedYear}
-              />
-            </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <StatCard
-                title="Completed Courses"
-                value={stats.completedCourses}
-                icon={<CheckCircle sx={{ fontSize: 32, color: theme.palette.warning.main }} />}
-                color={theme.palette.warning.main}
-                onClick={() => navigate('/courses/onsite/completed')}
-                subtitle={timePeriod !== 'all' ? dateRangeFormatted : 'Finished'}
-                courses={filteredCompletedCourses}
-                statusKey="completed"
-                displayCounts={displayCounts}
-                setDisplayCounts={setDisplayCounts}
-                timePeriod={timePeriod}
-                selectedMonth={selectedMonth}
-                selectedQuarter={selectedQuarter}
-                selectedYear={selectedYear}
-              />
-            </Grid>
-          </>
-        ) : (
-          <>
-            <Grid item xs={12} sm={6} md={6}>
-              <StatCard
-                title="Upcoming Courses"
-                value={stats.upcomingCourses}
-                icon={<Schedule sx={{ fontSize: 32, color: theme.palette.secondary.main }} />}
-                color={theme.palette.secondary.main}
-                onClick={() => navigate(`/courses/${courseType}`, { state: { courseType } })}
-                subtitle={timePeriod !== 'all' ? dateRangeFormatted : 'Scheduled to start'}
-                courses={filteredUpcomingCourses}
-                statusKey="upcoming"
-                displayCounts={displayCounts}
-                setDisplayCounts={setDisplayCounts}
-                timePeriod={timePeriod}
-                selectedMonth={selectedMonth}
-                selectedQuarter={selectedQuarter}
-                selectedYear={selectedYear}
-              />
-            </Grid>
-            <Grid item xs={12} sm={6} md={6}>
-              <StatCard
-                title="Ongoing Courses"
-                value={stats.ongoingCourses}
-                icon={<PlayCircle sx={{ fontSize: 32, color: theme.palette.success.main }} />}
-                color={theme.palette.success.main}
-                onClick={() => navigate(`/courses/${courseType}`, { state: { courseType } })}
-                subtitle={timePeriod !== 'all' ? dateRangeFormatted : 'In progress'}
-                courses={filteredOngoingCourses}
-                statusKey="ongoing"
-                displayCounts={displayCounts}
-                setDisplayCounts={setDisplayCounts}
-                timePeriod={timePeriod}
-                selectedMonth={selectedMonth}
-                selectedQuarter={selectedQuarter}
-                selectedYear={selectedYear}
-              />
-            </Grid>
-          </>
-        )}
+        <Grid item xs={12} sm={6} md={3}>
+          <StatCard
+            title="Planning Courses"
+            value={stats.planningCourses}
+            icon={<Event sx={{ fontSize: 32, color: theme.palette.info.main }} />}
+            color={theme.palette.info.main}
+            onClick={() => navigate(`/courses/${courseType}/planning`)}
+            subtitle={timePeriod !== 'all' ? dateRangeFormatted : 'Scheduled'}
+            courses={filteredPlanningCourses}
+            statusKey="planning"
+            displayCounts={displayCounts}
+            setDisplayCounts={setDisplayCounts}
+            timePeriod={timePeriod}
+            selectedMonth={selectedMonth}
+            selectedQuarter={selectedQuarter}
+            selectedYear={selectedYear}
+          />
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <StatCard
+            title="Upcoming Courses"
+            value={stats.upcomingCourses}
+            icon={<Schedule sx={{ fontSize: 32, color: theme.palette.secondary.main }} />}
+            color={theme.palette.secondary.main}
+            onClick={() => navigate(`/courses/${courseType}/upcoming`)}
+            subtitle={timePeriod !== 'all' ? dateRangeFormatted : 'Scheduled to start'}
+            courses={filteredUpcomingCourses}
+            statusKey="upcoming"
+            displayCounts={displayCounts}
+            setDisplayCounts={setDisplayCounts}
+            timePeriod={timePeriod}
+            selectedMonth={selectedMonth}
+            selectedQuarter={selectedQuarter}
+            selectedYear={selectedYear}
+          />
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <StatCard
+            title="Ongoing Courses"
+            value={stats.ongoingCourses}
+            icon={<PlayCircle sx={{ fontSize: 32, color: theme.palette.success.main }} />}
+            color={theme.palette.success.main}
+            onClick={() => navigate(`/courses/${courseType}/ongoing`)}
+            subtitle={timePeriod !== 'all' ? dateRangeFormatted : 'In progress'}
+            courses={filteredOngoingCourses}
+            statusKey="ongoing"
+            displayCounts={displayCounts}
+            setDisplayCounts={setDisplayCounts}
+            timePeriod={timePeriod}
+            selectedMonth={selectedMonth}
+            selectedQuarter={selectedQuarter}
+            selectedYear={selectedYear}
+          />
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <StatCard
+            title="Completed Courses"
+            value={stats.completedCourses}
+            icon={<CheckCircle sx={{ fontSize: 32, color: theme.palette.warning.main }} />}
+            color={theme.palette.warning.main}
+            onClick={() => navigate(`/courses/${courseType}/completed`)}
+            subtitle={timePeriod !== 'all' ? dateRangeFormatted : 'Finished'}
+            courses={filteredCompletedCourses}
+            statusKey="completed"
+            displayCounts={displayCounts}
+            setDisplayCounts={setDisplayCounts}
+            timePeriod={timePeriod}
+            selectedMonth={selectedMonth}
+            selectedQuarter={selectedQuarter}
+            selectedYear={selectedYear}
+          />
+        </Grid>
       </Grid>
 
-      {/* FullCalendar - Only show for onsite courses */}
-      {courseType === 'onsite' && (
-        <Grid container spacing={3}>
-          <Grid item xs={12}>
-            <Card
-              sx={{
-                border: `1px solid ${alpha(theme.palette.primary.main, 0.15)}`,
-                background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.04)} 0%, ${alpha(theme.palette.info.main, 0.04)} 100%)`,
-                boxShadow: `0 4px 16px ${alpha(theme.palette.primary.main, 0.08)}`,
-              }}
-            >
-              <CardContent>
-                <Box display="flex" alignItems="center" justifyContent="space-between" mb={3} flexWrap="wrap" gap={2}>
-                  <Box display="flex" alignItems="center" gap={2}>
-                    <Box
-                      sx={{
-                        p: 1.5,
-                        borderRadius: 2,
-                        backgroundColor: alpha(theme.palette.primary.main, 0.12),
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                    >
-                      <CalendarToday sx={{ fontSize: 32, color: theme.palette.primary.main }} />
-                    </Box>
-                    <Box>
-                      <Typography variant="h5" sx={{ fontWeight: 700, color: theme.palette.primary.main }}>
-                        Class Schedule Calendar
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        View scheduled classes for ongoing courses
-                      </Typography>
-                    </Box>
+      {/* FullCalendar - Show for all course types */}
+      <Grid container spacing={3}>
+        <Grid item xs={12}>
+          <Card
+            sx={{
+              border: `1px solid ${alpha(theme.palette.primary.main, 0.15)}`,
+              background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.04)} 0%, ${alpha(theme.palette.info.main, 0.04)} 100%)`,
+              boxShadow: `0 4px 16px ${alpha(theme.palette.primary.main, 0.08)}`,
+            }}
+          >
+            <CardContent>
+              <Box display="flex" alignItems="center" justifyContent="space-between" mb={3} flexWrap="wrap" gap={2}>
+                <Box display="flex" alignItems="center" gap={2}>
+                  <Box
+                    sx={{
+                      p: 1.5,
+                      borderRadius: 2,
+                      backgroundColor: alpha(theme.palette.primary.main, 0.12),
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <CalendarToday sx={{ fontSize: 32, color: theme.palette.primary.main }} />
+                  </Box>
+                  <Box>
+                    <Typography variant="h5" sx={{ fontWeight: 700, color: theme.palette.primary.main }}>
+                      Class Schedule Calendar
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      View scheduled classes for ongoing courses (Onsite & External)
+                    </Typography>
                   </Box>
                 </Box>
+              </Box>
 
-                <Box
-                  sx={{
-                    '& .fc': { fontFamily: theme.typography.fontFamily },
-                    '& .fc-header-toolbar': { marginBottom: theme.spacing(1), padding: theme.spacing(1) },
-                    '& .fc-toolbar-title': { fontSize: '1.25rem !important', fontWeight: 600 },
-                    '& .fc-button': {
-                      backgroundColor: theme.palette.primary.main,
-                      borderColor: theme.palette.primary.main,
-                      padding: theme.spacing(0.5, 1),
-                      fontSize: '0.875rem',
-                      '&:hover': {
-                        backgroundColor: theme.palette.primary.dark,
-                        borderColor: theme.palette.primary.dark,
-                      },
-                    },
-                    '& .fc-button-active': {
+              <Box
+                sx={{
+                  '& .fc': { fontFamily: theme.typography.fontFamily },
+                  '& .fc-header-toolbar': { marginBottom: theme.spacing(1), padding: theme.spacing(1) },
+                  '& .fc-toolbar-title': { fontSize: '1.25rem !important', fontWeight: 600 },
+                  '& .fc-button': {
+                    backgroundColor: theme.palette.primary.main,
+                    borderColor: theme.palette.primary.main,
+                    padding: theme.spacing(0.5, 1),
+                    fontSize: '0.875rem',
+                    '&:hover': {
                       backgroundColor: theme.palette.primary.dark,
                       borderColor: theme.palette.primary.dark,
                     },
-                    '& .fc-today-button': {
-                      backgroundColor: theme.palette.secondary.main,
-                      borderColor: theme.palette.secondary.main,
-                      '&:hover': {
-                        backgroundColor: theme.palette.secondary.dark,
-                        borderColor: theme.palette.secondary.dark,
-                      },
+                  },
+                  '& .fc-button-active': {
+                    backgroundColor: theme.palette.primary.dark,
+                    borderColor: theme.palette.primary.dark,
+                  },
+                  '& .fc-today-button': {
+                    backgroundColor: theme.palette.secondary.main,
+                    borderColor: theme.palette.secondary.main,
+                    '&:hover': {
+                      backgroundColor: theme.palette.secondary.dark,
+                      borderColor: theme.palette.secondary.dark,
                     },
-                    '& .fc-day-today': { backgroundColor: alpha(theme.palette.primary.main, 0.1) },
-                    '& .fc-daygrid-day': { minHeight: '60px !important' },
-                    '& .fc-daygrid-day-frame': { minHeight: '60px !important' },
-                    '& .fc-col-header-cell': { padding: theme.spacing(0.5), fontSize: '0.875rem' },
-                    '& .fc-daygrid-day-number': { padding: theme.spacing(0.5), fontSize: '0.875rem' },
-                    '& .fc-event': {
-                      fontSize: '0.75rem',
-                      padding: '2px 4px',
-                      marginBottom: '2px',
-                      cursor: 'pointer',
-                      '&:hover': { opacity: 0.9, transform: 'scale(1.02)', transition: 'all 0.2s ease' },
-                    },
-                    '& .fc-event-title': { fontSize: '0.75rem', fontWeight: 500 },
-                    '& .fc-event-overlap': {
-                      borderLeftWidth: '4px',
-                      borderLeftStyle: 'solid',
-                      borderLeftColor: theme.palette.error.main,
-                    },
+                  },
+                  '& .fc-day-today': { backgroundColor: alpha(theme.palette.primary.main, 0.1) },
+                  '& .fc-daygrid-day': { minHeight: '60px !important' },
+                  '& .fc-daygrid-day-frame': { minHeight: '60px !important' },
+                  '& .fc-col-header-cell': { padding: theme.spacing(0.5), fontSize: '0.875rem' },
+                  '& .fc-daygrid-day-number': { padding: theme.spacing(0.5), fontSize: '0.875rem' },
+                  '& .fc-event': {
+                    fontSize: '0.75rem',
+                    padding: '2px 4px',
+                    marginBottom: '2px',
+                    cursor: 'pointer',
+                    '&:hover': { opacity: 0.9, transform: 'scale(1.02)', transition: 'all 0.2s ease' },
+                  },
+                  '& .fc-event-title': { fontSize: '0.75rem', fontWeight: 500 },
+                  '& .fc-event-overlap': {
+                    borderLeftWidth: '4px',
+                    borderLeftStyle: 'solid',
+                    borderLeftColor: theme.palette.error.main,
+                  },
+                }}
+              >
+                <FullCalendar
+                  plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+                  initialView="dayGridMonth"
+                  headerToolbar={{
+                    left: 'prev,next today',
+                    center: 'title',
+                    right: 'dayGridMonth,timeGridWeek,timeGridDay',
                   }}
-                >
-                  <FullCalendar
-                    plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-                    initialView="dayGridMonth"
-                    headerToolbar={{
-                      left: 'prev,next today',
-                      center: 'title',
-                      right: 'dayGridMonth,timeGridWeek,timeGridDay',
-                    }}
-                    events={calendarEvents}
-                    eventClick={(info) => {
-                      const courseId = info.event.extendedProps.courseId;
-                      if (courseId) {
-                        navigate(`/courses/${courseId}`);
-                      }
-                    }}
-                    eventTimeFormat={{
-                      hour: '2-digit',
-                      minute: '2-digit',
-                      hour12: true,
-                    }}
-                    slotMinTime="09:00:00"
-                    slotMaxTime="21:00:00"
-                    height={350}
-                    weekends={true}
-                    editable={false}
-                    selectable={false}
-                    dayMaxEvents={2}
-                    moreLinkClick="popover"
-                    aspectRatio={2.2}
-                  />
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
+                  events={calendarEvents}
+                  eventClick={(info) => {
+                    const courseId = info.event.extendedProps.courseId;
+                    if (courseId) {
+                      navigate(`/courses/${courseId}`);
+                    }
+                  }}
+                  eventTimeFormat={{
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: true,
+                  }}
+                  slotMinTime="09:00:00"
+                  slotMaxTime="21:00:00"
+                  height={350}
+                  weekends={true}
+                  editable={false}
+                  selectable={false}
+                  dayMaxEvents={2}
+                  moreLinkClick="popover"
+                  aspectRatio={2.2}
+                />
+              </Box>
+            </CardContent>
+          </Card>
         </Grid>
-      )}
+      </Grid>
     </Box>
   );
 };

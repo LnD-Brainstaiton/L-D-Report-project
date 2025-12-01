@@ -147,34 +147,100 @@ export const handleGenerateOverallReport = async (setMessage: SetMessage): Promi
     setMessage(null);
     const response = await studentsAPI.generateOverallReport();
 
-    if (response.data instanceof Blob) {
-      const blob = response.data;
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', generateTimestampFilename('training_history_report', '.xlsx'));
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-      setMessage({ type: 'success', text: 'Report generated successfully' });
-    } else {
-      const blob = new Blob([response.data as BlobPart], {
+    let filename = `all_employees_report_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+    if (response) {
+      const contentDisposition = response.headers['content-disposition'];
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="?(.+)"?/i);
+        if (filenameMatch) {
+          filename = filenameMatch[1];
+        }
+      }
+
+      const blob = new Blob([response.data], {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', generateTimestampFilename('training_history_report', '.xlsx'));
+      link.download = filename;
       document.body.appendChild(link);
       link.click();
-      link.remove();
+      document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
+
       setMessage({ type: 'success', text: 'Report generated successfully' });
     }
   } catch (error) {
     console.error('Error generating report:', error);
     let errorMessage = 'Error generating report';
+    const axiosError = error as AxiosError<any>;
+    if (axiosError.response) {
+      if (axiosError.response.data instanceof Blob) {
+        try {
+          const text = await axiosError.response.data.text();
+          try {
+            const json = JSON.parse(text);
+            errorMessage = json.detail || errorMessage;
+          } catch {
+            errorMessage = text || errorMessage;
+          }
+        } catch {
+          errorMessage = 'Error generating report: Invalid response format';
+        }
+      } else if (axiosError.response.data?.detail) {
+        errorMessage = axiosError.response.data.detail;
+      } else if (typeof axiosError.response.data === 'string') {
+        errorMessage = axiosError.response.data;
+      } else if (axiosError.response.status) {
+        errorMessage = `Error generating report: ${axiosError.response.status} ${axiosError.response.statusText || ''}`;
+      }
+    } else if (axiosError.message) {
+      errorMessage = axiosError.message;
+    }
+    setMessage({ type: 'error', text: errorMessage });
+  }
+};
+
+export const handleGenerateStudentReport = async (
+  studentId: number,
+  studentName: string,
+  setMessage: SetMessage
+): Promise<void> => {
+  try {
+    setMessage(null);
+    // undefined for start/end dates implies "All Time"
+    const response = await studentsAPI.generateStudentReport(studentId);
+
+    let filename = `employee_report_${studentName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+    if (response) {
+      const contentDisposition = response.headers['content-disposition'];
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="?(.+)"?/i);
+        if (filenameMatch) {
+          filename = filenameMatch[1];
+        }
+      }
+
+      const blob = new Blob([response.data], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      setMessage({ type: 'success', text: `Report for ${studentName} generated successfully` });
+    }
+  } catch (error) {
+    console.error('Error generating student report:', error);
+    let errorMessage = 'Error generating student report';
     const axiosError = error as AxiosError<any>;
     if (axiosError.response) {
       if (axiosError.response.data instanceof Blob) {

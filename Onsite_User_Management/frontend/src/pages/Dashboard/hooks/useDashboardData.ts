@@ -146,8 +146,8 @@ export const useDashboardData = (
         const filtered = filterOnlineCourses(filteredByType as any, dateRange);
         filteredUpcoming = filtered.upcoming as CourseWithTimestamps[];
         filteredOngoing = filtered.ongoing as CourseWithTimestamps[];
-        filteredPlanning = [];
-        filteredCompleted = [];
+        filteredPlanning = filtered.planning as CourseWithTimestamps[];
+        filteredCompleted = filtered.completed as CourseWithTimestamps[];
       } else {
         const filtered = filterOnsiteCourses(filteredByType as any, dateRange);
         filteredUpcoming = filtered.upcoming as CourseWithTimestamps[];
@@ -161,7 +161,9 @@ export const useDashboardData = (
       setFilteredPlanningCourses(filteredPlanning);
       setFilteredCompletedCourses(filteredCompleted);
 
-      const events = convertSchedulesToEvents(filteredByType as any, courseType);
+      // Use all fetched courses for calendar events, not just filtered by type
+      // This ensures calendar shows both onsite and external courses regardless of tab
+      const events = convertSchedulesToEvents(fetchedCourses as any, courseType);
       setCalendarEvents(events as CalendarEvent[]);
 
       const statsRes = await enrollmentsAPI.getDashboardStats();

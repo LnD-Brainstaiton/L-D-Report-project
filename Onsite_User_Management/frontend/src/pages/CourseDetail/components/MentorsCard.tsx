@@ -64,17 +64,19 @@ function MentorsCard({
             </Typography>
           </Box>
           <Box display="flex" gap={1}>
-            <Button 
-              variant="outlined" 
-              size="small" 
-              startIcon={<Add />}
-              onClick={onAssignInternal}
-            >
-              Assign Internal
-            </Button>
-            <Button 
-              variant="outlined" 
-              size="small" 
+            {course?.course_type !== 'external' && (
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<Add />}
+                onClick={onAssignInternal}
+              >
+                Assign Internal
+              </Button>
+            )}
+            <Button
+              variant="outlined"
+              size="small"
               startIcon={<Add />}
               onClick={onAddExternal}
             >
@@ -83,7 +85,7 @@ function MentorsCard({
           </Box>
         </Box>
         <Divider sx={{ mb: 2.5 }} />
-        
+
         {displayMentors.length > 0 ? (
           <TableContainer
             sx={{
@@ -103,7 +105,7 @@ function MentorsCard({
               </TableHead>
               <TableBody>
                 {displayMentors.map((cm) => (
-                  <TableRow 
+                  <TableRow
                     key={cm.id || `draft-${cm.mentor_id}`}
                     sx={{
                       '&:hover': {
@@ -122,9 +124,9 @@ function MentorsCard({
                           {cm.mentor?.name || 'Unknown'}
                         </Typography>
                         {cm.is_draft && (
-                          <Chip 
-                            label="Draft" 
-                            size="small" 
+                          <Chip
+                            label="Draft"
+                            size="small"
                             color="warning"
                             sx={{ height: 20, fontSize: '0.65rem' }}
                           />

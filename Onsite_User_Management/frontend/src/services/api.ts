@@ -305,6 +305,11 @@ export const studentsAPI = {
       responseType: 'blob',
       params: { start_date: startDate, end_date: endDate }
     }),
+  generateStudentReport: (studentId: number, startDate?: string, endDate?: string): Promise<AxiosResponse<Blob>> =>
+    api.get(`/students/${studentId}/report`, {
+      responseType: 'blob',
+      params: { start_date: startDate, end_date: endDate }
+    }),
   tagAsMentor: (id: number): Promise<AxiosResponse<Mentor>> =>
     api.post(`/students/${id}/mentor-tag`),
   removeMentorTag: (id: number): Promise<AxiosResponse<void>> =>

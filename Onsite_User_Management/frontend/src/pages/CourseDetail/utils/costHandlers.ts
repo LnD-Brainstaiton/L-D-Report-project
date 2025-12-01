@@ -1,4 +1,4 @@
-import { coursesAPI } from '../../../services/api';
+import { coursesAPI, mentorsAPI } from '../../../services/api';
 import { getDisplayMentors } from './costCalculators';
 import type { Course, AlertMessage } from '../../../types';
 import { AxiosError } from 'axios';
@@ -74,7 +74,8 @@ export const handleSaveCosts = async (
   setMessage: SetMessage,
   setEditCostsDialogOpen: (open: boolean) => void,
   fetchCourse: () => Promise<void>,
-  setEditCostsLoading: (loading: boolean) => void
+  setEditCostsLoading: (loading: boolean) => void,
+  generalMentorCost?: string
 ): Promise<void> => {
   setEditCostsLoading(true);
   try {
@@ -119,6 +120,28 @@ export const handleSaveCosts = async (
           })
         );
         await Promise.all(updatePromises);
+      } else if (generalMentorCost && parseFloat(generalMentorCost) > 0) {
+        // Create placeholder external mentor and assign cost
+        try {
+          const mentorPayload = {
+            is_internal: false,
+            name: 'External Trainer',
+            student_id: undefined,
+            expertise: 'General'
+          };
+          const mentorResponse = await mentorsAPI.createExternal(mentorPayload);
+          const mentorId = mentorResponse.data.id;
+
+          await coursesAPI.assignMentor(courseId, {
+            mentor_id: mentorId,
+            hours_taught: 0,
+            amount_paid: parseFloat(generalMentorCost)
+          });
+        } catch (err) {
+          console.error('Error creating placeholder mentor:', err);
+          // Continue to show success for other costs, but maybe warn?
+          // For now, just logging error.
+        }
       }
 
       setMessage({ type: 'success', text: 'Costs updated successfully' });

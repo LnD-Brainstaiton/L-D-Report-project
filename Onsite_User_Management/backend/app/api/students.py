@@ -668,19 +668,44 @@ def generate_overall_report(
     Supports date range filtering based on enrollment/assignment date.
     Includes both Onsite and Online (LMS) courses.
     """
+    # Get all active students
+    active_students = db.query(Student).filter(Student.is_active == True).all()
+    
+    return _generate_employee_report(active_students, start_date, end_date, db, f"overall_employee_report_{datetime.now().strftime('%Y%m%d')}.xlsx")
+
+
+@router.get("/{student_id}/report")
+def generate_student_report(
+    student_id: int,
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
+    db: Session = Depends(get_db)
+):
+    """Generate an Excel report for a specific employee's enrollment history.
+    
+    Supports date range filtering based on enrollment/assignment date.
+    Includes both Onsite and Online (LMS) courses.
+    """
+    student = db.query(Student).filter(Student.id == student_id).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+        
+    filename = f"employee_report_{sanitize_filename(student.name)}_{datetime.now().strftime('%Y%m%d')}.xlsx"
+    return _generate_employee_report([student], start_date, end_date, db, filename)
+
+
+def _generate_employee_report(students: List[Student], start_date: Optional[date], end_date: Optional[date], db: Session, filename: str):
+    """Helper function to generate Excel report for a list of students."""
     try:
         from app.models.enrollment import Enrollment, ApprovalStatus, CompletionStatus, EligibilityStatus
         from app.models.course import Course
         from app.models.lms_user import LMSUserCourse
-        from app.services.eligibility_service import EligibilityService
-        
-        # Get all active students
-        active_students = db.query(Student).filter(Student.is_active == True).all()
+        from sqlalchemy import func
         
         # Prepare data for Excel - one row per enrollment
         report_data = []
         
-        for student in active_students:
+        for student in students:
             # --- Onsite Enrollments ---
             onsite_query = db.query(Enrollment).filter(
                 Enrollment.student_id == student.id
@@ -798,7 +823,6 @@ def generate_overall_report(
                 enrollment_date = lms_course.enrollment_time or lms_course.created_at
                 approval_date = enrollment_date.strftime('%Y-%m-%d') if enrollment_date else '' # Auto-approved
                 completion_date = lms_course.completion_date.strftime('%Y-%m-%d') if lms_course.completion_date else ''
-                last_access = lms_course.last_access.strftime('%Y-%m-%d %H:%M') if lms_course.last_access else 'Never'
                 
                 report_data.append({
                     'BSID': student.employee_id or '',
@@ -811,8 +835,8 @@ def generate_overall_report(
                     'Batch Code': lms_course.course_shortname or '',
                     'Attendance': 'N/A', # Not applicable for online
                     'Score': 'N/A', # Placeholder if score not available
-                    'Progress': f"{lms_course.progress:.1f}%" if lms_course.progress is not None else '0%',
-                    'Last Access': last_access,
+                    'Progress': f"{lms_course.progress}%" if lms_course.progress is not None else '0%',
+                    'Last Access': lms_course.last_access.strftime('%Y-%m-%d %H:%M') if lms_course.last_access else '',
                     'Completion Status': completion_status,
                     'Approval Date': approval_date,
                     'Completion Date': completion_date,

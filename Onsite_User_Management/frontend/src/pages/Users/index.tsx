@@ -41,6 +41,7 @@ import {
   handleCreateStudent,
   handleRemoveEmployee,
   handleGenerateOverallReport,
+  handleGenerateStudentReport,
 } from './utils/userHandlers';
 import type { Student } from '../../types';
 
@@ -293,7 +294,7 @@ const Users: React.FC = () => {
                   <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem', width: 180 }}>Designation</TableCell>
                   <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem', width: 80 }}>Mentor</TableCell>
                   <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem', width: 120 }} align="center">Course History</TableCell>
-                  <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem', width: 80 }} align="center">Actions</TableCell>
+                  <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem', width: 100 }} align="center">Actions</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -366,6 +367,9 @@ const Users: React.FC = () => {
                         })()}
                       </TableCell>
                       <TableCell align="center">
+                        <IconButton size="small" title="Download Report" onClick={() => handleGenerateStudentReport(user.id, user.name, setMessage)}>
+                          <Description sx={{ fontSize: '1.1rem', color: '#1e40af' }} />
+                        </IconButton>
                         <IconButton size="small" title="Remove" onClick={() => handleRemove(user)}>
                           <PersonRemove sx={{ fontSize: '1.1rem', color: '#ef4444' }} />
                         </IconButton>
