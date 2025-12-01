@@ -220,6 +220,7 @@ export interface Mentor extends BaseEntity {
   department?: string;
   company?: string;
   specialty?: string;
+  external_id?: number;
   course_count?: number;
 }
 

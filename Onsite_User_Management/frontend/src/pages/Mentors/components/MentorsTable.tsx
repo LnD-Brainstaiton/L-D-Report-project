@@ -45,7 +45,7 @@ const MentorsTable: React.FC<MentorsTableProps> = ({ mentors, onViewDetails, onV
             >
               <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>ID</TableCell>
               <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>Name</TableCell>
-              <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>Mentor</TableCell>
+              <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>Type</TableCell>
               <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>Email</TableCell>
               <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>SBU</TableCell>
               <TableCell sx={{ fontWeight: 700, color: '#1e40af', fontSize: '0.9rem' }}>Course History</TableCell>
@@ -85,7 +85,9 @@ const MentorsTable: React.FC<MentorsTableProps> = ({ mentors, onViewDetails, onV
                         {mentor.student.employee_id}
                       </Typography>
                     ) : (
-                      <Typography sx={{ color: '#64748b' }}>{mentor.id}</Typography>
+                      <Typography sx={{ color: '#64748b' }}>
+                        {mentor.external_id ? mentor.external_id : mentor.id}
+                      </Typography>
                     )}
                   </TableCell>
                   <TableCell>
@@ -104,7 +106,7 @@ const MentorsTable: React.FC<MentorsTableProps> = ({ mentors, onViewDetails, onV
                   </TableCell>
                   <TableCell>
                     <Chip
-                      label={mentor.is_internal ? 'Yes' : 'No'}
+                      label={mentor.is_internal ? 'Internal' : 'External'}
                       size="small"
                       sx={{
                         background: mentor.is_internal

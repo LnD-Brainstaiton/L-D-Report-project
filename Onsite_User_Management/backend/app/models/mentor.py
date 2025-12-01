@@ -21,6 +21,7 @@ class Mentor(Base):
     department = Column(String, nullable=True)  # Changed from sbu enum to department string
     designation = Column(String, nullable=True)  # For internal mentors, may mirror student
     specialty = Column(String, nullable=True)  # Specialty/area of expertise
+    external_id = Column(Integer, nullable=True)  # Auto-incrementing ID for external mentors (starts from 1)
     
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

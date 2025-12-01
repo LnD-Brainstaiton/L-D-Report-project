@@ -44,23 +44,6 @@ const CreateStudentDialog: React.FC<CreateStudentDialogProps> = ({
   onCreate,
 }) => {
   const theme = useTheme();
-  const [error, setError] = React.useState('');
-
-  const handleCreate = () => {
-    if (!newStudent.name || !newStudent.email || !newStudent.department) {
-      setError('Please fill in all required fields');
-      return;
-    }
-
-    // Basic email validation
-    if (!newStudent.email.includes('@')) {
-      setError('Please enter a valid email address');
-      return;
-    }
-
-    setError('');
-    onCreate();
-  };
 
   return (
     <Dialog
@@ -83,7 +66,7 @@ const CreateStudentDialog: React.FC<CreateStudentDialogProps> = ({
             value={newStudent.employee_id}
             onChange={(e) => setNewStudent({ ...newStudent, employee_id: e.target.value })}
             fullWidth
-            helperText="Leave blank for auto-generated ID (External)"
+            required
           />
           <TextField
             label="Name"
@@ -91,7 +74,6 @@ const CreateStudentDialog: React.FC<CreateStudentDialogProps> = ({
             onChange={(e) => setNewStudent({ ...newStudent, name: e.target.value })}
             fullWidth
             required
-            error={!!error && !newStudent.name}
           />
           <TextField
             label="Email"
@@ -100,8 +82,6 @@ const CreateStudentDialog: React.FC<CreateStudentDialogProps> = ({
             onChange={(e) => setNewStudent({ ...newStudent, email: e.target.value })}
             fullWidth
             required
-            error={!!error && (!newStudent.email || !newStudent.email.includes('@'))}
-            helperText={!!error && (!newStudent.email || !newStudent.email.includes('@')) ? error : ''}
           />
           <TextField
             select
@@ -110,8 +90,6 @@ const CreateStudentDialog: React.FC<CreateStudentDialogProps> = ({
             onChange={(e) => setNewStudent({ ...newStudent, department: e.target.value })}
             fullWidth
             required
-            error={!!error && !newStudent.department}
-            helperText={!!error && !newStudent.department ? error : ''}
           >
             {departments.map((dept) => (
               <MenuItem key={dept} value={dept}>
@@ -154,7 +132,7 @@ const CreateStudentDialog: React.FC<CreateStudentDialogProps> = ({
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
-        <Button onClick={handleCreate} variant="contained">
+        <Button onClick={onCreate} variant="contained">
           Create
         </Button>
       </DialogActions>
