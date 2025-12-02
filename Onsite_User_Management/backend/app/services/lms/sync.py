@@ -11,28 +11,28 @@ from app.models.lms_cache import (
     LMSUserCourseCache,
     LMSUserCache
 )
-from app.services.lms_service import LMSService
+from app.services.lms.client import LMSService
 
 logger = logging.getLogger(__name__)
 
-class LMSCacheService:
-    """Service for managing LMS data cache."""
+class LMSSyncService:
+    """Service for managing LMS data synchronization."""
     
-    # Cache expiration time (24 hours)
-    CACHE_EXPIRY_HOURS = 24
+    # Sync expiry time (24 hours)
+    SYNC_EXPIRY_HOURS = 24
     
     @staticmethod
-    def is_cache_valid(cached_at: datetime) -> bool:
-        """Check if cache is still valid (within expiry time)."""
-        if not cached_at:
+    def is_sync_valid(synced_at: datetime) -> bool:
+        """Check if sync is still valid (within expiry time)."""
+        if not synced_at:
             return False
         # Ensure both datetimes are timezone-aware for comparison
-        if cached_at.tzinfo is None:
-            # If cached_at is naive, assume it's UTC
-            cached_at = cached_at.replace(tzinfo=timezone.utc)
+        if synced_at.tzinfo is None:
+            # If synced_at is naive, assume it's UTC
+            synced_at = synced_at.replace(tzinfo=timezone.utc)
         
         now = datetime.now(timezone.utc)
-        expiry_time = cached_at + timedelta(hours=LMSCacheService.CACHE_EXPIRY_HOURS)
+        expiry_time = synced_at + timedelta(hours=LMSSyncService.SYNC_EXPIRY_HOURS)
         return now < expiry_time
     
     @staticmethod
@@ -46,7 +46,7 @@ class LMSCacheService:
                 return None
             
             # Check if cache is valid (check first course's cached_at)
-            if cached_courses and not LMSCacheService.is_cache_valid(cached_courses[0].cached_at):
+            if cached_courses and not LMSSyncService.is_sync_valid(cached_courses[0].cached_at):
                 logger.info("Course cache expired, will refresh")
                 return None
             
@@ -142,7 +142,7 @@ class LMSCacheService:
                 return None
             
             # Check if cache is valid
-            if cached_categories and not LMSCacheService.is_cache_valid(cached_categories[0].cached_at):
+            if cached_categories and not LMSSyncService.is_sync_valid(cached_categories[0].cached_at):
                 logger.info("Category cache expired, will refresh")
                 return None
             
@@ -167,7 +167,7 @@ class LMSCacheService:
                 return None
             
             # Check if cache is valid
-            if not LMSCacheService.is_cache_valid(cached_enrollment.cached_at):
+            if not LMSSyncService.is_sync_valid(cached_enrollment.cached_at):
                 logger.info(f"Enrollment cache expired for course {course_id}, will refresh")
                 return None
             
@@ -216,7 +216,7 @@ class LMSCacheService:
                 return None
             
             # Check if cache is valid (check first entry)
-            if cached_user_courses and not LMSCacheService.is_cache_valid(cached_user_courses[0].cached_at):
+            if cached_user_courses and not LMSSyncService.is_sync_valid(cached_user_courses[0].cached_at):
                 logger.info(f"User course cache expired for {username}, will refresh")
                 return None
             
@@ -269,7 +269,7 @@ class LMSCacheService:
                 return None
             
             # Check if cache is valid
-            if not LMSCacheService.is_cache_valid(cached_user_entry.cached_at):
+            if not LMSSyncService.is_sync_valid(cached_user_entry.cached_at):
                 logger.info("User cache expired, will refresh")
                 return None
             
@@ -320,14 +320,14 @@ class LMSCacheService:
             # Refresh users first (needed for user lookups)
             logger.info("Fetching all users from LMS API...")
             users = await LMSService.fetch_all_users()
-            await LMSCacheService.cache_users(db, users)
+            await LMSSyncService.cache_users(db, users)
             logger.info(f"Cached {len(users)} users")
             
             # Refresh courses and categories
             logger.info("Fetching courses from LMS API...")
             courses = await LMSService.fetch_lms_courses()
             category_map = await LMSService.fetch_course_categories()
-            await LMSCacheService.cache_courses(db, courses, category_map)
+            await LMSSyncService.cache_courses(db, courses, category_map)
             logger.info(f"Cached {len(courses)} courses and {len(category_map)} categories")
             
             logger.info("LMS cache refresh completed successfully - all data cached")

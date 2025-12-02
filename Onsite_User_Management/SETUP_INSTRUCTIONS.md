@@ -6,7 +6,7 @@
 
 ## Steps
 
-1. **Create a folder** (e.g., `enroll23-app`)
+1. **Create a folder** (e.g., `bs23-lnd-app`)
 
 2. **Put `docker-compose.prod.yml` file in that folder**
 
@@ -14,7 +14,7 @@
 ```env
 DB_USER=admin
 DB_PASSWORD=your-database-password #choose anything, not predefined 
-DB_NAME=enroll23
+DB_NAME=bs23_lnd_data_hub
 ADMIN_EMAIL=your-email@company.com
 ADMIN_PASSWORD=your-login-password
 SECRET_KEY=your-random-secret-key

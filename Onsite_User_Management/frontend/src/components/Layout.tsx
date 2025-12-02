@@ -95,8 +95,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const drawer = (
     <div>
       <Toolbar>
-        <Typography variant="h6" noWrap component="div">
-          Enrollment System
+        <Typography
+          variant="h5"
+          noWrap
+          component="div"
+          sx={{ fontWeight: 'bold', color: 'primary.main' }}
+        >
+          Brain Station 23
         </Typography>
       </Toolbar>
       <List>
@@ -340,7 +345,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             <MenuIcon />
           </IconButton>
           <Typography variant="h4" noWrap component="div" sx={{ flexGrow: 1 }}>
-            ENROLL23
+            L&D Data Hub
           </Typography>
           <Button color="inherit" startIcon={<LogoutIcon />} onClick={handleLogout}>
             Logout
@@ -392,4 +397,3 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 };
 
 export default Layout;
-

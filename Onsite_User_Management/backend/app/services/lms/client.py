@@ -370,7 +370,7 @@ class LMSService:
         # Try to get from cache first if db is provided
         if db:
             try:
-                from app.services.lms_cache_service import LMSCacheService
+                from app.services.lms.cache import LMSCacheService
                 cached_users = await LMSCacheService.get_cached_users(db)
                 if cached_users:
                     # Search in cached users

@@ -6,7 +6,7 @@ import aiofiles
 from datetime import datetime
 from app.db.base import get_db
 from app.core.config import settings
-from app.services.import_service import ImportService
+from app.services.imports import ImportService
 from app.core.file_utils import sanitize_filename, validate_file_extension, validate_file_size, get_safe_file_path
 
 router = APIRouter()

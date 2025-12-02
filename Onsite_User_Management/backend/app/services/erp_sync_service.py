@@ -8,24 +8,24 @@ from app.services.erp_service import ERPService
 
 logger = logging.getLogger(__name__)
 
-class ERPCacheService:
-    """Service for managing ERP employee data cache."""
+class ERPSyncService:
+    """Service for managing ERP employee data synchronization."""
     
-    # Cache expiration time (24 hours)
-    CACHE_EXPIRY_HOURS = 24
+    # Sync expiry time (24 hours)
+    SYNC_EXPIRY_HOURS = 24
     
     @staticmethod
-    def is_cache_valid(cached_at: datetime) -> bool:
-        """Check if cache is still valid (within expiry time)."""
-        if not cached_at:
+    def is_sync_valid(synced_at: datetime) -> bool:
+        """Check if sync is still valid (within expiry time)."""
+        if not synced_at:
             return False
         # Ensure both datetimes are timezone-aware for comparison
-        if cached_at.tzinfo is None:
-            # If cached_at is naive, assume it's UTC
-            cached_at = cached_at.replace(tzinfo=timezone.utc)
+        if synced_at.tzinfo is None:
+            # If synced_at is naive, assume it's UTC
+            synced_at = synced_at.replace(tzinfo=timezone.utc)
         
         now = datetime.now(timezone.utc)
-        expiry_time = cached_at + timedelta(hours=ERPCacheService.CACHE_EXPIRY_HOURS)
+        expiry_time = synced_at + timedelta(hours=ERPSyncService.SYNC_EXPIRY_HOURS)
         return now < expiry_time
     
     @staticmethod
@@ -38,7 +38,7 @@ class ERPCacheService:
                 return None
             
             # Check if cache is valid
-            if not ERPCacheService.is_cache_valid(cached_employee_entry.cached_at):
+            if not ERPSyncService.is_sync_valid(cached_employee_entry.cached_at):
                 logger.info("ERP employee cache expired, will refresh")
                 return None
             
@@ -84,7 +84,7 @@ class ERPCacheService:
             # Fetch all employees from ERP API
             logger.info("Fetching all employees from ERP API...")
             employees = await ERPService.fetch_all_employees()
-            await ERPCacheService.cache_employees(db, employees)
+            await ERPSyncService.cache_employees(db, employees)
             logger.info(f"Cached {len(employees)} employees from ERP")
             
             logger.info("ERP cache refresh completed successfully")

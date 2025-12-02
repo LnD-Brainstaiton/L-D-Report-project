@@ -3,11 +3,25 @@ import httpx
 from typing import List, Dict, Optional, Any
 from app.core.config import settings
 import logging
+from datetime import datetime, date
+from sqlalchemy.orm import Session
+from app.models.student import Student
+from app.core.validation import validate_department
 
 logger = logging.getLogger(__name__)
 
 class ERPService:
     """Service for fetching employee data from ERP GraphQL API."""
+    
+    @staticmethod
+    def _parse_date(date_str: Optional[str]) -> Optional[date]:
+        """Parse date string YYYY-MM-DD to date object."""
+        if not date_str:
+            return None
+        try:
+            return datetime.strptime(date_str, "%Y-%m-%d").date()
+        except (ValueError, TypeError):
+            return None
     
     @staticmethod
     async def fetch_all_employees(include_archived: bool = True) -> List[Dict[str, Any]]:
@@ -202,8 +216,8 @@ class ERPService:
         is_active = employee.get("active", True)
         
         # Parse dates
-        career_start_date = employee.get("careerStartDate")
-        bs_joining_date = employee.get("joiningDate")
+        career_start_date = ERPService._parse_date(employee.get("careerStartDate"))
+        bs_joining_date = ERPService._parse_date(employee.get("joiningDate"))
         
         # Extract SBU Head info
         sbu_head_obj = employee.get("sbuHead", {})
@@ -226,9 +240,9 @@ class ERPService:
             "bs_joining_date": bs_joining_date,
             "total_experience": employee.get("totalExperience"),
             "is_onsite": employee.get("isOnsite", False),
-            "date_of_birth": employee.get("dateOfBirth"),
-            "resignation_date": employee.get("resignationDate"),
-            "exit_date": employee.get("exitDate"),
+            "date_of_birth": ERPService._parse_date(employee.get("dateOfBirth")),
+            "resignation_date": ERPService._parse_date(employee.get("resignationDate")),
+            "exit_date": ERPService._parse_date(employee.get("exitDate")),
             # Store additional ERP data for reference
             "erp_id": employee.get("id"),
             "job_type": employee.get("jobType", {}).get("name") if employee.get("jobType") else None,
@@ -239,6 +253,97 @@ class ERPService:
             "reporting_manager_employee_id": reporting_manager_employee_id,
             "reporting_manager_name": reporting_manager_name,
         }
+    
+    @staticmethod
+    def sync_employees_to_db(db: Session, employees: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Sync employees from ERP to local database.
+        
+        Args:
+            db: Database session
+            employees: List of employee dictionaries from ERP
+            
+        Returns:
+            Statistics about the sync operation
+        """
+        stats = {"created": 0, "updated": 0, "skipped": 0, "errors": []}
+        
+        for employee in employees:
+            try:
+                # Handle nested list structure if present
+                if isinstance(employee, list) and len(employee) > 0:
+                    employee = employee[0]
+                
+                if not isinstance(employee, dict):
+                    continue
+                
+                # Map ERP employee to student format
+                student_data = ERPService.map_erp_employee_to_student(employee)
+                
+                if not student_data:
+                    stats["skipped"] += 1
+                    continue
+                
+                employee_id = student_data["employee_id"]
+                email = student_data["email"]
+                
+                # Validate department
+                try:
+                    department = validate_department(student_data.get("department", "Other"))
+                    student_data["department"] = department
+                except ValueError:
+                    student_data["department"] = "Other"
+                
+                # Calculate BS experience
+                bs_experience = None
+                if student_data.get("bs_joining_date"):
+                    try:
+                        today = date.today()
+                        delta = today - student_data["bs_joining_date"]
+                        bs_experience = round(delta.days / 365.25, 2)
+                    except Exception:
+                        pass
+                student_data["bs_experience"] = bs_experience
+                
+                # Determine is_active based on exit_date
+                if student_data.get("exit_date"):
+                    student_data["is_active"] = False
+                
+                # Check if student exists
+                existing_student = db.query(Student).filter(
+                    (Student.employee_id == employee_id) | (Student.email == email)
+                ).first()
+                
+                if existing_student:
+                    # Update existing
+                    for key, value in student_data.items():
+                        if hasattr(existing_student, key):
+                            setattr(existing_student, key, value)
+                    
+                    # Store full ERP data
+                    existing_student.erp_data = employee
+                    stats["updated"] += 1
+                else:
+                    # Create new
+                    student_data["erp_data"] = employee
+                    new_student = Student(**student_data)
+                    db.add(new_student)
+                    stats["created"] += 1
+                    
+            except Exception as e:
+                emp_id = employee.get('employeeId', 'unknown') if isinstance(employee, dict) else 'unknown'
+                error_msg = f"Error processing employee {emp_id}: {str(e)}"
+                stats["errors"].append(error_msg)
+                logger.error(error_msg)
+        
+        try:
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Error committing employee sync: {str(e)}")
+            raise
+            
+        return stats
     
     @staticmethod
     async def test_connection() -> Dict[str, Any]:

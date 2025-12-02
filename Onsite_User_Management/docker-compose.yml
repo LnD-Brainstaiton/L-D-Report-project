@@ -3,12 +3,12 @@ version: "3.9"
 services:
   db:
     image: postgres:14
-    container_name: enroll23-db
+    container_name: bs23-lnd-db
     restart: always
     environment:
       POSTGRES_USER: ${DB_USER:-admin}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-mysecretpassword}
-      POSTGRES_DB: ${DB_NAME:-enroll23}
+      POSTGRES_DB: ${DB_NAME:-bs23_lnd_data_hub}
     volumes:
       - db_data:/var/lib/postgresql/data
     ports:
@@ -21,14 +21,14 @@ services:
 
   backend:
     build: ./backend
-    container_name: enroll23-backend
+    container_name: bs23-lnd-backend
     restart: always
     ports:
       - "8000:8000"
     env_file:
       - .env
     environment:
-      - DATABASE_URL=postgresql://${DB_USER:-admin}:${DB_PASSWORD:-mysecretpassword}@db:5432/${DB_NAME:-enroll23}
+      - DATABASE_URL=postgresql://${DB_USER:-admin}:${DB_PASSWORD:-mysecretpassword}@db:5432/${DB_NAME:-bs23_lnd_data_hub}
     depends_on:
       db:
         condition: service_healthy
@@ -45,7 +45,7 @@ services:
       context: ./frontend
       args:
         - REACT_APP_API_URL=http://localhost:8000/api/v1
-    container_name: enroll23-frontend
+    container_name: bs23-lnd-frontend
     restart: always
     ports:
       - "3000:3000"
