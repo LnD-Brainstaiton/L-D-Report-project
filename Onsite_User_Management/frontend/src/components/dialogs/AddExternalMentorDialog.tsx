@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -17,8 +17,8 @@ import {
   Select,
   MenuItem,
 } from '@mui/material';
-import { mentorsAPI, coursesAPI } from '../services/api';
-import { Mentor, Course } from '../types';
+import { mentorsAPI, coursesAPI } from '../../services/api';
+import { Mentor, Course } from '../../types';
 
 interface ExternalMentorData {
   name: string;
@@ -69,20 +69,9 @@ const AddExternalMentorDialog: React.FC<AddExternalMentorDialogProps> = ({
   const [selectedMentor, setSelectedMentor] = useState<Mentor | null>(null);
   const [courses, setCourses] = useState<Course[]>([]);
   const [selectedCourseId, setSelectedCourseId] = useState<number | ''>('');
-  const [fetchingData, setFetchingData] = useState(false);
 
-  useEffect(() => {
-    if (open) {
-      setExternalMentorData(initialFormState);
-      setSelectedMentor(null);
-      setSelectedCourseId('');
-      setMode('create');
-      fetchData();
-    }
-  }, [open]);
-
-  const fetchData = async () => {
-    setFetchingData(true);
+  const fetchData = useCallback(async () => {
+    setLoading(true);
     try {
       // Fetch existing external mentors if selection is allowed
       if (allowSelection) {
@@ -93,18 +82,30 @@ const AddExternalMentorDialog: React.FC<AddExternalMentorDialogProps> = ({
       // Fetch courses if selection is shown
       if (showCourseSelection) {
         const coursesResponse = await coursesAPI.getAll({ limit: 1000 });
-        // Filter for onsite and external courses only (not online)
-        const relevantCourses = coursesResponse.data.filter(
-          c => c.course_type === 'onsite' || c.course_type === 'external'
-        );
-        setCourses(relevantCourses);
+        if (coursesResponse.data) {
+          // Filter for onsite and external courses only (not online)
+          const relevantCourses = coursesResponse.data.filter(
+            (c: Course) => c.course_type === 'onsite' || c.course_type === 'external'
+          );
+          setCourses(relevantCourses);
+        }
       }
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
-      setFetchingData(false);
+      setLoading(false);
     }
-  };
+  }, [allowSelection, showCourseSelection]);
+
+  useEffect(() => {
+    if (open) {
+      setExternalMentorData(initialFormState);
+      setSelectedMentor(null);
+      setSelectedCourseId('');
+      setMode('create');
+      fetchData();
+    }
+  }, [open, fetchData]);
 
   const handleMentorSelect = (mentor: Mentor | null) => {
     setSelectedMentor(mentor);
@@ -202,7 +203,7 @@ const AddExternalMentorDialog: React.FC<AddExternalMentorDialogProps> = ({
           </Box>
         )}
 
-        {fetchingData ? (
+        {loading ? (
           <Box display="flex" justifyContent="center" p={3}>
             <CircularProgress size={24} />
           </Box>

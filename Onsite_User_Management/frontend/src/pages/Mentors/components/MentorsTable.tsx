@@ -10,7 +10,6 @@ import {
   Typography,
   Chip,
   IconButton,
-  Box,
   Button,
   alpha,
 } from '@mui/material';

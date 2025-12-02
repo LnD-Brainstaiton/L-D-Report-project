@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -16,8 +16,8 @@ import {
   useTheme,
   alpha,
 } from '@mui/material';
-import { mentorsAPI } from '../services/api';
-import type { Mentor, MentorStats, MentorCourseStats } from '../types';
+import { useMentorStats } from '../../hooks/useMentorStats';
+import type { Mentor, MentorCourseStats } from '../../types';
 
 interface MentorDetailsDialogProps {
   open: boolean;
@@ -27,32 +27,7 @@ interface MentorDetailsDialogProps {
 
 const MentorDetailsDialog: React.FC<MentorDetailsDialogProps> = ({ open, onClose, mentor }) => {
   const theme = useTheme();
-  const [mentorStats, setMentorStats] = useState<MentorStats | null>(null);
-  const [loadingStats, setLoadingStats] = useState(false);
-
-  const fetchMentorStats = async () => {
-    if (!mentor?.id) return;
-
-    setLoadingStats(true);
-    try {
-      const response = await mentorsAPI.getStats(mentor.id);
-      setMentorStats(response.data);
-    } catch (error) {
-      console.error('Error fetching mentor stats:', error);
-      setMentorStats(null);
-    } finally {
-      setLoadingStats(false);
-    }
-  };
-
-  useEffect(() => {
-    if (open && mentor?.id) {
-      fetchMentorStats();
-    } else {
-      setMentorStats(null);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, mentor?.id]);
+  const { mentorStats, loadingStats } = useMentorStats(mentor, open);
 
   if (!mentor) return null;
 

@@ -24,18 +24,18 @@ import {
   TextField,
 } from '@mui/material';
 import { Add, Delete, Edit, Search, Star, StarBorder } from '@mui/icons-material';
-import AssignInternalMentorDialog from '../../components/AssignInternalMentorDialog';
-import AddExternalMentorDialog from '../../components/AddExternalMentorDialog';
+import AssignInternalMentorDialog from '../../components/dialogs/AssignInternalMentorDialog';
+import AddExternalMentorDialog from '../../components/dialogs/AddExternalMentorDialog';
 import { formatDateForDisplay } from '../../utils/dateUtils';
 import CreateCourseDialog from './components/CreateCourseDialog';
 import EditCourseDialog from './components/EditCourseDialog';
 import { useCoursesData } from './hooks/useCoursesData';
 import { usePrerequisiteCourses } from './hooks/usePrerequisiteCourses';
 import { useFilteredCourses } from './utils/courseFilters';
-import { handleCreateCourseWithMentors, handleApproveCourse, handleGenerateReport, resetForm } from './utils/courseFormHandlers';
+import { handleCreateCourseWithMentors, resetForm } from './utils/courseFormHandlers';
 import { handleUpdateCourse, handleDeleteCourse } from './utils/courseHandlers';
-import { handleAssignInternalMentor, handleAddExternalMentor, handleRemoveMentor } from './utils/mentorHandlers';
-import { Course, ClassSchedule, Message, CourseMentorAssignment, CourseFormData, CourseType } from '../../types';
+import { handleAssignInternalMentor, handleAddExternalMentor } from './utils/mentorHandlers';
+import { Course, ClassSchedule, CourseMentorAssignment, CourseFormData, CourseType } from '../../types';
 
 interface CoursesProps {
   courseType?: CourseType;
@@ -75,7 +75,6 @@ function Courses({ courseType = 'onsite', status = 'all' }: CoursesProps): React
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
 
   const {
-    courses,
     allCourses,
     loading,
     categories,
@@ -173,14 +172,6 @@ function Courses({ courseType = 'onsite', status = 'all' }: CoursesProps): React
     navigate(`/courses/${courseId}`, { state: { courseType } });
   };
 
-  const handleApprove = async (courseId: number): Promise<void> => {
-    await handleApproveCourse(courseId, setMessage, fetchCourses);
-  };
-
-  const handleGenerate = async (courseId: number): Promise<void> => {
-    await handleGenerateReport(courseId, setMessage);
-  };
-
   const handleInternalMentorAssign = async (assignment: any): Promise<void> => {
     await handleAssignInternalMentor(assignment, setSelectedMentors, setMessage);
     setAssignInternalMentorDialogOpen(false);
@@ -191,19 +182,15 @@ function Courses({ courseType = 'onsite', status = 'all' }: CoursesProps): React
     setAddExternalMentorDialogOpen(false);
   };
 
-  const handleMentorRemove = (index: number): void => {
-    handleRemoveMentor(index, selectedMentors, setSelectedMentors);
-  };
-
   return (
     <Box sx={{ minHeight: '100vh', background: `linear-gradient(135deg, ${alpha('#1e40af', 0.03)} 0%, ${alpha('#059669', 0.03)} 100%)` }}>
       {/* Header */}
       <Box sx={{ mb: 4, pt: 2 }}>
         <Box display="flex" justifyContent="space-between" alignItems="flex-start">
           <Box>
-            <Typography 
-              variant="h3" 
-              sx={{ 
+            <Typography
+              variant="h3"
+              sx={{
                 fontWeight: 700,
                 color: '#1e40af',
                 mb: 1,
@@ -211,18 +198,18 @@ function Courses({ courseType = 'onsite', status = 'all' }: CoursesProps): React
               }}
             >
               {status === 'all' ? ` All ${courseType.charAt(0).toUpperCase() + courseType.slice(1)} Courses` :
-               status === 'upcoming' ? ` Upcoming ${courseType.charAt(0).toUpperCase() + courseType.slice(1)} Courses` :
-               status === 'ongoing' ? ` Ongoing ${courseType.charAt(0).toUpperCase() + courseType.slice(1)} Courses` :
-               status === 'planning' ? ` Planning ${courseType.charAt(0).toUpperCase() + courseType.slice(1)} Courses` :
-               ` Completed ${courseType.charAt(0).toUpperCase() + courseType.slice(1)} Courses`}
+                status === 'upcoming' ? ` Upcoming ${courseType.charAt(0).toUpperCase() + courseType.slice(1)} Courses` :
+                  status === 'ongoing' ? ` Ongoing ${courseType.charAt(0).toUpperCase() + courseType.slice(1)} Courses` :
+                    status === 'planning' ? ` Planning ${courseType.charAt(0).toUpperCase() + courseType.slice(1)} Courses` :
+                      ` Completed ${courseType.charAt(0).toUpperCase() + courseType.slice(1)} Courses`}
             </Typography>
             <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
               <Typography variant="body2" sx={{ color: '#64748b', fontSize: '0.95rem' }}>
                 {status === 'all' ? `All ${courseType} courses` :
-                 status === 'upcoming' ? `${courseType.charAt(0).toUpperCase() + courseType.slice(1)} courses scheduled to start soon` :
-                 status === 'ongoing' ? `${courseType.charAt(0).toUpperCase() + courseType.slice(1)} courses currently in progress` :
-                 status === 'planning' ? `${courseType.charAt(0).toUpperCase() + courseType.slice(1)} courses scheduled for the future` :
-                 `${courseType.charAt(0).toUpperCase() + courseType.slice(1)} courses that have been completed`}
+                  status === 'upcoming' ? `${courseType.charAt(0).toUpperCase() + courseType.slice(1)} courses scheduled to start soon` :
+                    status === 'ongoing' ? `${courseType.charAt(0).toUpperCase() + courseType.slice(1)} courses currently in progress` :
+                      status === 'planning' ? `${courseType.charAt(0).toUpperCase() + courseType.slice(1)} courses scheduled for the future` :
+                        `${courseType.charAt(0).toUpperCase() + courseType.slice(1)} courses that have been completed`}
               </Typography>
               <Chip
                 label={`Total: ${filteredCourses.length} ${filteredCourses.length === 1 ? 'course' : 'courses'}`}
@@ -237,9 +224,9 @@ function Courses({ courseType = 'onsite', status = 'all' }: CoursesProps): React
           </Box>
           <Box display="flex" gap={2}>
             {status === 'planning' && (courseType === 'onsite' || courseType === 'external') && (
-              <Button 
-                variant="contained" 
-                startIcon={<Add />} 
+              <Button
+                variant="contained"
+                startIcon={<Add />}
                 onClick={handleOpen}
                 sx={{
                   background: 'linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%)',
@@ -261,15 +248,15 @@ function Courses({ courseType = 'onsite', status = 'all' }: CoursesProps): React
       </Box>
 
       {message && (
-        <Alert 
+        <Alert
           severity={message.type}
           onClose={() => setMessage(null)}
-          sx={{ 
+          sx={{
             mb: 3,
             borderRadius: '8px',
             border: 'none',
             boxShadow: `0 4px 12px ${alpha(theme.palette[message.type === 'success' ? 'success' : 'error'].main, 0.15)}`,
-          }} 
+          }}
         >
           {message.text}
         </Alert>
@@ -568,7 +555,7 @@ function Courses({ courseType = 'onsite', status = 'all' }: CoursesProps): React
                         }}
                         onClick={courseType === 'online' ? () => handleViewDetails(course.id) : undefined}
                       >
-                        <TableCell 
+                        <TableCell
                           sx={{ fontWeight: 500, color: '#1e3a8a' }}
                           onClick={courseType !== 'online' ? () => handleViewDetails(course.id) : undefined}
                           style={{ cursor: courseType !== 'online' ? 'pointer' : 'default' }}
@@ -606,26 +593,26 @@ function Courses({ courseType = 'onsite', status = 'all' }: CoursesProps): React
                           </TableCell>
                         )}
                         <TableCell sx={{ color: '#64748b' }}>
-                          {course.startdate 
+                          {course.startdate
                             ? new Date(course.startdate * 1000).toLocaleDateString('en-US', {
-                                year: 'numeric',
-                                month: 'short',
-                                day: 'numeric'
-                              })
-                            : course.start_date 
-                            ? formatDateForDisplay(course.start_date)
-                            : 'Not set'}
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric'
+                            })
+                            : course.start_date
+                              ? formatDateForDisplay(course.start_date)
+                              : 'Not set'}
                         </TableCell>
                         <TableCell sx={{ color: '#64748b' }}>
-                          {course.enddate 
+                          {course.enddate
                             ? new Date(course.enddate * 1000).toLocaleDateString('en-US', {
-                                year: 'numeric',
-                                month: 'short',
-                                day: 'numeric'
-                              })
-                            : course.end_date 
-                            ? formatDateForDisplay(course.end_date)
-                            : 'Not set'}
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric'
+                            })
+                            : course.end_date
+                              ? formatDateForDisplay(course.end_date)
+                              : 'Not set'}
                         </TableCell>
                         {courseType === 'online' && (
                           <TableCell sx={{ color: '#475569' }}>
@@ -664,8 +651,8 @@ function Courses({ courseType = 'onsite', status = 'all' }: CoursesProps): React
                                   course.status === 'completed'
                                     ? 'success'
                                     : course.status === 'ongoing'
-                                    ? 'primary'
-                                    : 'warning'
+                                      ? 'primary'
+                                      : 'warning'
                                 }
                                 sx={{ fontWeight: 600 }}
                               />

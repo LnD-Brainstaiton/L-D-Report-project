@@ -33,7 +33,7 @@ import {
   Description,
   School,
 } from '@mui/icons-material';
-import UserDetailsDialog from '../../components/UserDetailsDialog';
+import UserDetailsDialog from '../../components/dialogs/UserDetailsDialog';
 import CreateStudentDialog from './components/CreateStudentDialog';
 import { useUsersData } from './hooks/useUsersData';
 import { useFilteredUsers } from './utils/userFilters';

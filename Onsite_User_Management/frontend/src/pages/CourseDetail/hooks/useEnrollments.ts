@@ -20,7 +20,7 @@ export const useEnrollments = (
 ): UseEnrollmentsReturn => {
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [loadingEnrollments, setLoadingEnrollments] = useState<boolean>(true);
-  const [message, setMessage] = useState<Message | null>(null);
+  const [, setMessage] = useState<Message | null>(null);
 
   useEffect(() => {
     if (course && courseId) {

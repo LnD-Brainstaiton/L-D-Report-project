@@ -1,5 +1,5 @@
 import React from 'react';
-import { formatDateForDisplay, formatDateTimeForDisplay } from '../utils/dateUtils';
+import { formatDateForDisplay, formatDateTimeForDisplay } from '../../utils/dateUtils';
 import {
   Dialog,
   DialogTitle,
@@ -12,7 +12,7 @@ import {
   Divider,
   Alert,
 } from '@mui/material';
-import { Enrollment } from '../types';
+import { Enrollment } from '../../types';
 
 interface CourseDetailsDialogProps {
   open: boolean;
@@ -42,7 +42,7 @@ function CourseDetailsDialog({ open, onClose, enrollment }: CourseDetailsDialogP
             </Typography>
             <Divider sx={{ mb: 2 }} />
           </Grid>
-          
+
           <Grid item xs={12} sm={6}>
             <Typography variant="body2" color="text.secondary">
               Course Name
@@ -51,7 +51,7 @@ function CourseDetailsDialog({ open, onClose, enrollment }: CourseDetailsDialogP
               {enrollment.course_name}
             </Typography>
           </Grid>
-          
+
           <Grid item xs={12} sm={6}>
             <Typography variant="body2" color="text.secondary">
               Batch Code
@@ -60,7 +60,7 @@ function CourseDetailsDialog({ open, onClose, enrollment }: CourseDetailsDialogP
               {enrollment.course_batch_code || enrollment.batch_code || 'N/A'}
             </Typography>
           </Grid>
-          
+
           {enrollment.course_description && (
             <Grid item xs={12}>
               <Typography variant="body2" color="text.secondary">
@@ -71,7 +71,7 @@ function CourseDetailsDialog({ open, onClose, enrollment }: CourseDetailsDialogP
               </Typography>
             </Grid>
           )}
-          
+
           {enrollment.course_start_date && (
             <Grid item xs={12} sm={6}>
               <Typography variant="body2" color="text.secondary">
@@ -82,7 +82,7 @@ function CourseDetailsDialog({ open, onClose, enrollment }: CourseDetailsDialogP
               </Typography>
             </Grid>
           )}
-          
+
           {enrollment.course_end_date && (
             <Grid item xs={12} sm={6}>
               <Typography variant="body2" color="text.secondary">
@@ -93,14 +93,14 @@ function CourseDetailsDialog({ open, onClose, enrollment }: CourseDetailsDialogP
               </Typography>
             </Grid>
           )}
-          
+
           <Grid item xs={12} sx={{ mt: 2 }}>
             <Typography variant="h6" gutterBottom>
               Enrollment Status
             </Typography>
             <Divider sx={{ mb: 2 }} />
           </Grid>
-          
+
           <Grid item xs={12} sm={6}>
             <Typography variant="body2" color="text.secondary">
               Approval Status
@@ -112,16 +112,16 @@ function CourseDetailsDialog({ open, onClose, enrollment }: CourseDetailsDialogP
                   normalizedApproval === 'approved'
                     ? 'success'
                     : normalizedApproval === 'pending'
-                    ? 'warning'
-                    : normalizedApproval === 'rejected' || normalizedApproval === 'withdrawn'
-                    ? 'error'
-                    : 'default'
+                      ? 'warning'
+                      : normalizedApproval === 'rejected' || normalizedApproval === 'withdrawn'
+                        ? 'error'
+                        : 'default'
                 }
                 size="small"
               />
             </Typography>
           </Grid>
-          
+
           <Grid item xs={12} sm={6}>
             <Typography variant="body2" color="text.secondary">
               Eligibility Status
@@ -134,7 +134,7 @@ function CourseDetailsDialog({ open, onClose, enrollment }: CourseDetailsDialogP
               />
             </Typography>
           </Grid>
-          
+
           {enrollment.approved_by && (
             <Grid item xs={12} sm={6}>
               <Typography variant="body2" color="text.secondary">
@@ -145,7 +145,7 @@ function CourseDetailsDialog({ open, onClose, enrollment }: CourseDetailsDialogP
               </Typography>
             </Grid>
           )}
-          
+
           {enrollment.approved_at && (
             <Grid item xs={12} sm={6}>
               <Typography variant="body2" color="text.secondary">
@@ -156,7 +156,7 @@ function CourseDetailsDialog({ open, onClose, enrollment }: CourseDetailsDialogP
               </Typography>
             </Grid>
           )}
-          
+
           {enrollment.rejection_reason && (
             <Grid item xs={12}>
               <Typography variant="body2" color="text.secondary">
@@ -167,14 +167,14 @@ function CourseDetailsDialog({ open, onClose, enrollment }: CourseDetailsDialogP
               </Alert>
             </Grid>
           )}
-          
+
           <Grid item xs={12} sx={{ mt: 2 }}>
             <Typography variant="h6" gutterBottom>
               Completion & Assessment
             </Typography>
             <Divider sx={{ mb: 2 }} />
           </Grid>
-          
+
           <Grid item xs={12} sm={6}>
             <Typography variant="body2" color="text.secondary">
               Completion Status
@@ -186,16 +186,16 @@ function CourseDetailsDialog({ open, onClose, enrollment }: CourseDetailsDialogP
                   normalizedCompletion === 'completed'
                     ? 'success'
                     : normalizedCompletion === 'in progress'
-                    ? 'info'
-                    : normalizedCompletion === 'failed'
-                    ? 'error'
-                    : 'default'
+                      ? 'info'
+                      : normalizedCompletion === 'failed'
+                        ? 'error'
+                        : 'default'
                 }
                 size="small"
               />
             </Typography>
           </Grid>
-          
+
           <Grid item xs={12} sm={6}>
             <Typography variant="body2" color="text.secondary">
               Assessment Completed
@@ -208,7 +208,7 @@ function CourseDetailsDialog({ open, onClose, enrollment }: CourseDetailsDialogP
               />
             </Typography>
           </Grid>
-          
+
           <Grid item xs={12} sm={6}>
             <Typography variant="body2" color="text.secondary">
               Score
@@ -217,7 +217,7 @@ function CourseDetailsDialog({ open, onClose, enrollment }: CourseDetailsDialogP
               {enrollment.score !== null && enrollment.score !== undefined ? `${enrollment.score}%` : 'Not Available'}
             </Typography>
           </Grid>
-          
+
           <Grid item xs={12} sm={6}>
             <Typography variant="body2" color="text.secondary">
               Attendance
@@ -226,7 +226,7 @@ function CourseDetailsDialog({ open, onClose, enrollment }: CourseDetailsDialogP
               {enrollment.attendance_percentage !== null && enrollment.attendance_percentage !== undefined ? `${enrollment.attendance_percentage}%` : 'Not Available'}
             </Typography>
           </Grid>
-          
+
           {enrollment.completion_date && (
             <Grid item xs={12} sm={6}>
               <Typography variant="body2" color="text.secondary">
@@ -237,7 +237,7 @@ function CourseDetailsDialog({ open, onClose, enrollment }: CourseDetailsDialogP
               </Typography>
             </Grid>
           )}
-          
+
           <Grid item xs={12} sm={6}>
             <Typography variant="body2" color="text.secondary">
               Enrollment Date

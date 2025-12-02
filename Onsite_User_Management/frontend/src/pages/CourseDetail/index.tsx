@@ -13,9 +13,9 @@ import { ArrowBack } from '@mui/icons-material';
 import { useCourseDetailData } from './hooks/useCourseDetailData';
 import { useEnrollments } from './hooks/useEnrollments';
 import { studentsAPI } from '../../services/api';
-import UserDetailsDialog from '../../components/UserDetailsDialog';
-import AssignInternalMentorDialog from '../../components/AssignInternalMentorDialog';
-import AddExternalMentorDialog from '../../components/AddExternalMentorDialog';
+import UserDetailsDialog from '../../components/dialogs/UserDetailsDialog';
+import AssignInternalMentorDialog from '../../components/dialogs/AssignInternalMentorDialog';
+import AddExternalMentorDialog from '../../components/dialogs/AddExternalMentorDialog';
 import CourseHeaderCard from './components/CourseHeaderCard';
 import OnlineCourseDetailsCard from './components/OnlineCourseDetailsCard';
 import StatCards from './components/StatCards';
@@ -40,7 +40,7 @@ import { handleUploadAttendance, handleEditAttendance } from './utils/attendance
 import { handleAssignMentor, handleEditMentor, handleRemoveMentor } from './utils/mentorHandlers';
 import { handleOpenEditCosts, handleSaveCosts } from './utils/costHandlers';
 import { handleApproveCourse, handleGenerateReport, handleAddComment, handleUpdateCourseDetails } from './utils/courseHandlers';
-import { Student, Enrollment, Message, ClassSchedule, Mentor, DraftMentorAssignment, MentorCost, EditingMentor, DraftMentorWithDetails } from '../../types';
+import { Student, Enrollment, Message, ClassSchedule, MentorCost, EditingMentor, DraftMentorWithDetails } from '../../types';
 
 interface EditCourseData {
   start_date: Date | string | null;
@@ -67,15 +67,12 @@ function CourseDetail(): React.ReactElement {
     comments,
     draftMentorsWithDetails,
     message: courseMessage,
-    setMessage: setCourseMessage,
-    setCourse,
     fetchCourse,
   } = useCourseDetailData(courseId, courseType);
 
   const {
     enrollments,
     loadingEnrollments,
-    setEnrollments,
     fetchEnrollments,
   } = useEnrollments(courseId, course, courseType);
 
@@ -114,7 +111,6 @@ function CourseDetail(): React.ReactElement {
   const [editClassesAttended, setEditClassesAttended] = useState<string>('');
   const [editScore, setEditScore] = useState<string>('');
   const [assignMentorDialogOpen, setAssignMentorDialogOpen] = useState<boolean>(false);
-  const [assignMentorLoading, setAssignMentorLoading] = useState<boolean>(false);
   const [addExternalMentorDialogOpen, setAddExternalMentorDialogOpen] = useState<boolean>(false);
   const [editMentorDialogOpen, setEditMentorDialogOpen] = useState<boolean>(false);
   const [editingMentor, setEditingMentor] = useState<EditingMentor | null>(null);
@@ -168,7 +164,7 @@ function CourseDetail(): React.ReactElement {
 
   const handleAddExternalMentor = async (assignment: any): Promise<void> => {
     try {
-      await handleAssignMentor(assignment, Number(courseId!), course, setMessage, fetchCourse, setAssignMentorLoading);
+      await handleAssignMentor(assignment, Number(courseId!), course, setMessage, fetchCourse, () => { });
       setAddExternalMentorDialogOpen(false);
     } catch (error) {
       // Error already handled in handleAssignMentor
@@ -515,7 +511,7 @@ function CourseDetail(): React.ReactElement {
         onClose={() => setAssignMentorDialogOpen(false)}
         onAssign={async (assignment) => {
           try {
-            await handleAssignMentor(assignment, Number(courseId!), course, setMessage, fetchCourse, setAssignMentorLoading);
+            await handleAssignMentor(assignment, Number(courseId!), course, setMessage, fetchCourse, () => { });
             setAssignMentorDialogOpen(false);
           } catch (error) {
             // Error already handled in handleAssignMentor

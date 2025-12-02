@@ -1,5 +1,5 @@
 import { getCourseStatus } from '../../../utils/courseUtils';
-import { getCourseStartDate, getCourseEndDate } from '../../../utils/dateRangeUtils';
+import { getCourseStartDate } from '../../../utils/dateRangeUtils';
 import type { Course, DateRange } from '../../../types';
 
 // Re-export for backward compatibility

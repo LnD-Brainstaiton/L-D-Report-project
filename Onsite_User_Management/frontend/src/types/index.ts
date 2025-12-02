@@ -474,3 +474,60 @@ export interface DraftMentorWithDetails extends DraftMentorAssignment {
   is_draft: boolean;
 }
 
+// ============================================================================
+// USER DETAILS & STATS
+// ============================================================================
+
+export interface EnrollmentWithDetails extends Enrollment {
+  student_career_start_date?: string | null;
+  student_bs_joining_date?: string | null;
+  student_total_experience?: number | null; // From ERP
+  student_exit_date?: string | null; // Leaving date for previous employees
+  student_exit_reason?: string | null; // Why the employee left
+  is_previous_employee?: boolean; // Flag to indicate this is a previous employee
+  batch_code?: string;
+  completion_status?: string;
+  attendance_percentage?: number;
+  attendance_status?: string;
+  present?: number;
+  total_attendance?: number;
+  course_type?: string;
+  is_lms_course?: boolean;
+  // SBU Head and Reporting Manager from ERP
+  sbu_head_employee_id?: string | null;
+  sbu_head_name?: string | null;
+  reporting_manager_employee_id?: string | null;
+  reporting_manager_name?: string | null;
+}
+
+export interface OnlineCourseEnrollment {
+  id: string;
+  course_id: number | string;
+  course_name: string;
+  batch_code: string;
+  course_type: string;
+  completion_status: string;
+  progress: number;
+  course_end_date: string | null;
+  date_assigned: number | null;
+  lastaccess: number | null;
+  is_lms_course: boolean;
+  is_mandatory: boolean;
+  score?: number | null;
+}
+
+export interface CompletionStats {
+  rate: number;
+  completed: number;
+  total: number;
+}
+
+export interface SbuHead {
+  id: number;
+  employee_id: string;
+  name: string;
+  email: string;
+  department: string;
+  designation: string;
+}
+

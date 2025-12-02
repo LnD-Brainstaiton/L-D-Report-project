@@ -14,9 +14,9 @@ import {
 } from '@mui/material';
 import { Add, Search } from '@mui/icons-material';
 import { mentorsAPI, studentsAPI, coursesAPI } from '../../services/api';
-import MentorDetailsDialog from '../../components/MentorDetailsDialog';
-import AssignInternalMentorDialog from '../../components/AssignInternalMentorDialog';
-import AddExternalMentorDialog from '../../components/AddExternalMentorDialog';
+import MentorDetailsDialog from '../../components/dialogs/MentorDetailsDialog';
+import AssignInternalMentorDialog from '../../components/dialogs/AssignInternalMentorDialog';
+import AddExternalMentorDialog from '../../components/dialogs/AddExternalMentorDialog';
 import { AlertMessage } from '../../components/common';
 import { useMentorsData } from './hooks/useMentorsData';
 import { useFilteredMentors } from './utils/mentorFilters';
@@ -44,7 +44,7 @@ const Mentors: React.FC = () => {
   const [addExternalMentorDialogOpen, setAddExternalMentorDialogOpen] = useState(false);
 
   // Data hooks
-  const { mentors, sbus, loading, message, setMessage, fetchMentors, deleteMentor } = useMentorsData();
+  const { mentors, sbus, loading, message, setMessage, fetchMentors } = useMentorsData();
 
   const filteredMentors = useFilteredMentors(
     mentors,

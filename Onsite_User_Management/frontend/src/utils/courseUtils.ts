@@ -2,7 +2,7 @@
  * Course-related utility functions
  */
 
-import type { Course, CourseStatus } from '../types';
+import type { CourseStatus, OnlineCourseEnrollment } from '../types';
 
 interface CourseWithStatus {
   status?: string | CourseStatus;
@@ -88,3 +88,33 @@ export const getStatusColor = (status: string): 'default' | 'primary' | 'seconda
   }
 };
 
+
+
+/**
+ * Sort online courses by priority:
+ * 1. Completed + Mandatory
+ * 2. Completed + Not Mandatory
+ * 3. Mandatory (not completed, not failed)
+ * 4. In Progress
+ * 5. Failed
+ * 6. Not Started
+ */
+export const sortOnlineCourses = (courses: OnlineCourseEnrollment[]): OnlineCourseEnrollment[] => {
+  return [...courses].sort((a, b) => {
+    const getPriority = (course: OnlineCourseEnrollment): number => {
+      const isCompleted = course.completion_status === 'Completed';
+      const isFailed = course.completion_status === 'Failed';
+      const isInProgress = course.completion_status === 'In Progress';
+      const isMandatory = course.is_mandatory;
+
+      if (isCompleted && isMandatory) return 0;
+      if (isCompleted && !isMandatory) return 1;
+      if (isMandatory && !isCompleted && !isFailed) return 2;
+      if (isInProgress) return 3;
+      if (isFailed) return 4;
+      return 5; // Not Started
+    };
+
+    return getPriority(a) - getPriority(b);
+  });
+};

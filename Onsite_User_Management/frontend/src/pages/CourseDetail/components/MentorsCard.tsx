@@ -19,7 +19,7 @@ import {
 } from '@mui/material';
 import { Person, Add, Edit, Remove, AccessTime } from '@mui/icons-material';
 import { getDisplayMentors } from '../utils/costCalculators';
-import { Course, DraftMentorAssignment, Mentor, DraftMentorWithDetails } from '../../../types';
+import { Course, Mentor, DraftMentorWithDetails } from '../../../types';
 
 interface DisplayMentor {
   id?: number | string;

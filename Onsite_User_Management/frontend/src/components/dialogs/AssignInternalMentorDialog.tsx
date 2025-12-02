@@ -12,8 +12,8 @@ import {
   Typography,
   Box,
 } from '@mui/material';
-import { studentsAPI, mentorsAPI, coursesAPI } from '../services/api';
-import type { Student, Mentor, Course } from '../types';
+import { studentsAPI, mentorsAPI, coursesAPI } from '../../services/api';
+import type { Student, Mentor, Course } from '../../types';
 
 interface MentorAssignment {
   mentor_id: number;
@@ -171,9 +171,9 @@ const AssignInternalMentorDialog: React.FC<AssignInternalMentorDialogProps> = ({
             onChange={(_, newValue) => setSelectedCourseId(newValue?.id || null)}
             loading={loadingCourses}
             renderInput={(params) => (
-              <TextField 
-                {...params} 
-                label="Select Course (Optional)" 
+              <TextField
+                {...params}
+                label="Select Course (Optional)"
                 sx={{ mt: 2 }}
                 helperText="Onsite courses in Draft or Ongoing status"
               />

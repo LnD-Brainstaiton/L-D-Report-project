@@ -37,7 +37,7 @@ export const useCourseDetailData = (courseId: string | undefined, courseType: st
     setLoading(true);
     try {
       let courseData: Course | null = null;
-      
+
       // Use course type to determine which API to use - completely separate systems
       if (courseType === 'online') {
         // Online course - fetch from LMS API only
@@ -46,11 +46,11 @@ export const useCourseDetailData = (courseId: string | undefined, courseType: st
         const responseData = lmsResponse.data as any;
         const lmsCourses = responseData.courses || (Array.isArray(responseData) ? responseData : []);
         const lmsCourse = lmsCourses.find((c: any) => c.id === parseInt(courseId!));
-        
+
         if (!lmsCourse) {
           throw new Error('Online course not found in LMS');
         }
-        
+
         courseData = {
           id: lmsCourse.id,
           name: lmsCourse.fullname,
@@ -82,9 +82,9 @@ export const useCourseDetailData = (courseId: string | undefined, courseType: st
           courseData.course_type = 'onsite';
         }
       }
-      
+
       setCourse(courseData);
-      
+
       // Set comments if available (only for onsite courses, not LMS courses)
       if (courseData.is_lms_course) {
         // LMS courses don't have comments in local database
@@ -104,7 +104,7 @@ export const useCourseDetailData = (courseId: string | undefined, courseType: st
           setComments([]);
         }
       }
-      
+
       // If course is in draft status, fetch draft data and mentor details (only for onsite courses)
       if (!courseData.is_lms_course && courseData.status === 'draft') {
         try {
@@ -123,22 +123,21 @@ export const useCourseDetailData = (courseId: string | undefined, courseType: st
               // No draft exists yet - this is expected for new courses
             }
           }
-          
+
           if (draftMentorAssignments.length > 0) {
-            const mentorIds = draftMentorAssignments.map(ma => ma.mentor_id);
             const mentorsResponse = await mentorsAPI.getAll('all');
             const mentorsMap: Record<number, Mentor> = {};
             mentorsResponse.data.forEach((m: Mentor) => {
               mentorsMap[m.id] = m;
             });
-            
+
             // Combine draft assignments with mentor details
             const draftMentors: DraftMentorWithDetails[] = draftMentorAssignments.map(ma => ({
               ...ma,
               mentor: mentorsMap[ma.mentor_id] || null,
               is_draft: true, // Flag to indicate this is a draft assignment
             }));
-            
+
             setDraftMentorsWithDetails(draftMentors);
           } else {
             setDraftMentorsWithDetails([]);

@@ -5,8 +5,8 @@
 
 import React from 'react';
 import { CourseFormDialog } from '../../../components/dialogs';
-import AssignInternalMentorDialog from '../../../components/AssignInternalMentorDialog';
-import AddExternalMentorDialog from '../../../components/AddExternalMentorDialog';
+import AssignInternalMentorDialog from '../../../components/dialogs/AssignInternalMentorDialog';
+import AddExternalMentorDialog from '../../../components/dialogs/AddExternalMentorDialog';
 import { handleAssignInternalMentor, handleAddExternalMentor } from '../utils/mentorHandlers';
 import { Course, ClassSchedule, Message, CourseMentorAssignment, CourseFormData, CourseType } from '../../../types';
 
@@ -49,9 +49,9 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
   selectedMentors = [],
   setSelectedMentors,
   assignInternalMentorDialogOpen = false,
-  setAssignInternalMentorDialogOpen = () => {},
+  setAssignInternalMentorDialogOpen = () => { },
   addExternalMentorDialogOpen = false,
-  setAddExternalMentorDialogOpen = () => {},
+  setAddExternalMentorDialogOpen = () => { },
 }) => {
   return (
     <>
@@ -79,7 +79,7 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
       <AssignInternalMentorDialog
         open={assignInternalMentorDialogOpen}
         onClose={() => setAssignInternalMentorDialogOpen(false)}
-        onAssign={async (assignment) => {
+        onAssign={async (assignment: any) => {
           if (!setSelectedMentors) return;
           await handleAssignInternalMentor(assignment, setSelectedMentors, setMessage);
           setAssignInternalMentorDialogOpen(false);
@@ -91,7 +91,7 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
       <AddExternalMentorDialog
         open={addExternalMentorDialogOpen}
         onClose={() => setAddExternalMentorDialogOpen(false)}
-        onAdd={async (assignment) => {
+        onAdd={async (assignment: any) => {
           if (!setSelectedMentors) return;
           await handleAddExternalMentor(assignment, setSelectedMentors, setMessage);
           setAddExternalMentorDialogOpen(false);

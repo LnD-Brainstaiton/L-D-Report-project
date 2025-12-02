@@ -1,16 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     Box,
-    Button,
-    Menu,
-    MenuItem,
-    TextField,
     Typography,
     Grid,
     ToggleButton,
     ToggleButtonGroup,
-    useTheme,
-    alpha,
 } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -25,16 +19,11 @@ interface DateRangeSelectorProps {
 }
 
 const DateRangeSelector: React.FC<DateRangeSelectorProps> = ({ onChange, initialOption = 'month' }) => {
-    const theme = useTheme();
     const [selectedOption, setSelectedOption] = useState<DateRangeOption>(initialOption);
     const [startDate, setStartDate] = useState<Date | null>(null);
     const [endDate, setEndDate] = useState<Date | null>(null);
 
-    useEffect(() => {
-        handleOptionChange(null, initialOption);
-    }, []);
-
-    const handleOptionChange = (event: React.MouseEvent<HTMLElement> | null, newOption: DateRangeOption | null) => {
+    const handleOptionChange = useCallback((event: React.MouseEvent<HTMLElement> | null, newOption: DateRangeOption | null) => {
         if (!newOption) return;
 
         setSelectedOption(newOption);
@@ -70,7 +59,19 @@ const DateRangeSelector: React.FC<DateRangeSelectorProps> = ({ onChange, initial
         setStartDate(newStart);
         setEndDate(newEnd);
         onChange(newStart, newEnd, newOption);
-    };
+    }, [onChange, startDate, endDate]);
+
+    // Effect to initialize the date range based on initialOption
+    useEffect(() => {
+        handleOptionChange(null, initialOption);
+    }, [initialOption, handleOptionChange]); // Re-run when initialOption changes
+
+    // Effect to update selectedOption if initialOption changes externally
+    useEffect(() => {
+        if (initialOption) {
+            setSelectedOption(initialOption);
+        }
+    }, [initialOption]);
 
     const handleCustomDateChange = (type: 'start' | 'end', date: Date | null) => {
         if (type === 'start') {

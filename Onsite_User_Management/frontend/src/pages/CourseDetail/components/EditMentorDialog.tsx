@@ -9,7 +9,7 @@ import {
   Typography,
   InputAdornment,
 } from '@mui/material';
-import { Mentor, EditingMentor } from '../../../types';
+import { EditingMentor } from '../../../types';
 
 
 interface EditMentorDialogProps {

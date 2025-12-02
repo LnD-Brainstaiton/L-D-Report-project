@@ -19,7 +19,7 @@ import {
   Chip,
 } from '@mui/material';
 import { Search } from '@mui/icons-material';
-import UserDetailsDialog from '../../components/UserDetailsDialog';
+import UserDetailsDialog from '../../components/dialogs/UserDetailsDialog';
 import { AlertMessage } from '../../components/common';
 import { usePreviousEmployeesData } from './hooks/usePreviousEmployeesData';
 import { useFilteredEmployees } from './utils/employeeFilters';

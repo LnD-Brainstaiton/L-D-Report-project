@@ -1,6 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
+import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import Layout from './components/Layout';
 import Login from './pages/Login';
@@ -13,16 +13,7 @@ import Mentors from './pages/Mentors';
 import Reports from './pages/Reports';
 import PrivateRoute from './components/PrivateRoute';
 
-const theme = createTheme({
-  palette: {
-    primary: {
-      main: '#1a237e',
-    },
-    secondary: {
-      main: '#3949ab',
-    },
-  },
-});
+import theme from './theme';
 
 const App: React.FC = () => {
   return (
