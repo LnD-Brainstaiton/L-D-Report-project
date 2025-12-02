@@ -95,14 +95,15 @@ class StudentService:
                 'course_end_date': lms_course.end_date.isoformat() if lms_course.end_date else None,
                 'date_assigned': int(lms_course.enrollment_time.timestamp()) if lms_course.enrollment_time else (int(lms_course.created_at.timestamp()) if lms_course.created_at else None),
                 'lastaccess': int(lms_course.last_access.timestamp()) if lms_course.last_access else None,
+                'completion_date': lms_course.completion_date.isoformat() if lms_course.completion_date else None,
                 'is_lms_course': True,
                 'is_mandatory': lms_course.is_mandatory == 1 if hasattr(lms_course, 'is_mandatory') and lms_course.is_mandatory is not None else False,
                 'student_name': student.name,
                 'student_email': student.email,
-                'student_department': student.department,
                 'student_employee_id': student.employee_id,
             }
             online_enrollments.append(online_dict)
+
         
         return {
             'enrollments': result_enrollments,

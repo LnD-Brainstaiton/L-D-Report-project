@@ -514,6 +514,7 @@ export interface OnlineCourseEnrollment {
   is_lms_course: boolean;
   is_mandatory: boolean;
   score?: number | null;
+  completion_date?: string | null;
 }
 
 export interface CompletionStats {

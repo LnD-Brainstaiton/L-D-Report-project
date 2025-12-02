@@ -114,7 +114,7 @@ const CourseHistory: React.FC<CourseHistoryProps> = ({
 
                                             {enroll.is_lms_course && (
                                                 <Box>
-                                                    <Typography variant="caption" color="text.secondary" display="block">Attendance</Typography>
+                                                    <Typography variant="caption" color="text.secondary" display="block">Progress</Typography>
                                                     <Typography
                                                         variant="body2"
                                                         sx={{
@@ -129,18 +129,28 @@ const CourseHistory: React.FC<CourseHistoryProps> = ({
                                                 </Box>
                                             )}
 
+
+
                                             {enroll.is_lms_course && (
                                                 <Box>
-                                                    <Typography variant="caption" color="text.secondary" display="block">Marks Obtained</Typography>
-                                                    <Typography variant="body2" sx={{ mt: 0.5, fontWeight: 600 }}>
-                                                        {enroll.score !== undefined && enroll.score !== null ? `${enroll.score}%` : 'N/A'}
+                                                    <Typography variant="caption" color="text.secondary" display="block">Completed On</Typography>
+                                                    <Typography variant="body2" sx={{ mt: 0.5 }}>
+                                                        {enroll.completion_date
+                                                            ? new Date(enroll.completion_date).toLocaleString('en-US', {
+                                                                year: 'numeric',
+                                                                month: 'short',
+                                                                day: 'numeric',
+                                                                hour: '2-digit',
+                                                                minute: '2-digit'
+                                                            })
+                                                            : 'N/A'}
                                                     </Typography>
                                                 </Box>
                                             )}
 
                                             {enroll.is_lms_course && enroll.date_assigned && (
                                                 <Box>
-                                                    <Typography variant="caption" color="text.secondary" display="block">Start Date</Typography>
+                                                    <Typography variant="caption" color="text.secondary" display="block">Enrollment Date</Typography>
                                                     <Typography variant="body2" sx={{ mt: 0.5 }}>
                                                         {typeof enroll.date_assigned === 'number'
                                                             ? new Date(enroll.date_assigned * 1000).toLocaleDateString('en-US', {
@@ -199,6 +209,10 @@ const CourseHistory: React.FC<CourseHistoryProps> = ({
                                                     <Typography variant="body2" sx={{ mt: 0.5 }}>{formatDateForDisplay(enroll.course_end_date)}</Typography>
                                                 </Box>
                                             )}
+
+
+
+
                                         </Box>
                                     </CardContent>
                                 </GradientCard>

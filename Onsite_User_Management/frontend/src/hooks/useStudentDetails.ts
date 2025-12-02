@@ -91,6 +91,7 @@ export const useStudentDetails = ({ enrollment, open }: UseStudentDetailsProps):
                 is_lms_course: true,
                 is_mandatory: course.is_mandatory === true || course.is_mandatory === 1,
                 score: course.score,
+                completion_date: course.completion_date,
             }));
 
             const sortedOnlineCourses = sortOnlineCourses(mappedOnlineCourses);

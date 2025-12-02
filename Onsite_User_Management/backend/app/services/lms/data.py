@@ -169,9 +169,17 @@ class LMSDataService:
             # 3. Sync enrollments for each course
             logger.info("Syncing LMS enrollments...")
             cached_courses = db.query(LMSCourseCache).all()
-            for course in cached_courses:
+            total_courses = len(cached_courses)
+            logger.info(f"Processing {total_courses} courses...")
+            
+            for idx, course in enumerate(cached_courses, 1):
                 try:
+                    # Log progress every 10 courses or for the first/last course
+                    if idx == 1 or idx == total_courses or idx % 10 == 0:
+                        logger.info(f"Progress: {idx}/{total_courses} courses processed ({(idx/total_courses*100):.1f}%)")
+                    
                     enrolled_users = await LMSService.fetch_course_enrollments(course.id)
+
                     
                     for user in enrolled_users:
                         username = user.get("username", "")
@@ -189,19 +197,33 @@ class LMSDataService:
                         
                         is_mandatory = 1 if course.is_mandatory == 1 else 0
                         
+                        # Get enrollment timestamp from user's enrollment data (not course creation time)
                         enrollment_timestamp = None
-                        if course.timecreated:
-                            enrollment_timestamp = datetime.fromtimestamp(course.timecreated)
-                        elif 'timecreated' in user:
-                            enrollment_timestamp = datetime.fromtimestamp(user['timecreated']) if user.get('timecreated') else None
-                        elif 'timestart' in user:
-                            enrollment_timestamp = datetime.fromtimestamp(user['timestart']) if user.get('timestart') else None
-                        elif 'enrolments' in user and isinstance(user['enrolments'], list) and len(user['enrolments']) > 0:
+                        
+                        # Priority 1: Check enrolments array for actual enrollment time
+                        if 'enrolments' in user and isinstance(user['enrolments'], list) and len(user['enrolments']) > 0:
                             first_enrol = user['enrolments'][0]
-                            if 'timecreated' in first_enrol:
-                                enrollment_timestamp = datetime.fromtimestamp(first_enrol['timecreated']) if first_enrol.get('timecreated') else None
-                            elif 'timestart' in first_enrol:
-                                enrollment_timestamp = datetime.fromtimestamp(first_enrol['timestart']) if first_enrol.get('timestart') else None
+                            if 'timecreated' in first_enrol and first_enrol.get('timecreated'):
+                                enrollment_timestamp = datetime.fromtimestamp(first_enrol['timecreated'])
+                            elif 'timestart' in first_enrol and first_enrol.get('timestart'):
+                                enrollment_timestamp = datetime.fromtimestamp(first_enrol['timestart'])
+                        
+                        # Priority 2: User-level enrollment fields (from core_enrol_get_enrolled_users)
+                        if not enrollment_timestamp:
+                            if 'timecreated' in user and user.get('timecreated'):
+                                enrollment_timestamp = datetime.fromtimestamp(user['timecreated'])
+                            elif 'timestart' in user and user.get('timestart'):
+                                enrollment_timestamp = datetime.fromtimestamp(user['timestart'])
+                        
+                        # Priority 3: First access time (if available and valid)
+                        # This is useful when explicit enrollment data is missing but user has accessed the course
+                        if not enrollment_timestamp:
+                            if 'firstaccess' in user and user.get('firstaccess') and user.get('firstaccess') > 0:
+                                enrollment_timestamp = datetime.fromtimestamp(user['firstaccess'])
+                        
+                        # Note: We do NOT use course.timecreated as that's when the course was created, 
+                        # not when the user was enrolled
+
                         
                         if existing:
                             existing.course_name = course.fullname
@@ -210,7 +232,8 @@ class LMSDataService:
                             existing.is_mandatory = is_mandatory
                             existing.start_date = datetime.fromtimestamp(course.startdate) if course.startdate else None
                             existing.end_date = datetime.fromtimestamp(course.enddate) if course.enddate else None
-                            if enrollment_timestamp and not existing.enrollment_time:
+                            # Always update enrollment_time when we have it from API (don't check if it exists)
+                            if enrollment_timestamp:
                                 existing.enrollment_time = enrollment_timestamp
                         else:
                             new_enrollment = LMSUserCourseModel(
@@ -291,8 +314,14 @@ class LMSDataService:
             
             logger.info(f"PROGRESS SYNC: Processing {len(students_with_enrollments)} students with enrollments")
             
+            from app.models.lms_user import LMSUser  # Import here to avoid circular imports
+            
             for student in students_with_enrollments:
                 try:
+                    # Get LMS User ID for completion checks
+                    lms_user = db.query(LMSUser).filter(LMSUser.username == student.employee_id).first()
+                    lms_user_id = lms_user.lms_id if lms_user else None
+                    
                     # Fetch user's courses with progress using core_enrol_get_users_courses
                     user_courses = await LMSService.fetch_user_courses(student.employee_id, None)  # Don't pass db to avoid cache issues
                     stats["students_processed"] += 1
@@ -318,8 +347,27 @@ class LMSDataService:
                                     enrollment.last_access = datetime.fromtimestamp(last_access)
                                 except:
                                     pass
-                            if (completed or progress >= 100) and not enrollment.completion_date:
-                                enrollment.completion_date = datetime.utcnow()
+                            
+                            # Handle completion date
+                            if (completed or progress >= 100):
+                                # If we don't have a completion date, or if we want to verify it
+                                # We should try to fetch the actual completion timestamp from LMS
+                                if lms_user_id:
+                                    try:
+                                        status_data = await LMSService.fetch_course_completion_status(int(course_id), lms_user_id)
+                                        if status_data and "completionstatus" in status_data:
+                                            completions = status_data["completionstatus"].get("completions", [])
+                                            # Find max timecompleted
+                                            times = [c.get("timecompleted") for c in completions if c.get("timecompleted")]
+                                            if times:
+                                                max_time = max(times)
+                                                enrollment.completion_date = datetime.fromtimestamp(max_time)
+                                    except Exception as e:
+                                        logger.warning(f"Failed to fetch completion date for user {student.employee_id} course {course_id}: {e}")
+                                
+                                # Fallback if API failed or didn't return date, and we still don't have one
+                                if not enrollment.completion_date:
+                                    enrollment.completion_date = datetime.utcnow()
                             
                             if old_progress != progress:
                                 stats["courses_updated"] += 1

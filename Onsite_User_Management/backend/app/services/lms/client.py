@@ -484,3 +484,51 @@ class LMSService:
             logger.error(f"Error fetching user courses from LMS: {str(e)}")
             raise
 
+    @staticmethod
+    async def fetch_course_completion_status(course_id: int, user_id: int) -> Optional[Dict[str, Any]]:
+        """
+        Fetch completion status for a specific user in a course using core_completion_get_course_completion_status.
+        
+        Args:
+            course_id: The Moodle course ID
+            user_id: The Moodle user ID
+            
+        Returns:
+            Dictionary containing completion status or None
+        """
+        if not settings.LMS_TOKEN:
+            raise ValueError("LMS_TOKEN is not configured. Please set it in .env file")
+        
+        url = settings.LMS_BASE_URL
+        
+        params = {
+            "wstoken": settings.LMS_TOKEN,
+            "wsfunction": "core_completion_get_course_completion_status",
+            "moodlewsrestformat": settings.LMS_REST_FORMAT,
+            "courseid": str(course_id),
+            "userid": str(user_id),
+        }
+        
+        try:
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                response = await client.post(url, params=params)
+                response.raise_for_status()
+                
+                data = response.json()
+                
+                # Handle error responses
+                if "exception" in data:
+                    # Some errors like "User is not enrolled" are expected and shouldn't raise exception
+                    # just return None
+                    logger.debug(f"LMS API exception for completion status: {data.get('message')}")
+                    return None
+                
+                return data
+                
+        except httpx.HTTPError as e:
+            logger.error(f"HTTP error fetching completion status from LMS: {str(e)}")
+            return None
+        except Exception as e:
+            logger.error(f"Error fetching completion status from LMS: {str(e)}")
+            return None
+

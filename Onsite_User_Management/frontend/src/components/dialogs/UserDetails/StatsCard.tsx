@@ -32,18 +32,18 @@ const StatsCard: React.FC<StatsCardProps> = ({ courseType, stats }) => {
                     </Typography>
                     <Typography
                         variant="h5"
-                        sx={{ fontWeight: 600, color: getCompletionRateColor(stats.rate || 0) }}
+                        sx={{ fontWeight: 600, color: stats.total === 0 ? 'text.secondary' : getCompletionRateColor(stats.rate || 0) }}
                     >
-                        {(stats.rate || 0).toFixed(1)}%
+                        {stats.total === 0 ? 'N/A' : `${(stats.rate || 0).toFixed(1)}%`}
                     </Typography>
                 </Box>
                 <Box textAlign="right">
                     <Typography variant="body2" color="text.secondary" gutterBottom>Courses Completed</Typography>
                     <Typography
                         variant="h6"
-                        sx={{ fontWeight: 600, color: getCompletionRateColor(stats.rate || 0) }}
+                        sx={{ fontWeight: 600, color: stats.total === 0 ? 'text.secondary' : getCompletionRateColor(stats.rate || 0) }}
                     >
-                        {stats.completed || 0} / {stats.total || 0}
+                        {stats.total === 0 ? 'N/A' : `${stats.completed || 0} / ${stats.total || 0}`}
                     </Typography>
                 </Box>
             </Box>

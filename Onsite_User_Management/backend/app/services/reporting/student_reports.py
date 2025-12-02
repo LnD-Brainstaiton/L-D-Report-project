@@ -138,7 +138,7 @@ def generate_employee_report(students: List[Student], start_date: Optional[date]
                 'Last Access': last_access,
                 'Completion Status': completion_status,
                 'Approval Date': enrollment_date, # Auto-approved
-                'Completion Date': 'N/A', # LMS doesn't always give completion date
+                'Completion Date': lms_course.completion_date.strftime('%Y-%m-%d') if lms_course.completion_date else '',
                 'Withdrawn': 'FALSE',
             })
     
