@@ -19,9 +19,9 @@ Comprehensive learning and development management system for managing both onsit
 
 ## Tech Stack
 
-- **Backend**: FastAPI (Python)
-- **Frontend**: React with Material UI
-- **Database**: PostgreSQL
+- **Backend**: FastAPI 0.104.1 (Python)
+- **Frontend**: React 18.2.0 with Material UI 5.14.20
+- **Database**: PostgreSQL (SQLAlchemy 2.0.23)
 - **Authentication**: JWT-based admin authentication
 - **File Processing**: pandas, openpyxl
 - **LMS Integration**: Moodle Web Services API
@@ -30,27 +30,13 @@ Comprehensive learning and development management system for managing both onsit
 
 ## Project Structure
 
-```
-Onsite_User_Management/
-├── backend/                 # FastAPI backend
-│   ├── app/
-│   │   ├── api/            # API routes
-│   │   ├── core/           # Core config, security
-│   │   ├── models/         # Database models
-│   │   ├── schemas/        # Pydantic schemas
-│   │   ├── services/       # Business logic
-│   │   └── db/             # Database setup
-│   ├── alembic/            # Database migrations
-│   └── requirements.txt
-├── frontend/               # React frontend
-│   ├── src/
-│   │   ├── components/     # React components
-│   │   ├── pages/          # Page components
-│   │   ├── services/       # API clients
-│   │   └── utils/          # Utilities
-│   └── package.json
-└── README.md
-```
+The project is divided into two main components:
+
+- **`backend/`**: A FastAPI-based server handling API requests, database interactions, and background synchronization tasks.
+- **`frontend/`**: A React-based Single Page Application (SPA) providing the user interface.
+
+> [!TIP]
+> For a comprehensive, file-by-file breakdown of the entire project, please refer to [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md).
 
 ## Docker Setup (Recommended)
 
