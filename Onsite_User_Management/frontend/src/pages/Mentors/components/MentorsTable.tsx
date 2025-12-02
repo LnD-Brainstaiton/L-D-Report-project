@@ -117,7 +117,23 @@ const MentorsTable: React.FC<MentorsTableProps> = ({ mentors, onViewDetails, onV
                       }}
                     />
                   </TableCell>
-                  <TableCell sx={{ color: '#64748b' }}>{mentor.email || '-'}</TableCell>
+                  <TableCell>
+                    {mentor.email ? (
+                      <a
+                        href={`mailto:${mentor.email}`}
+                        style={{
+                          color: '#64748b',
+                          textDecoration: 'none',
+                        }}
+                        onMouseOver={(e) => (e.currentTarget.style.textDecoration = 'underline')}
+                        onMouseOut={(e) => (e.currentTarget.style.textDecoration = 'none')}
+                      >
+                        {mentor.email}
+                      </a>
+                    ) : (
+                      '-'
+                    )}
+                  </TableCell>
                   <TableCell>
                     {mentor.department ? (
                       <Chip
