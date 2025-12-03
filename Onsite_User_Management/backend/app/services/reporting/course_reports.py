@@ -75,6 +75,7 @@ def generate_course_participants_report(course: Course, start_date: Optional[dat
             'Overall Completion Rate': f"{overall_completion_rate:.1f}%",
             'Enrollment Date': enrollment.created_at.strftime('%Y-%m-%d %H:%M:%S') if enrollment.created_at else '',
             'Approval Date': enrollment.approved_at.strftime('%Y-%m-%d %H:%M:%S') if enrollment.approved_at and enrollment.approval_status == ApprovalStatus.APPROVED else '',
+            'Completion Date': enrollment.completion_date.strftime('%Y-%m-%d %H:%M:%S') if enrollment.completion_date else '',
             'Withdrawal Date': enrollment.updated_at.strftime('%Y-%m-%d %H:%M:%S') if enrollment.approval_status == ApprovalStatus.WITHDRAWN and enrollment.updated_at else '',
             'Withdrawal Reason': enrollment.rejection_reason if enrollment.approval_status == ApprovalStatus.WITHDRAWN else '',
         })

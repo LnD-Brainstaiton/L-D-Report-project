@@ -295,6 +295,53 @@ class LMSDataService:
         }
 
     @staticmethod
+    def get_enrollments_updated_since(db: Session, updated_since: Optional[int] = None) -> List[Dict[str, Any]]:
+        """
+        Get enrollments that were created or updated after the specified timestamp.
+        
+        Args:
+            db: Database session
+            updated_since: Unix timestamp - only return enrollments created/updated after this time
+            
+        Returns:
+            List of enrollment dictionaries with user and course info
+        """
+        query = db.query(LMSUserCourseModel)
+        
+        if updated_since:
+            # Convert Unix timestamp to datetime
+            since_datetime = datetime.fromtimestamp(updated_since)
+            
+            # Filter: enrollment_time >= updated_since OR updated_at >= updated_since
+            query = query.filter(
+                (LMSUserCourseModel.enrollment_time >= since_datetime) |
+                (LMSUserCourseModel.updated_at >= since_datetime)
+            )
+        
+        enrollments = query.all()
+        
+        result = []
+        for enrollment in enrollments:
+            student = db.query(Student).filter(Student.id == enrollment.student_id).first()
+            
+            enrollment_data = {
+                "userid": student.id if student else None,
+                "courseid": int(enrollment.lms_course_id),
+                "status": 0,  # Active enrollment
+                "timestart": int(enrollment.start_date.timestamp()) if enrollment.start_date else None,
+                "timeend": int(enrollment.end_date.timestamp()) if enrollment.end_date else None,
+                "timecreated": int(enrollment.enrollment_time.timestamp()) if enrollment.enrollment_time else None,
+                "timemodified": int(enrollment.updated_at.timestamp()) if enrollment.updated_at else None,
+                # Additional fields for convenience
+                "username": enrollment.employee_id,
+                "course_name": enrollment.course_name,
+                "student_name": student.name if student else None,
+            }
+            result.append(enrollment_data)
+        
+        return result
+
+    @staticmethod
     async def sync_progress_data(db: Session) -> Dict[str, Any]:
         """Sync progress data for all enrolled students."""
         stats = {

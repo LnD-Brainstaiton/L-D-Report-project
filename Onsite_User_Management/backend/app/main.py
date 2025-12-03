@@ -8,6 +8,24 @@ from app.api import api_router
 import logging
 from app.core.lifespan import lifespan
 
+import logging.handlers
+import os
+
+# Create logs directory if it doesn't exist
+os.makedirs("logs", exist_ok=True)
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[
+        logging.StreamHandler(),  # Console
+        logging.handlers.RotatingFileHandler(
+            "logs/app.log", maxBytes=10*1024*1024, backupCount=5
+        )  # File
+    ]
+)
+
 logger = logging.getLogger(__name__)
 
 app = FastAPI(

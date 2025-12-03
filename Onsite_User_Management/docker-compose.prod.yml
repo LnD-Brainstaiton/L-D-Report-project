@@ -27,8 +27,6 @@ services:
     image: aaamaan/bs23-lnd-backend:latest
     container_name: bs23-lnd-backend
     restart: always
-    ports:
-      - "8000:8000"
     env_file:
       - .env
     environment:
@@ -38,6 +36,7 @@ services:
         condition: service_healthy
     volumes:
       - ./backend/uploads:/app/uploads
+      - ./logs/backend:/app/logs
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
       interval: 30s
@@ -49,9 +48,21 @@ services:
     image: aaamaan/bs23-lnd-frontend:latest
     container_name: bs23-lnd-frontend
     restart: always
-    ports:
-      - "3000:3000"
     depends_on:
+      backend:
+        condition: service_healthy
+
+  nginx:
+    build: ./nginx
+    container_name: bs23-lnd-nginx
+    restart: always
+    ports:
+      - "80:80"
+    volumes:
+      - ./logs/nginx:/var/log/nginx
+    depends_on:
+      frontend:
+        condition: service_started
       backend:
         condition: service_healthy
 

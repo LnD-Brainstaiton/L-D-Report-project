@@ -1,115 +1,177 @@
 #!/usr/bin/env python3
 """
-Test script to check enrollments API response for a course.
-Usage: python test_enrollments_api.py [course_id]
+Test the GET /lms/enrollments?updated_since={timestamp} API endpoint
+for BS1981 and Anti-Corruption and Anti-Bribery course.
 """
+
 import sys
 import os
-sys.path.insert(0, os.path.dirname(__file__))
+import json
+from datetime import datetime, timedelta
+
+sys.path.append(os.getcwd())
 
 from app.db.base import SessionLocal
-from app.models.enrollment import Enrollment
-from app.models.course import Course
 from app.models.student import Student
-from app.schemas.enrollment import EnrollmentResponse
-from app.models.enrollment import ApprovalStatus, CompletionStatus, EligibilityStatus
-import json
+from app.models.lms_user import LMSUserCourse
+from app.services.lms.data import LMSDataService
 
-def test_enrollments_api(course_id=None):
+def test_enrollments_api():
+    """Test the enrollments API for BS1981 and Anti-Corruption course."""
     db = SessionLocal()
+    
     try:
-        # If no course_id provided, find a course with enrollments
-        if not course_id:
-            course_with_enrollments = db.query(Course).join(Enrollment).first()
-            if course_with_enrollments:
-                course_id = course_with_enrollments.id
-                print(f"Found course with enrollments: ID={course_id}, Name={course_with_enrollments.name}")
-            else:
-                # Get any course
-                any_course = db.query(Course).first()
-                if any_course:
-                    course_id = any_course.id
-                    print(f"Using course: ID={course_id}, Name={any_course.name} (may have no enrollments)")
-                else:
-                    print("No courses found in database")
-                    return
+        # 1. Find student BS1981
+        print("=" * 80)
+        print("STEP 1: Finding student BS1981")
+        print("=" * 80)
+        student = db.query(Student).filter(
+            Student.employee_id.ilike('%BS1981%')
+        ).first()
         
-        # Query enrollments for this course
-        query = db.query(Enrollment).filter(Enrollment.course_id == course_id)
-        enrollments = query.all()
-        
-        print(f"\n{'='*60}")
-        print(f"Enrollments for Course ID: {course_id}")
-        print(f"Total enrollments: {len(enrollments)}")
-        print(f"{'='*60}\n")
-        
-        if not enrollments:
-            print("No enrollments found for this course.")
-            print("\nExpected API response structure:")
-            print("[]")
+        if not student:
+            print("❌ Student BS1981 not found")
+
             return
         
-        # Build response similar to API endpoint
-        result = []
-        for enrollment in enrollments:
-            enrollment_dict = EnrollmentResponse.from_orm(enrollment).dict()
-            
-            # Add student information (as done in API)
-            enrollment_dict['student_name'] = enrollment.student.name
-            enrollment_dict['student_email'] = enrollment.student.email
-            enrollment_dict['student_department'] = enrollment.student.department
-            enrollment_dict['student_employee_id'] = enrollment.student.employee_id
-            enrollment_dict['student_designation'] = enrollment.student.designation
-            enrollment_dict['student_experience_years'] = enrollment.student.experience_years
-            
-            # Add course information
-            enrollment_dict['course_name'] = enrollment.course_name or (enrollment.course.name if enrollment.course else None)
-            enrollment_dict['batch_code'] = enrollment.batch_code or (enrollment.course.batch_code if enrollment.course else None)
-            enrollment_dict['course_description'] = enrollment.course.description if enrollment.course else None
-            
-            # Convert dates to ISO format strings
-            if enrollment.created_at:
-                enrollment_dict['created_at'] = enrollment.created_at.isoformat()
-            if enrollment.updated_at:
-                enrollment_dict['updated_at'] = enrollment.updated_at.isoformat()
-            if enrollment.completion_date:
-                enrollment_dict['completion_date'] = enrollment.completion_date.isoformat()
-            
-            result.append(enrollment_dict)
+        print(f"✅ Found student:")
+        print(f"   ID: {student.id}")
+        print(f"   Employee ID: {student.employee_id}")
+        print(f"   Name: {student.name}")
+        print()
         
-        # Print formatted JSON response
-        print("API Response (JSON):")
-        print(json.dumps(result, indent=2, default=str))
+        # 2. Find Anti-Corruption and Anti-Bribery course
+        print("=" * 80)
+        print("STEP 2: Finding Anti-Corruption and Anti-Bribery course")
+        print("=" * 80)
+        enrollment = db.query(LMSUserCourse).filter(
+            LMSUserCourse.student_id == student.id,
+            LMSUserCourse.course_name.ilike('%Anti-Corruption%')
+        ).first()
         
-        # Print summary
-        print(f"\n{'='*60}")
-        print("Summary:")
-        print(f"{'='*60}")
-        for i, enrollment in enumerate(result, 1):
-            print(f"\nEnrollment {i}:")
-            print(f"  ID: {enrollment.get('id')}")
-            print(f"  Student: {enrollment.get('student_name')} ({enrollment.get('student_employee_id')})")
-            print(f"  Email: {enrollment.get('student_email')}")
-            print(f"  Department: {enrollment.get('student_department')}")
-            print(f"  Approval Status: {enrollment.get('approval_status')}")
-            print(f"  Completion Status: {enrollment.get('completion_status')}")
-            print(f"  Eligibility Status: {enrollment.get('eligibility_status')}")
-            if enrollment.get('attendance_percentage') is not None:
-                print(f"  Attendance: {enrollment.get('attendance_percentage')}%")
-            if enrollment.get('score') is not None:
-                print(f"  Score: {enrollment.get('score')}")
+        if not enrollment:
+            print("❌ Anti-Corruption course not found for BS1981")
+            return
         
+        print(f"✅ Found enrollment:")
+        print(f"   Course ID: {enrollment.lms_course_id}")
+        print(f"   Course Name: {enrollment.course_name}")
+        print(f"   Enrollment Time: {enrollment.enrollment_time}")
+        print(f"   Updated At: {enrollment.updated_at}")
+        print()
+        
+        # 3. Test API without updated_since (get all enrollments)
+        print("=" * 80)
+        print("STEP 3: Testing API without updated_since (all enrollments)")
+        print("=" * 80)
+        all_enrollments = LMSDataService.get_enrollments_updated_since(db, None)
+        
+        # Filter for BS1981 and Anti-Corruption course
+        bs1981_enrollments = [
+            e for e in all_enrollments 
+            if e.get('username', '').upper() == 'BS1981' and 
+               'anti-corruption' in e.get('course_name', '').lower()
+        ]
+        
+        print(f"Total enrollments returned: {len(all_enrollments)}")
+        print(f"BS1981 Anti-Corruption enrollments: {len(bs1981_enrollments)}")
+        print()
+        
+        if bs1981_enrollments:
+            print("✅ Found BS1981 enrollment in Anti-Corruption course:")
+            for e in bs1981_enrollments:
+                print(json.dumps(e, indent=2, default=str))
+        else:
+            print("❌ No BS1981 Anti-Corruption enrollment found in results")
+        print()
+        
+        # 4. Test API with updated_since (1 year ago)
+        print("=" * 80)
+        print("STEP 4: Testing API with updated_since (1 year ago)")
+        print("=" * 80)
+        one_year_ago = int((datetime.now() - timedelta(days=365)).timestamp())
+        print(f"Updated since timestamp: {one_year_ago}")
+        print(f"Updated since date: {datetime.fromtimestamp(one_year_ago)}")
+        print()
+        
+        recent_enrollments = LMSDataService.get_enrollments_updated_since(db, one_year_ago)
+        
+        # Filter for BS1981 and Anti-Corruption course
+        bs1981_recent = [
+            e for e in recent_enrollments 
+            if e.get('username', '').upper() == 'BS1981' and 
+               'anti-corruption' in e.get('course_name', '').lower()
+        ]
+        
+        print(f"Total enrollments returned (updated since 1 year ago): {len(recent_enrollments)}")
+        print(f"BS1981 Anti-Corruption enrollments: {len(bs1981_recent)}")
+        print()
+        
+        if bs1981_recent:
+            print("✅ Found BS1981 enrollment in Anti-Corruption course (updated since 1 year ago):")
+            for e in bs1981_recent:
+                print(json.dumps(e, indent=2, default=str))
+        else:
+            print("❌ No BS1981 Anti-Corruption enrollment found in recent results")
+        print()
+        
+        # 5. Test API with updated_since (very old timestamp - should return all)
+        print("=" * 80)
+        print("STEP 5: Testing API with updated_since (very old - should return all)")
+        print("=" * 80)
+        very_old = int((datetime.now() - timedelta(days=3650)).timestamp())  # 10 years ago
+        print(f"Updated since timestamp: {very_old}")
+        print(f"Updated since date: {datetime.fromtimestamp(very_old)}")
+        print()
+        
+        old_enrollments = LMSDataService.get_enrollments_updated_since(db, very_old)
+        
+        # Filter for BS1981 and Anti-Corruption course
+        bs1981_old = [
+            e for e in old_enrollments 
+            if e.get('username', '').upper() == 'BS1981' and 
+               'anti-corruption' in e.get('course_name', '').lower()
+        ]
+        
+        print(f"Total enrollments returned (updated since 10 years ago): {len(old_enrollments)}")
+        print(f"BS1981 Anti-Corruption enrollments: {len(bs1981_old)}")
+        print()
+        
+        if bs1981_old:
+            print("✅ Found BS1981 enrollment in Anti-Corruption course (updated since 10 years ago):")
+            for e in bs1981_old:
+                print(json.dumps(e, indent=2, default=str))
+        else:
+            print("❌ No BS1981 Anti-Corruption enrollment found in old results")
+        print()
+        
+        # 6. Show the exact API response format
+        print("=" * 80)
+        print("STEP 6: API Response Format (as per specification)")
+        print("=" * 80)
+        if bs1981_enrollments:
+            enrollment_data = bs1981_enrollments[0]
+            api_response = {
+                "enrollments": [{
+                    "userid": enrollment_data.get("userid"),
+                    "courseid": enrollment_data.get("courseid"),
+                    "status": enrollment_data.get("status"),
+                    "timestart": enrollment_data.get("timestart"),
+                    "timeend": enrollment_data.get("timeend"),
+                    "timecreated": enrollment_data.get("timecreated"),
+                    "timemodified": enrollment_data.get("timemodified")
+                }],
+                "synced_after": None
+            }
+            print("API Response (formatted as per spec):")
+            print(json.dumps(api_response, indent=2, default=str))
+        
+    except Exception as e:
+        print(f"❌ Error: {str(e)}")
+        import traceback
+        traceback.print_exc()
     finally:
         db.close()
 
 if __name__ == "__main__":
-    course_id = None
-    if len(sys.argv) > 1:
-        try:
-            course_id = int(sys.argv[1])
-        except ValueError:
-            print(f"Invalid course_id: {sys.argv[1]}")
-            sys.exit(1)
-    
-    test_enrollments_api(course_id)
-
+    test_enrollments_api()

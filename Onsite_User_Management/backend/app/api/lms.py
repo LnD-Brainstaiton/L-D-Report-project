@@ -192,3 +192,28 @@ def generate_lms_course_summary_report(
     if not report:
         raise HTTPException(status_code=404, detail="Course not found")
     return report
+
+@router.get("/enrollments")
+async def get_lms_enrollments_updated_since(
+    updated_since: Optional[int] = Query(None, description="Unix timestamp - only return enrollments created/updated after this time"),
+    db: Session = Depends(get_db),
+    current_admin: Dict[str, Any] = Depends(get_current_admin)
+):
+    """
+    Get enrollments that were created or updated after the specified timestamp.
+    
+    Note: Moodle API doesn't provide updated_since filtering, so this is implemented
+    using our local database. Filters by enrollment_time (timecreated) or updated_at (timemodified).
+    """
+    try:
+        enrollments = LMSDataService.get_enrollments_updated_since(db, updated_since)
+        
+        return {
+            "enrollments": enrollments,
+            "count": len(enrollments),
+            "synced_after": updated_since if updated_since else None,
+            "message": f"Found {len(enrollments)} enrollment(s)" + (f" updated since {updated_since}" if updated_since else "")
+        }
+    except Exception as e:
+        logger.error(f"Error fetching enrollments: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error fetching enrollments: {str(e)}")
