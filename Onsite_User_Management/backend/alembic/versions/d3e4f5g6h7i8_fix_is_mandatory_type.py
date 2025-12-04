@@ -25,7 +25,11 @@ def upgrade() -> None:
     op.execute("""
         ALTER TABLE lms_user_courses 
         ALTER COLUMN is_mandatory TYPE INTEGER 
-        USING CASE WHEN is_mandatory = true THEN 1 ELSE 0 END
+        USING CASE 
+            WHEN is_mandatory::text = 'true' THEN 1 
+            WHEN is_mandatory::text = '1' THEN 1
+            ELSE 0 
+        END
     """)
     
     # Set default to 0 and make not null
