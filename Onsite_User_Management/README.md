@@ -38,15 +38,33 @@ The project is divided into two main components:
 > [!TIP]
 > For a comprehensive, file-by-file breakdown of the entire project, please refer to [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md).
 
-## Docker Setup (Recommended)
+## Quick Start (Docker)
 
-**The easiest way to run the entire application is using Docker:**
+**The recommended way to run the application is using Docker Compose.**
 
-1. Create `.env` file from `.env.example`
-2. Run: `docker compose up --build`
-3. Access frontend at http://localhost:3000 and backend at http://localhost:8000
+1.  **Clone the repository:**
+    ```bash
+    git clone https://github.com/LnD-Brainstaiton/L-D-Report-project.git
+    cd L-D-Report-project/Onsite_User_Management
+    ```
 
-See [DOCKER_SETUP.md](DOCKER_SETUP.md) for detailed Docker instructions.
+2.  **Configure Environment:**
+    ```bash
+    cp .env.example .env
+    # Edit .env with your credentials (database, admin email, etc.)
+    ```
+
+3.  **Run with Docker:**
+    ```bash
+    docker compose -f docker-compose.prod.yml up -d --build
+    ```
+
+4.  **Access Application:**
+    - Frontend: http://localhost:3000 (or your server IP)
+    - Backend API: http://localhost:8000
+    - API Docs: http://localhost:8000/docs
+
+See [SETUP_INSTRUCTIONS.md](SETUP_INSTRUCTIONS.md) for detailed deployment guide.
 
 ## MVP Setup Instructions (Local Development)
 

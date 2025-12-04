@@ -87,26 +87,8 @@ alembic/versions/*.pyc
 RESUME_SUMMARY.md
 TECH_STACK_AND_FEATURES.md
 
-#API Docs
-API.md
-
 # Test/Debug Scripts (may contain sensitive data)
 test_*.py
 view_*.py
 clear_*.py
-
-# API Tests
-Onsite_User_Management/backend/check_lms_api_enrollment_time.py
-Onsite_User_Management/backend/check_progress_status.py
-Onsite_User_Management/backend/check_specific_time.py
-Onsite_User_Management/backend/check_user_times.py
-Onsite_User_Management/backend/debug_course_data.py
-Onsite_User_Management/backend/explain_enrollment_vs_firstaccess.py
-Onsite_User_Management/backend/format_course_times.py
-Onsite_User_Management/backend/run_enrollment_sync.py
-Onsite_User_Management/backend/run_progress_sync.py
-Onsite_User_Management/backend/show_query_parameters.py
-Onsite_User_Management/backend/test_lms_apis_README.md
-Onsite_User_Management/backend/trigger_sync.py
-Onsite_User_Management/backend/app/services/reporting/course_reports.py
 
