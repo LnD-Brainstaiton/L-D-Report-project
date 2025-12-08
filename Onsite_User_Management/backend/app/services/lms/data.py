@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 import logging
@@ -186,7 +187,11 @@ class LMSDataService:
                         if not username or not username.upper().startswith("BS"):
                             continue
                         
-                        student = db.query(Student).filter(Student.employee_id == username).first()
+                        # Case-insensitive lookup for student
+                        # ERP stores as 'BSxxxx', LMS returns 'bsxxxx'
+                        student = db.query(Student).filter(
+                            func.lower(Student.employee_id) == username.lower()
+                        ).first()
                         if not student:
                             continue
                         

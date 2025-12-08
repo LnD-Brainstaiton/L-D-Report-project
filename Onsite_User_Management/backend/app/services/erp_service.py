@@ -340,8 +340,11 @@ class ERPService:
             db.commit()
         except Exception as e:
             db.rollback()
-            logger.error(f"Error committing employee sync: {str(e)}")
-            raise
+            error_msg = f"Error committing employee sync: {str(e)}"
+            logger.error(error_msg)
+            stats["errors"].append(error_msg)
+            # Don't raise, just return stats with error
+            return stats
             
         return stats
     

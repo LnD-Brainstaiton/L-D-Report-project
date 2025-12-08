@@ -265,13 +265,20 @@ class LMSService:
                     if cat_id and cat_id not in category_map:
                         category_ids.add(cat_id)
                 
-                # Try to fetch category info using core_course_get_courses_by_field for a few courses
+                # Try to fetch category info using core_course_get_courses_by_field for each unique category
                 # This will give us categoryname in the response
-                for course in courses[:20]:  # Try first 20 courses
+                logger.info(f"Fallback: Resolving names for {len(category_ids)} unique categories...")
+                
+                # Create a map of category_id -> sample_course_id
+                cat_to_course = {}
+                for course in courses:
+                    cat_id = course.get("categoryid")
                     course_id = course.get("id")
-                    if not course_id:
-                        continue
-                    
+                    if cat_id and course_id and cat_id not in category_map and cat_id not in cat_to_course:
+                        cat_to_course[cat_id] = course_id
+                
+                # Fetch details for one course per category to get the category name
+                for cat_id, course_id in cat_to_course.items():
                     try:
                         params = {
                             "wstoken": settings.LMS_TOKEN,
@@ -287,13 +294,12 @@ class LMSService:
                         
                         if "exception" not in data and "courses" in data and len(data["courses"]) > 0:
                             course_data = data["courses"][0]
-                            cat_id = course_data.get("categoryid")
                             cat_name = course_data.get("categoryname")
-                            if cat_id and cat_name:
+                            if cat_name:
                                 category_map[cat_id] = cat_name
                                 
                     except Exception as e:
-                        logger.debug(f"Failed to fetch category for course {course_id}: {str(e)}")
+                        logger.debug(f"Failed to fetch category {cat_id} via course {course_id}: {str(e)}")
                         continue
                 
                 if category_map:
